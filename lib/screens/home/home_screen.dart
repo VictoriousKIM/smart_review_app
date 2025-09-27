@@ -7,8 +7,6 @@ import '../../models/user.dart' as app_user;
 import '../../models/campaign.dart';
 import '../../models/api_response.dart';
 import '../../widgets/campaign_card.dart';
-import '../../widgets/bottom_navigation.dart';
-import '../profile/profile_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -18,8 +16,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _currentIndex = 0;
-
   @override
   void initState() {
     super.initState();
@@ -36,27 +32,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final popularCampaigns = ref.watch(popularCampaignsProvider(limit: 5));
     final newCampaigns = ref.watch(newCampaignsProvider(limit: 5));
 
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          // 홈 탭
-          _buildHomeTab(user, campaigns, popularCampaigns, newCampaigns),
-          // 캠페인 탭
-          _buildCampaignTab(campaigns),
-          // 프로필 탭
-          _buildProfileTab(user),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigation(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-      ),
-    );
+    return _buildHomeTab(user, campaigns, popularCampaigns, newCampaigns);
   }
 
   Widget _buildHomeTab(
@@ -252,41 +228,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildCampaignTab(AsyncValue<List<Campaign>> campaigns) {
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.read(campaignProvider.notifier).refreshCampaigns();
-      },
-      child: campaigns.when(
-        data: (data) => data.isEmpty
-            ? const Center(child: Text('캠페인이 없습니다'))
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: data.length,
-                itemBuilder: (context, index) {
-                  final campaign = data[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: CampaignCard(
-                      campaign: campaign,
-                      onTap: () => _navigateToCampaignDetail(campaign.id),
-                    ),
-                  );
-                },
-              ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('오류: $error')),
-      ),
-    );
-  }
-
-  Widget _buildProfileTab(AsyncValue<app_user.User?> user) {
-    return user.when(
-      data: (userData) => ProfileScreen(user: userData),
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text('오류: $error')),
-    );
-  }
 
   Widget _buildSection({required String title, required Widget child}) {
     return Column(
