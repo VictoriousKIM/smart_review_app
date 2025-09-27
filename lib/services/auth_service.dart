@@ -97,27 +97,46 @@ class AuthService {
   // Kakao 로그인
   Future<app_user.User?> signInWithKakao() async {
     try {
-      // 카카오 로그인 실행
-      final kakao.OAuthToken token = await kakao.UserApi.instance
-          .loginWithKakaoTalk();
-
-      // Supabase에 카카오 사용자 정보로 로그인
-      final response = await _supabase.auth.signInWithIdToken(
-        provider: OAuthProvider.kakao,
-        idToken: token.idToken!, // idToken 사용
-        accessToken: token.accessToken,
-      );
-
-      if (response.user != null) {
-        // 소셜 로그인인 경우 빈 display_name으로 프로필 생성 (SignupScreen으로 리디렉션)
-        await _ensureUserProfile(
-          response.user!,
-          '', // 빈 display_name으로 설정하여 SignupScreen으로 리디렉션
-          app_user.UserType.reviewer, // 기본값 설정
+      if (kIsWeb) {
+        // 웹에서는 Supabase OAuth 사용
+        await _supabase.auth.signInWithOAuth(
+          OAuthProvider.kakao,
+          authScreenLaunchMode: LaunchMode.inAppWebView,
         );
-        return app_user.User.fromSupabaseUser(response.user!);
+
+        final user = await currentUser;
+        if (user != null) {
+          // 소셜 로그인인 경우 빈 display_name으로 프로필 생성 (SignupScreen으로 리디렉션)
+          await _ensureUserProfile(
+            _supabase.auth.currentUser!,
+            '', // 빈 display_name으로 설정하여 SignupScreen으로 리디렉션
+            app_user.UserType.reviewer, // 기본값 설정
+          );
+        }
+        return user;
+      } else {
+        // 네이티브 앱에서는 카카오 SDK 사용
+        final kakao.OAuthToken token = await kakao.UserApi.instance
+            .loginWithKakaoTalk();
+
+        // Supabase에 카카오 사용자 정보로 로그인
+        final response = await _supabase.auth.signInWithIdToken(
+          provider: OAuthProvider.kakao,
+          idToken: token.idToken!, // idToken 사용
+          accessToken: token.accessToken,
+        );
+
+        if (response.user != null) {
+          // 소셜 로그인인 경우 빈 display_name으로 프로필 생성 (SignupScreen으로 리디렉션)
+          await _ensureUserProfile(
+            response.user!,
+            '', // 빈 display_name으로 설정하여 SignupScreen으로 리디렉션
+            app_user.UserType.reviewer, // 기본값 설정
+          );
+          return app_user.User.fromSupabaseUser(response.user!);
+        }
+        return null;
       }
-      return null;
     } catch (e) {
       throw Exception('Kakao 로그인 실패: $e');
     }
