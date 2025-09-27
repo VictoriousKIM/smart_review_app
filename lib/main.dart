@@ -3,10 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/supabase_config.dart';
 import 'config/app_router.dart';
 import 'utils/auth_state_observer.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  usePathUrlStrategy();
   // Supabase 초기화
   await SupabaseConfig.initialize();
 

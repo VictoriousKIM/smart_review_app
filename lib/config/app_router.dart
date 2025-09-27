@@ -68,7 +68,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/campaigns',
             name: 'campaigns',
-            builder: (context, state) => const Scaffold(body: Center(child: Text('Campaigns Screen'))), // TODO: 캠페인 목록 화면으로 교체
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Campaigns Screen')),
+            ), // TODO: 캠페인 목록 화면으로 교체
           ),
           GoRoute(
             path: '/profile',
