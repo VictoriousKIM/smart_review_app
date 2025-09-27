@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user.dart' as app_user;
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
-import '../home/home_screen.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   final bool isSocialLogin;
@@ -27,7 +27,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     // 소셜 로그인인 경우 현재 사용자 정보로 초기화
     if (widget.isSocialLogin) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final authState = ref.read(authProvider);
+        final authState = ref.read(currentUserProvider);
         authState.when(
           data: (user) {
             if (user != null && user.displayName != null) {
@@ -68,9 +68,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       }
 
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        context.go('/home');
       }
     } catch (e) {
       if (mounted) {
@@ -94,7 +92,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             ? null
             : IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => context.pop(),
               ),
       ),
       body: SafeArea(
@@ -222,7 +220,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                       TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => context.pop(),
                         child: const Text('로그인'),
                       ),
                     ],

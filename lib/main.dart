@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/supabase_config.dart';
-import 'screens/splash_screen.dart';
-import 'screens/auth/login_screen.dart';
+import 'config/app_router.dart';
+import 'utils/auth_state_observer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,34 +21,46 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Smart Review',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6366F1),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+    return Consumer(
+      builder: (context, ref, child) {
+        final router = ref.watch(appRouterProvider);
+
+        return AuthStateObserver(
+          child: MaterialApp.router(
+            title: 'Smart Review',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFF6366F1),
+                brightness: Brightness.light,
+              ),
+              useMaterial3: true,
+              appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+              elevatedButtonTheme: ElevatedButtonThemeData(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              inputDecorationTheme: InputDecorationTheme(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
             ),
+            routerConfig: router,
           ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
-        ),
-      ),
-      home: const SplashScreen(),
-      routes: {'/login': (context) => const LoginScreen()},
+        );
+      },
     );
   }
 }

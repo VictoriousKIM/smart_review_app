@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/campaign_provider.dart';
 import '../../models/user.dart' as app_user;
@@ -7,7 +8,6 @@ import '../../models/campaign.dart';
 import '../../models/api_response.dart';
 import '../../widgets/campaign_card.dart';
 import '../../widgets/bottom_navigation.dart';
-import '../campaign/campaign_detail_screen.dart';
 import '../profile/profile_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -308,10 +308,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _navigateToCampaignDetail(String campaignId) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => CampaignDetailScreen(campaignId: campaignId),
-      ),
-    );
+    context.push('/campaign/$campaignId');
   }
 }

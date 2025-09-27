@@ -9,12 +9,10 @@ part 'auth_provider.g.dart';
 AuthService authService(Ref ref) => AuthService();
 
 // 현재 사용자 Provider
-@Riverpod(keepAlive: true)
+@riverpod
 Stream<app_user.User?> currentUser(Ref ref) {
   final authService = ref.watch(authServiceProvider);
-  return authService.authStateChanges.map((user) {
-    return user;
-  });
+  return authService.authStateChanges;
 }
 
 // 로그인 상태 Provider
@@ -52,12 +50,22 @@ class AuthNotifier extends _$AuthNotifier {
 
   Future<void> signInWithGoogle() async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _authService.signInWithGoogle());
+    try {
+      await _authService.signInWithGoogle();
+      // 성공 시 상태는 authStateChanges에서 자동으로 업데이트됨
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
+    }
   }
 
   Future<void> signInWithKakao() async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _authService.signInWithKakao());
+    try {
+      await _authService.signInWithKakao();
+      // 성공 시 상태는 authStateChanges에서 자동으로 업데이트됨
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
+    }
   }
 
   Future<void> signOut() async {

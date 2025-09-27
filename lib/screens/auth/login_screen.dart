@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
-import 'signup_screen.dart';
-import '../home/home_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -35,23 +34,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         // 잠시 기다린 후 사용자 데이터를 확인
         await Future.delayed(const Duration(milliseconds: 500));
 
-        final authState = ref.read(authProvider);
+        final authState = ref.read(currentUserProvider);
         authState.when(
           data: (user) {
             if (user != null) {
               // 사용자 프로필이 완전하지 않으면 추가 정보 입력 화면으로 이동
               if (user.displayName == null || user.displayName!.isEmpty) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const SignupScreen(isSocialLogin: true),
-                  ),
-                );
+                context.go('/signup?social=true');
               } else {
                 // 프로필이 완전하면 홈 화면으로 이동
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const HomeScreen()),
-                );
+                context.go('/home');
               }
             }
           },
@@ -59,24 +51,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             // 로딩 중이면 잠시 더 기다린 후 다시 확인
             Future.delayed(const Duration(milliseconds: 1000), () {
               if (mounted) {
-                final authState = ref.read(authProvider);
+                final authState = ref.read(currentUserProvider);
                 authState.when(
                   data: (user) {
                     if (user != null) {
                       if (user.displayName == null ||
                           user.displayName!.isEmpty) {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const SignupScreen(isSocialLogin: true),
-                          ),
-                        );
+                        context.go('/signup?social=true');
                       } else {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (context) => const HomeScreen(),
-                          ),
-                        );
+                        context.go('/home');
                       }
                     }
                   },

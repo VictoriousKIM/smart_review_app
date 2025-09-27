@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:html' as html;
+import 'package:go_router/go_router.dart';
 import '../../models/user.dart' as app_user;
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
-import '../splash_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   final app_user.User? user;
@@ -276,14 +275,13 @@ class ProfileScreen extends ConsumerWidget {
         title: const Text('로그아웃'),
         content: const Text('정말 로그아웃하시겠습니까?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('취소'),
-          ),
+          TextButton(onPressed: () => context.pop(), child: const Text('취소')),
           TextButton(
             onPressed: () async {
-              Navigator.of(context).pop();
+              context.pop();
               await ref.read(authProvider.notifier).signOut();
+              // 로그아웃 후 로그인 페이지로 이동
+              context.go('/login');
             },
             child: const Text('로그아웃'),
           ),

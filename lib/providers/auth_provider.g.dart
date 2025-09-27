@@ -67,7 +67,7 @@ final class CurrentUserProvider
         argument: null,
         retry: null,
         name: r'currentUserProvider',
-        isAutoDispose: false,
+        isAutoDispose: true,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -87,7 +87,7 @@ final class CurrentUserProvider
   }
 }
 
-String _$currentUserHash() => r'a5ebb6f538e1041ff3790c9d9ed931d77ab4deb4';
+String _$currentUserHash() => r'a415615e8937881062916eca7bd9f04f7f3ca0fb';
 
 @ProviderFor(isLoggedIn)
 const isLoggedInProvider = IsLoggedInProvider._();
@@ -200,7 +200,7 @@ final class AuthNotifierProvider
   AuthNotifier create() => AuthNotifier();
 }
 
-String _$authNotifierHash() => r'e44179f0d1cebcc80b507e738b9a189baa748823';
+String _$authNotifierHash() => r'2b212242e8626d20dbac694eb1a5ef912e6afc60';
 
 abstract class _$AuthNotifier extends $StreamNotifier<app_user.User?> {
   Stream<app_user.User?> build();
