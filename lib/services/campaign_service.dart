@@ -31,17 +31,8 @@ class CampaignService {
 
       final response = await query;
 
-      // 데이터베이스 스키마에 맞게 JSON 변환
       final campaigns = (response as List)
-          .map((json) {
-            // reward 객체 생성
-            json['reward'] = {
-              'points': json['reward_points'] ?? 0,
-              'type': json['reward_type'] ?? 'points',
-              'description': json['reward_description'] ?? '',
-            };
-            return Campaign.fromJson(json);
-          })
+          .map((json) => Campaign.fromJson(json))
           .toList();
 
       return ApiResponse<List<Campaign>>(success: true, data: campaigns);
@@ -58,13 +49,6 @@ class CampaignService {
           .select()
           .eq('id', campaignId)
           .single();
-
-      // reward 객체 생성
-      response['reward'] = {
-        'points': response['reward_points'] ?? 0,
-        'type': response['reward_type'] ?? 'points',
-        'description': response['reward_description'] ?? '',
-      };
 
       final campaign = Campaign.fromJson(response);
 
@@ -87,14 +71,7 @@ class CampaignService {
           .limit(limit);
 
       final campaigns = (response as List)
-          .map((json) {
-            json['reward'] = {
-              'points': json['reward_points'] ?? 0,
-              'type': json['reward_type'] ?? 'points',
-              'description': json['reward_description'] ?? '',
-            };
-            return Campaign.fromJson(json);
-          })
+          .map((json) => Campaign.fromJson(json))
           .toList();
 
       return ApiResponse<List<Campaign>>(success: true, data: campaigns);
@@ -110,18 +87,11 @@ class CampaignService {
           .from('campaigns')
           .select()
           .eq('status', 'active')
-          .eq('type', 'new_')
+          .eq('type', 'new')
           .limit(limit);
 
       final campaigns = (response as List)
-          .map((json) {
-            json['reward'] = {
-              'points': json['reward_points'] ?? 0,
-              'type': json['reward_type'] ?? 'points',
-              'description': json['reward_description'] ?? '',
-            };
-            return Campaign.fromJson(json);
-          })
+          .map((json) => Campaign.fromJson(json))
           .toList();
 
       return ApiResponse<List<Campaign>>(success: true, data: campaigns);
@@ -150,14 +120,7 @@ class CampaignService {
       final response = await searchQuery;
 
       final campaigns = (response as List)
-          .map((json) {
-            json['reward'] = {
-              'points': json['reward_points'] ?? 0,
-              'type': json['reward_type'] ?? 'points',
-              'description': json['reward_description'] ?? '',
-            };
-            return Campaign.fromJson(json);
-          })
+          .map((json) => Campaign.fromJson(json))
           .toList();
 
       return ApiResponse<List<Campaign>>(success: true, data: campaigns);
