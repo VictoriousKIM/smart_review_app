@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/email_login_form.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -14,6 +15,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isGoogleLoading = false;
   bool _isKakaoLoading = false;
+  bool _showEmailForm = false;
 
   Future<void> _handleSocialSignIn(
     Future<void> Function() signInMethod,
@@ -158,30 +160,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
               ),
               const Spacer(flex: 3),
-              // Google 로그인
-              CustomButton(
-                text: 'Google로 로그인',
-                onPressed: (_isGoogleLoading || _isKakaoLoading)
-                    ? null
-                    : _signInWithGoogle,
-                isLoading: _isGoogleLoading,
-                backgroundColor: Colors.white,
-                textColor: Colors.black87,
-                borderColor: Colors.grey[300],
-                icon: Icons.g_mobiledata,
-              ),
-              const SizedBox(height: 12),
-              // Kakao 로그인
-              CustomButton(
-                text: 'Kakao로 로그인',
-                onPressed: (_isGoogleLoading || _isKakaoLoading)
-                    ? null
-                    : _signInWithKakao,
-                isLoading: _isKakaoLoading,
-                backgroundColor: const Color(0xFFFEE500),
-                textColor: Colors.black87,
-                icon: Icons.chat,
-              ),
+
+              // 이메일 로그인 폼이 표시되는 경우
+              if (_showEmailForm) ...[
+                const EmailLoginForm(),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _showEmailForm = false;
+                    });
+                  },
+                  child: const Text('소셜 로그인으로 돌아가기'),
+                ),
+              ] else ...[
+                // 소셜 로그인 버튼들
+                // Google 로그인
+                CustomButton(
+                  text: 'Google로 로그인',
+                  onPressed: (_isGoogleLoading || _isKakaoLoading)
+                      ? null
+                      : _signInWithGoogle,
+                  isLoading: _isGoogleLoading,
+                  backgroundColor: Colors.white,
+                  textColor: Colors.black87,
+                  borderColor: Colors.grey[300],
+                  icon: Icons.g_mobiledata,
+                ),
+                const SizedBox(height: 12),
+                // Kakao 로그인
+                CustomButton(
+                  text: 'Kakao로 로그인',
+                  onPressed: (_isGoogleLoading || _isKakaoLoading)
+                      ? null
+                      : _signInWithKakao,
+                  isLoading: _isKakaoLoading,
+                  backgroundColor: const Color(0xFFFEE500),
+                  textColor: Colors.black87,
+                  icon: Icons.chat,
+                ),
+                const SizedBox(height: 16),
+                // 이메일 로그인 버튼
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _showEmailForm = true;
+                    });
+                  },
+                  child: const Text('이메일로 로그인'),
+                ),
+              ],
               const Spacer(flex: 1),
             ],
           ),

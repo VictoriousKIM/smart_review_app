@@ -68,6 +68,30 @@ class AuthNotifier extends _$AuthNotifier {
     }
   }
 
+  Future<void> signInWithEmail(String email, String password) async {
+    state = const AsyncValue.loading();
+    try {
+      await _authService.signInWithEmail(email, password);
+      // 성공 시 상태는 authStateChanges에서 자동으로 업데이트됨
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
+    }
+  }
+
+  Future<void> signUpWithEmail(
+    String email,
+    String password,
+    String displayName,
+  ) async {
+    state = const AsyncValue.loading();
+    try {
+      await _authService.signUpWithEmail(email, password, displayName);
+      // 성공 시 상태는 authStateChanges에서 자동으로 업데이트됨
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
+    }
+  }
+
   Future<void> signOut() async {
     state = const AsyncValue.loading();
     await _authService.signOut();

@@ -72,7 +72,7 @@ class CampaignDetailScreen extends ConsumerWidget {
         children: [
           // 이미지
           CachedNetworkImage(
-            imageUrl: campaign.imageUrl,
+            imageUrl: campaign.productImageUrl,
             width: double.infinity,
             height: 250,
             fit: BoxFit.cover,
@@ -93,9 +93,9 @@ class CampaignDetailScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 브랜드
+                // 플랫폼
                 Text(
-                  campaign.brand,
+                  _getPlatformName(campaign.platform),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w600,
@@ -160,7 +160,7 @@ class CampaignDetailScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${campaign.reward.points}P',
+                              '${campaign.reviewReward}P',
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: Theme.of(
@@ -188,12 +188,14 @@ class CampaignDetailScreen extends ConsumerWidget {
                   _buildInfoItem(
                     context,
                     '마감일',
-                    _formatDeadline(campaign.deadline),
+                    campaign.endDate != null
+                        ? _formatDeadline(campaign.endDate!)
+                        : '상시',
                   ),
                   _buildInfoItem(
                     context,
                     '참여자 수',
-                    '${campaign.participantCount}명',
+                    '${campaign.currentParticipants}명',
                   ),
                   if (campaign.maxParticipants != null)
                     _buildInfoItem(
@@ -203,41 +205,42 @@ class CampaignDetailScreen extends ConsumerWidget {
                     ),
                 ]),
 
-                if (campaign.requirements.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  _buildInfoSection(
-                    context,
-                    '참여 조건',
-                    campaign.requirements
-                        .map((req) => _buildInfoItem(context, '', '• $req'))
-                        .toList(),
-                  ),
-                ],
+                // 참여 조건 (새로운 모델에서는 requirements가 없으므로 제거)
+                // if (campaign.requirements.isNotEmpty) ...[
+                //   const SizedBox(height: 24),
+                //   _buildInfoSection(
+                //     context,
+                //     '참여 조건',
+                //     campaign.requirements
+                //         .map((req) => _buildInfoItem(context, '', '• $req'))
+                //         .toList(),
+                //   ),
+                // ],
 
-                if (campaign.tags.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  _buildInfoSection(context, '태그', [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: campaign.tags
-                          .map(
-                            (tag) => Chip(
-                              label: Text(tag),
-                              backgroundColor: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.1),
-                              labelStyle: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontSize: 12,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ]),
-                ],
-
+                // 태그 (새로운 모델에서는 tags가 없으므로 제거)
+                // if (campaign.tags.isNotEmpty) ...[
+                //   const SizedBox(height: 24),
+                //   _buildInfoSection(context, '태그', [
+                //     Wrap(
+                //       spacing: 8,
+                //       runSpacing: 8,
+                //       children: campaign.tags
+                //           .map(
+                //             (tag) => Chip(
+                //               label: Text(tag),
+                //               backgroundColor: Theme.of(
+                //                 context,
+                //               ).colorScheme.primary.withValues(alpha: 0.1),
+                //               labelStyle: TextStyle(
+                //                 color: Theme.of(context).colorScheme.primary,
+                //                 fontSize: 12,
+                //               ),
+                //             ),
+                //           )
+                //           .toList(),
+                //     ),
+                //   ]),
+                // ],
                 const SizedBox(height: 32),
 
                 // 참여 버튼
@@ -314,12 +317,29 @@ class CampaignDetailScreen extends ConsumerWidget {
 
   String _getCategoryName(CampaignCategory category) {
     switch (category) {
-      case CampaignCategory.product:
-        return '제품';
-      case CampaignCategory.place:
-        return '장소';
-      case CampaignCategory.service:
-        return '서비스';
+      case CampaignCategory.all:
+        return '전체';
+      case CampaignCategory.reviewer:
+        return '리뷰어';
+      case CampaignCategory.press:
+        return '기자단';
+      case CampaignCategory.visit:
+        return '방문형';
+    }
+  }
+
+  String _getPlatformName(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'coupang':
+        return '쿠팡';
+      case 'naver':
+        return '네이버 쇼핑';
+      case '11st':
+        return '11번가';
+      case 'visit':
+        return '방문형';
+      default:
+        return platform;
     }
   }
 

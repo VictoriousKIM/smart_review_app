@@ -2,37 +2,48 @@ class Campaign {
   final String id;
   final String title;
   final String description;
-  final String imageUrl;
-  final String brand;
+  final String productImageUrl;
+  final String platform;
+  final String platformLogoUrl;
   final CampaignCategory category;
   final CampaignType type;
-  final Reward reward;
-  final DateTime deadline;
-  final int participantCount;
+  final int productPrice;
+  final int reviewReward;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final int currentParticipants;
   final int? maxParticipants;
   final CampaignStatus status;
-  final List<String> requirements;
-  final List<String> tags;
   final DateTime createdAt;
-  final DateTime updatedAt;
+
+  // 템플릿 기능을 위한 새로운 필드들
+  final bool isTemplate;
+  final String? templateName;
+  final DateTime? lastUsedAt;
+  final int usageCount;
 
   Campaign({
     required this.id,
     required this.title,
     required this.description,
-    required this.imageUrl,
-    required this.brand,
+    required this.productImageUrl,
+    required this.platform,
+    required this.platformLogoUrl,
     required this.category,
     required this.type,
-    required this.reward,
-    required this.deadline,
-    this.participantCount = 0,
+    required this.productPrice,
+    required this.reviewReward,
+    this.startDate,
+    this.endDate,
+    this.currentParticipants = 0,
     this.maxParticipants,
     this.status = CampaignStatus.active,
-    this.requirements = const [],
-    this.tags = const [],
     required this.createdAt,
-    required this.updatedAt,
+    // 새로운 필드들의 기본값 설정
+    this.isTemplate = false,
+    this.templateName,
+    this.lastUsedAt,
+    this.usageCount = 0,
   });
 
   factory Campaign.fromJson(Map<String, dynamic> json) {
@@ -40,41 +51,41 @@ class Campaign {
       id: json['id'] ?? '',
       title: json['title'] ?? '',
       description: json['description'] ?? '',
-      imageUrl: json['image_url'] ?? json['imageUrl'] ?? '',
-      brand: json['brand'] ?? '',
+      productImageUrl: json['product_image_url'] ?? '',
+      platform: json['platform'] ?? '',
+      platformLogoUrl: json['platform_logo_url'] ?? '',
       category: CampaignCategory.values.firstWhere(
-        (e) => e.name == (json['category'] ?? 'product'),
-        orElse: () => CampaignCategory.product,
+        (e) => e.name == (json['category'] ?? 'all'),
+        orElse: () => CampaignCategory.all,
       ),
       type: CampaignType.values.firstWhere(
-        (e) => e.name == (json['type'] ?? 'ongoing'),
-        orElse: () => CampaignType.ongoing,
+        (e) => e.name == (json['type'] ?? 'reviewer'),
+        orElse: () => CampaignType.reviewer,
       ),
-      reward: Reward.fromJson(json['reward'] ?? {}),
-      deadline: DateTime.parse(
-        json['deadline'] ??
-            json['end_date'] ??
-            DateTime.now().toIso8601String(),
-      ),
-      participantCount:
-          json['participant_count'] ?? json['participantCount'] ?? 0,
-      maxParticipants: json['max_participants'] ?? json['maxParticipants'],
+      productPrice: json['product_price'] ?? 0,
+      reviewReward: json['review_reward'] ?? 0,
+      startDate: json['start_date'] != null
+          ? DateTime.parse(json['start_date'])
+          : null,
+      endDate: json['end_date'] != null
+          ? DateTime.parse(json['end_date'])
+          : null,
+      currentParticipants: json['current_participants'] ?? 0,
+      maxParticipants: json['max_participants'],
       status: CampaignStatus.values.firstWhere(
         (e) => e.name == (json['status'] ?? 'active'),
         orElse: () => CampaignStatus.active,
       ),
-      requirements: List<String>.from(json['requirements'] ?? []),
-      tags: List<String>.from(json['tags'] ?? []),
       createdAt: DateTime.parse(
-        json['created_at'] ??
-            json['createdAt'] ??
-            DateTime.now().toIso8601String(),
+        json['created_at'] ?? DateTime.now().toIso8601String(),
       ),
-      updatedAt: DateTime.parse(
-        json['updated_at'] ??
-            json['updatedAt'] ??
-            DateTime.now().toIso8601String(),
-      ),
+      // 새로운 필드들 처리 (안전한 기본값 설정)
+      isTemplate: json['is_template'] ?? false,
+      templateName: json['template_name'],
+      lastUsedAt: json['last_used_at'] != null
+          ? DateTime.parse(json['last_used_at'])
+          : null,
+      usageCount: json['usage_count'] ?? 0,
     );
   }
 
@@ -83,19 +94,24 @@ class Campaign {
       'id': id,
       'title': title,
       'description': description,
-      'image_url': imageUrl,
-      'brand': brand,
+      'product_image_url': productImageUrl,
+      'platform': platform,
+      'platform_logo_url': platformLogoUrl,
       'category': category.name,
       'type': type.name,
-      'reward': reward.toJson(),
-      'deadline': deadline.toIso8601String(),
-      'participant_count': participantCount,
+      'product_price': productPrice,
+      'review_reward': reviewReward,
+      'start_date': startDate?.toIso8601String(),
+      'end_date': endDate?.toIso8601String(),
+      'current_participants': currentParticipants,
       'max_participants': maxParticipants,
       'status': status.name,
-      'requirements': requirements,
-      'tags': tags,
       'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      // 새로운 필드들 추가
+      'is_template': isTemplate,
+      'template_name': templateName,
+      'last_used_at': lastUsedAt?.toIso8601String(),
+      'usage_count': usageCount,
     };
   }
 
@@ -103,68 +119,53 @@ class Campaign {
     String? id,
     String? title,
     String? description,
-    String? imageUrl,
-    String? brand,
+    String? productImageUrl,
+    String? platform,
+    String? platformLogoUrl,
     CampaignCategory? category,
     CampaignType? type,
-    Reward? reward,
-    DateTime? deadline,
-    int? participantCount,
+    int? productPrice,
+    int? reviewReward,
+    DateTime? startDate,
+    DateTime? endDate,
+    int? currentParticipants,
     int? maxParticipants,
     CampaignStatus? status,
-    List<String>? requirements,
-    List<String>? tags,
     DateTime? createdAt,
-    DateTime? updatedAt,
+    // 새로운 필드들 추가
+    bool? isTemplate,
+    String? templateName,
+    DateTime? lastUsedAt,
+    int? usageCount,
   }) {
     return Campaign(
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
-      imageUrl: imageUrl ?? this.imageUrl,
-      brand: brand ?? this.brand,
+      productImageUrl: productImageUrl ?? this.productImageUrl,
+      platform: platform ?? this.platform,
+      platformLogoUrl: platformLogoUrl ?? this.platformLogoUrl,
       category: category ?? this.category,
       type: type ?? this.type,
-      reward: reward ?? this.reward,
-      deadline: deadline ?? this.deadline,
-      participantCount: participantCount ?? this.participantCount,
+      productPrice: productPrice ?? this.productPrice,
+      reviewReward: reviewReward ?? this.reviewReward,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      currentParticipants: currentParticipants ?? this.currentParticipants,
       maxParticipants: maxParticipants ?? this.maxParticipants,
       status: status ?? this.status,
-      requirements: requirements ?? this.requirements,
-      tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
+      // 새로운 필드들 처리
+      isTemplate: isTemplate ?? this.isTemplate,
+      templateName: templateName ?? this.templateName,
+      lastUsedAt: lastUsedAt ?? this.lastUsedAt,
+      usageCount: usageCount ?? this.usageCount,
     );
   }
 }
 
-enum CampaignCategory { product, place, service }
+enum CampaignCategory { all, reviewer, press, visit }
 
-enum CampaignType { popular, new_, ongoing }
+enum CampaignType { reviewer, press, visit }
 
 enum CampaignStatus { active, completed, upcoming }
-
-class Reward {
-  final int points;
-  final RewardType type;
-  final String description;
-
-  Reward({required this.points, required this.type, required this.description});
-
-  factory Reward.fromJson(Map<String, dynamic> json) {
-    return Reward(
-      points: json['points'] ?? 0,
-      type: RewardType.values.firstWhere(
-        (e) => e.name == (json['type'] ?? 'points'),
-        orElse: () => RewardType.points,
-      ),
-      description: json['description'] ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'points': points, 'type': type.name, 'description': description};
-  }
-}
-
-enum RewardType { points, product, coupon }

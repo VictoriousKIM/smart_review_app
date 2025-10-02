@@ -4,26 +4,30 @@ class User {
   final String uid;
   final String email;
   final String? displayName;
-  final String? photoURL;
   final DateTime createdAt;
   final DateTime updatedAt;
   final int points;
   final int level;
   final int reviewCount;
   final UserType userType;
+  final bool isAdvertiserVerified;
+  final String? companyId;
+  final CompanyRole? companyRole;
   final SNSConnections? snsConnections;
 
   User({
     required this.uid,
     required this.email,
     this.displayName,
-    this.photoURL,
     required this.createdAt,
     required this.updatedAt,
     this.points = 0,
     this.level = 1,
     this.reviewCount = 0,
-    this.userType = UserType.reviewer,
+    this.userType = UserType.user,
+    this.isAdvertiserVerified = false,
+    this.companyId,
+    this.companyRole,
     this.snsConnections,
   });
 
@@ -33,13 +37,20 @@ class User {
       uid: user.id,
       email: user.email ?? '',
       displayName: metadata['display_name'] ?? metadata['name'],
-      photoURL: metadata['photo_url'] ?? metadata['avatar_url'],
       createdAt: DateTime.parse(user.createdAt),
       updatedAt: DateTime.parse(user.updatedAt ?? user.createdAt),
       userType: UserType.values.firstWhere(
         (e) => e.name == metadata['user_type'],
-        orElse: () => UserType.reviewer,
+        orElse: () => UserType.user,
       ),
+      isAdvertiserVerified: metadata['is_advertiser_verified'] ?? false,
+      companyId: metadata['company_id'],
+      companyRole: metadata['company_role'] != null
+          ? CompanyRole.values.firstWhere(
+              (e) => e.name == metadata['company_role'],
+              orElse: () => CompanyRole.manager,
+            )
+          : null,
       // 아래 필드들은 Supabase User 객체에 없으므로 기본값 또는 별도 로직 필요
       points: 0,
       level: 1,
@@ -57,8 +68,6 @@ class User {
       uid: supabaseUser.id,
       email: supabaseUser.email ?? '',
       displayName: profileData['display_name'],
-      photoURL:
-          profileData['photo_url'] ?? supabaseUser.userMetadata?['avatar_url'],
       createdAt: DateTime.parse(profileData['created_at']),
       updatedAt: DateTime.parse(profileData['updated_at']),
       points: profileData['points'] ?? 0,
@@ -66,8 +75,16 @@ class User {
       reviewCount: profileData['review_count'] ?? 0,
       userType: UserType.values.firstWhere(
         (e) => e.name == profileData['user_type'],
-        orElse: () => UserType.reviewer,
+        orElse: () => UserType.user,
       ),
+      isAdvertiserVerified: profileData['is_advertiser_verified'] ?? false,
+      companyId: profileData['company_id'],
+      companyRole: profileData['company_role'] != null
+          ? CompanyRole.values.firstWhere(
+              (e) => e.name == profileData['company_role'],
+              orElse: () => CompanyRole.manager,
+            )
+          : null,
       snsConnections: profileData['sns_connections'] != null
           ? SNSConnections.fromJson(profileData['sns_connections'])
           : null,
@@ -79,7 +96,6 @@ class User {
       uid: json['id'] ?? json['uid'] ?? '',
       email: json['email'] ?? '',
       displayName: json['display_name'] ?? json['displayName'],
-      photoURL: json['photo_url'] ?? json['photoURL'],
       createdAt: DateTime.parse(json['created_at'] ?? json['createdAt']),
       updatedAt: DateTime.parse(json['updated_at'] ?? json['updatedAt']),
       points: json['points'] ?? 0,
@@ -87,8 +103,16 @@ class User {
       reviewCount: json['review_count'] ?? json['reviewCount'] ?? 0,
       userType: UserType.values.firstWhere(
         (e) => e.name == (json['user_type'] ?? json['userType']),
-        orElse: () => UserType.reviewer,
+        orElse: () => UserType.user,
       ),
+      isAdvertiserVerified: json['is_advertiser_verified'] ?? false,
+      companyId: json['company_id'],
+      companyRole: json['company_role'] != null
+          ? CompanyRole.values.firstWhere(
+              (e) => e.name == json['company_role'],
+              orElse: () => CompanyRole.manager,
+            )
+          : null,
       snsConnections: json['sns_connections'] != null
           ? SNSConnections.fromJson(json['sns_connections'])
           : null,
@@ -100,13 +124,15 @@ class User {
       'id': uid,
       'email': email,
       'display_name': displayName,
-      'photo_url': photoURL,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'points': points,
       'level': level,
       'review_count': reviewCount,
       'user_type': userType.name,
+      'is_advertiser_verified': isAdvertiserVerified,
+      'company_id': companyId,
+      'company_role': companyRole?.name,
       'sns_connections': snsConnections?.toJson(),
     };
   }
@@ -115,32 +141,44 @@ class User {
     String? uid,
     String? email,
     String? displayName,
-    String? photoURL,
     DateTime? createdAt,
     DateTime? updatedAt,
     int? points,
     int? level,
     int? reviewCount,
     UserType? userType,
+    bool? isAdvertiserVerified,
+    String? companyId,
+    CompanyRole? companyRole,
     SNSConnections? snsConnections,
   }) {
     return User(
       uid: uid ?? this.uid,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
-      photoURL: photoURL ?? this.photoURL,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       points: points ?? this.points,
       level: level ?? this.level,
       reviewCount: reviewCount ?? this.reviewCount,
       userType: userType ?? this.userType,
+      isAdvertiserVerified: isAdvertiserVerified ?? this.isAdvertiserVerified,
+      companyId: companyId ?? this.companyId,
+      companyRole: companyRole ?? this.companyRole,
       snsConnections: snsConnections ?? this.snsConnections,
     );
   }
 }
 
-enum UserType { advertiser, reviewer }
+enum UserType {
+  user, // 일반 사용자 (리뷰어)
+  admin, // 관리자
+}
+
+enum CompanyRole {
+  owner, // 회사 소유자
+  manager, // 회사 관리자
+}
 
 class SNSConnections {
   final SNSConnection? google;

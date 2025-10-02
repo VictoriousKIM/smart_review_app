@@ -19,7 +19,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
   bool _isLoading = false;
-  app_user.UserType _selectedUserType = app_user.UserType.reviewer;
+  app_user.UserType _selectedUserType = app_user.UserType.user;
+  bool _isAdvertiser = false;
 
   @override
   void initState() {
@@ -58,6 +59,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         await ref.read(authProvider.notifier).updateProfile({
           'display_name': _displayNameController.text.trim(),
           'user_type': _selectedUserType.name,
+          'is_advertiser_verified': _isAdvertiser,
         });
       } else {
         // 일반 회원가입 (현재는 사용하지 않음)
@@ -150,33 +152,44 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       return Colors.grey;
                     }),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: RadioListTile<app_user.UserType>(
-                          title: const Text('리뷰어'),
-                          subtitle: const Text('리뷰를 작성합니다'),
-                          value: app_user.UserType.reviewer,
-                          groupValue: _selectedUserType,
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedUserType = value!;
-                            });
-                          },
-                        ),
+                      RadioListTile<bool>(
+                        title: const Text('리뷰어'),
+                        subtitle: const Text('캠페인에 참여하여 리뷰를 작성합니다'),
+                        value: false,
+                        groupValue: _isAdvertiser,
+                        onChanged: (value) {
+                          setState(() {
+                            _isAdvertiser = value!;
+                            _selectedUserType =
+                                app_user.UserType.user; // 항상 user 타입
+                          });
+                        },
                       ),
-                      Expanded(
-                        child: RadioListTile<app_user.UserType>(
-                          title: const Text('광고주'),
-                          subtitle: const Text('캠페인을 관리합니다'),
-                          value: app_user.UserType.advertiser,
-                          groupValue: _selectedUserType,
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedUserType = value!;
-                            });
-                          },
-                        ),
+                      RadioListTile<bool>(
+                        title: const Text('광고주'),
+                        subtitle: const Text('캠페인을 생성하고 관리합니다'),
+                        value: true,
+                        groupValue: _isAdvertiser,
+                        onChanged: (value) {
+                          setState(() {
+                            _isAdvertiser = value!;
+                            _selectedUserType =
+                                app_user.UserType.user; // 항상 user 타입
+                          });
+                        },
+                      ),
+                      RadioListTile<app_user.UserType>(
+                        title: const Text('관리자'),
+                        subtitle: const Text('시스템 전체를 관리합니다'),
+                        value: app_user.UserType.admin,
+                        groupValue: _selectedUserType,
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedUserType = value!;
+                          });
+                        },
                       ),
                     ],
                   ),

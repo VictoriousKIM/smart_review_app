@@ -94,6 +94,57 @@ class AuthService {
     }
   }
 
+  // 이메일/비밀번호 로그인
+  Future<app_user.User?> signInWithEmail(String email, String password) async {
+    try {
+      final response = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        // 이메일 로그인인 경우 프로필 확인 및 생성
+        await _ensureUserProfile(
+          response.user!,
+          response.user!.userMetadata?['display_name'] ?? '',
+          app_user.UserType.user, // 기본값 설정
+        );
+        return app_user.User.fromSupabaseUser(response.user!);
+      }
+      return null;
+    } catch (e) {
+      throw Exception('이메일 로그인 실패: $e');
+    }
+  }
+
+  // 이메일/비밀번호 회원가입 (개발용)
+  Future<app_user.User?> signUpWithEmail(
+    String email,
+    String password,
+    String displayName,
+  ) async {
+    try {
+      final response = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {'display_name': displayName},
+      );
+
+      if (response.user != null) {
+        // 회원가입 후 프로필 생성
+        await _ensureUserProfile(
+          response.user!,
+          displayName,
+          app_user.UserType.user, // 기본값 설정
+        );
+        return app_user.User.fromSupabaseUser(response.user!);
+      }
+      return null;
+    } catch (e) {
+      throw Exception('이메일 회원가입 실패: $e');
+    }
+  }
+
   // Kakao 로그인
   Future<app_user.User?> signInWithKakao() async {
     try {
@@ -110,7 +161,7 @@ class AuthService {
           await _ensureUserProfile(
             _supabase.auth.currentUser!,
             '', // 빈 display_name으로 설정하여 SignupScreen으로 리디렉션
-            app_user.UserType.reviewer, // 기본값 설정
+            app_user.UserType.user, // 기본값 설정
           );
         }
         return user;
@@ -131,7 +182,7 @@ class AuthService {
           await _ensureUserProfile(
             response.user!,
             '', // 빈 display_name으로 설정하여 SignupScreen으로 리디렉션
-            app_user.UserType.reviewer, // 기본값 설정
+            app_user.UserType.user, // 기본값 설정
           );
           return app_user.User.fromSupabaseUser(response.user!);
         }
@@ -179,7 +230,6 @@ class AuthService {
         'id': user.id,
         'email': user.email,
         'display_name': displayName,
-        'photo_url': user.userMetadata?['avatar_url'],
         'user_type': userType.name,
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
@@ -209,8 +259,6 @@ class AuthService {
           .from('users')
           .update({
             'display_name': displayName,
-            'photo_url':
-                user.userMetadata?['avatar_url'] ?? profile['photo_url'],
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', user.id);

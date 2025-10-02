@@ -58,7 +58,7 @@ class CampaignService {
     }
   }
 
-  // 인기 캠페인 가져오기
+  // 인기 캠페인 가져오기 (참여자 수 기준)
   Future<ApiResponse<List<Campaign>>> getPopularCampaigns({
     int limit = 5,
   }) async {
@@ -67,7 +67,8 @@ class CampaignService {
           .from('campaigns')
           .select()
           .eq('status', 'active')
-          .eq('type', 'popular')
+          .eq('category', 'reviewer')
+          .order('current_participants', ascending: false)
           .limit(limit);
 
       final campaigns = (response as List)
@@ -80,14 +81,15 @@ class CampaignService {
     }
   }
 
-  // 새 캠페인 가져오기
+  // 새 캠페인 가져오기 (최신순)
   Future<ApiResponse<List<Campaign>>> getNewCampaigns({int limit = 5}) async {
     try {
       final response = await _supabase
           .from('campaigns')
           .select()
           .eq('status', 'active')
-          .eq('type', 'new')
+          .eq('category', 'reviewer')
+          .order('created_at', ascending: false)
           .limit(limit);
 
       final campaigns = (response as List)
@@ -191,6 +193,260 @@ class CampaignService {
       return ApiResponse<List<Campaign>>(success: true, data: campaigns);
     } catch (e) {
       return ApiResponse<List<Campaign>>(success: false, error: e.toString());
+    }
+  }
+
+  // 사용자의 이전 캠페인 목록 가져오기 (자동완성용)
+  Future<ApiResponse<List<Campaign>>> getUserPreviousCampaigns({
+    int limit = 10,
+  }) async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<List<Campaign>>(
+          success: false,
+          error: '로그인이 필요합니다.',
+        );
+      }
+
+      final response = await _supabase
+          .from('campaigns')
+          .select()
+          .eq('created_by', user.id)
+          .order('last_used_at', ascending: false)
+          .order('usage_count', ascending: false)
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      final campaigns = (response as List)
+          .map((json) => Campaign.fromJson(json))
+          .toList();
+
+      return ApiResponse<List<Campaign>>(success: true, data: campaigns);
+    } catch (e) {
+      return ApiResponse<List<Campaign>>(
+        success: false,
+        error: '이전 캠페인을 불러오는데 실패했습니다: ${e.toString()}',
+      );
+    }
+  }
+
+  // 캠페인 생성 (이전 캠페인 기반)
+  Future<ApiResponse<Campaign>> createCampaignFromPrevious({
+    required Campaign previousCampaign,
+    required String newTitle,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int maxParticipants,
+  }) async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
+      }
+
+      // 입력값 검증
+      if (newTitle.trim().isEmpty) {
+        return ApiResponse<Campaign>(success: false, error: '캠페인 제목을 입력해주세요.');
+      }
+
+      if (startDate.isAfter(endDate)) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '시작일은 종료일보다 이전이어야 합니다.',
+        );
+      }
+
+      if (maxParticipants <= 0) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '모집 인원은 1명 이상이어야 합니다.',
+        );
+      }
+
+      // 새 캠페인 생성
+      final newCampaign = {
+        'title': newTitle.trim(),
+        'description': previousCampaign.description,
+        'product_image_url': previousCampaign.productImageUrl,
+        'platform': previousCampaign.platform,
+        'platform_logo_url': previousCampaign.platformLogoUrl,
+        'category': previousCampaign.category.name,
+        'type': previousCampaign.type.name,
+        'product_price': previousCampaign.productPrice,
+        'review_reward': previousCampaign.reviewReward,
+        'start_date': startDate.toIso8601String(),
+        'end_date': endDate.toIso8601String(),
+        'max_participants': maxParticipants,
+        'current_participants': 0,
+        'status': 'active',
+        'created_by': user.id,
+        'is_template': false,
+        'template_name': null,
+        'last_used_at': DateTime.now().toIso8601String(),
+        'usage_count': 0,
+      };
+
+      final response = await _supabase
+          .from('campaigns')
+          .insert(newCampaign)
+          .select()
+          .single();
+
+      // 이전 캠페인의 사용 횟수 업데이트
+      try {
+        await _supabase
+            .from('campaigns')
+            .update({
+              'last_used_at': DateTime.now().toIso8601String(),
+              'usage_count': (previousCampaign.usageCount + 1),
+            })
+            .eq('id', previousCampaign.id);
+      } catch (updateError) {
+        // 사용 횟수 업데이트 실패는 로그만 남기고 계속 진행
+        print('Warning: Failed to update usage count: $updateError');
+      }
+
+      final campaign = Campaign.fromJson(response);
+      return ApiResponse<Campaign>(
+        success: true,
+        data: campaign,
+        message: '캠페인이 성공적으로 생성되었습니다.',
+      );
+    } catch (e) {
+      return ApiResponse<Campaign>(
+        success: false,
+        error: '캠페인 생성에 실패했습니다: ${e.toString()}',
+      );
+    }
+  }
+
+  // 일반 캠페인 생성 (신규)
+  Future<ApiResponse<Campaign>> createCampaign({
+    required String title,
+    required String description,
+    required String category,
+    required String type,
+    required String platform,
+    required int productPrice,
+    required int reviewReward,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int maxParticipants,
+    String? productImageUrl,
+    String? platformLogoUrl,
+  }) async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
+      }
+
+      // 입력값 검증
+      if (title.trim().isEmpty) {
+        return ApiResponse<Campaign>(success: false, error: '캠페인 제목을 입력해주세요.');
+      }
+
+      if (startDate.isAfter(endDate)) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '시작일은 종료일보다 이전이어야 합니다.',
+        );
+      }
+
+      if (maxParticipants <= 0) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '모집 인원은 1명 이상이어야 합니다.',
+        );
+      }
+
+      if (productPrice < 0 || reviewReward < 0) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '가격과 보상은 0원 이상이어야 합니다.',
+        );
+      }
+
+      final campaign = {
+        'title': title.trim(),
+        'description': description.trim(),
+        'product_image_url': productImageUrl ?? '',
+        'platform': platform,
+        'platform_logo_url': platformLogoUrl ?? '',
+        'category': category,
+        'type': type,
+        'product_price': productPrice,
+        'review_reward': reviewReward,
+        'start_date': startDate.toIso8601String(),
+        'end_date': endDate.toIso8601String(),
+        'max_participants': maxParticipants,
+        'current_participants': 0,
+        'status': 'active',
+        'created_by': user.id,
+        'is_template': false,
+        'template_name': null,
+        'last_used_at': DateTime.now().toIso8601String(),
+        'usage_count': 0,
+      };
+
+      final response = await _supabase
+          .from('campaigns')
+          .insert(campaign)
+          .select()
+          .single();
+
+      final newCampaign = Campaign.fromJson(response);
+      return ApiResponse<Campaign>(
+        success: true,
+        data: newCampaign,
+        message: '캠페인이 성공적으로 생성되었습니다.',
+      );
+    } catch (e) {
+      return ApiResponse<Campaign>(
+        success: false,
+        error: '캠페인 생성에 실패했습니다: ${e.toString()}',
+      );
+    }
+  }
+
+  // 캠페인 검색 (자동완성용)
+  Future<ApiResponse<List<Campaign>>> searchUserCampaigns({
+    required String query,
+    int limit = 5,
+  }) async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<List<Campaign>>(
+          success: false,
+          error: '로그인이 필요합니다.',
+        );
+      }
+
+      if (query.trim().isEmpty) {
+        return ApiResponse<List<Campaign>>(success: true, data: []);
+      }
+
+      final response = await _supabase
+          .from('campaigns')
+          .select()
+          .eq('created_by', user.id)
+          .ilike('title', '%${query.trim()}%')
+          .order('last_used_at', ascending: false)
+          .order('usage_count', ascending: false)
+          .limit(limit);
+
+      final campaigns = (response as List)
+          .map((json) => Campaign.fromJson(json))
+          .toList();
+
+      return ApiResponse<List<Campaign>>(success: true, data: campaigns);
+    } catch (e) {
+      return ApiResponse<List<Campaign>>(
+        success: false,
+        error: '캠페인 검색에 실패했습니다: ${e.toString()}',
+      );
     }
   }
 }

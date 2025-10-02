@@ -1,298 +1,195 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/campaign.dart';
 
 class CampaignCard extends StatelessWidget {
   final Campaign campaign;
   final VoidCallback? onTap;
-  final bool isHorizontal;
 
-  const CampaignCard({
-    super.key,
-    required this.campaign,
-    this.onTap,
-    this.isHorizontal = false,
-  });
+  const CampaignCard({super.key, required this.campaign, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    if (isHorizontal) {
-      return _buildHorizontalCard(context);
-    } else {
-      return _buildVerticalCard(context);
-    }
-  }
-
-  Widget _buildVerticalCard(BuildContext context) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 이미지
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              child: CachedNetworkImage(
-                imageUrl: campaign.imageUrl,
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  height: 200,
-                  color: Colors.grey[200],
-                  child: const Center(child: CircularProgressIndicator()),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 140),
+          child: Row(
+            children: [
+              // 제품 이미지
+              SizedBox(
+                width: 140,
+                height: 140,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
+                  ),
+                  child: campaign.productImageUrl.isNotEmpty
+                      ? Image.network(
+                          campaign.productImageUrl,
+                          width: 140,
+                          height: 140,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 140,
+                              height: 140,
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.image,
+                                color: Colors.grey,
+                                size: 40,
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          width: 140,
+                          height: 140,
+                          color: Colors.grey[300],
+                          child: const Icon(
+                            Icons.image,
+                            color: Colors.grey,
+                            size: 40,
+                          ),
+                        ),
                 ),
-                errorWidget: (context, url, error) => Container(
-                  height: 200,
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.error),
-                ),
               ),
-            ),
-
-            // 내용
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 브랜드
-                  Text(
-                    campaign.brand,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // 제목
-                  Text(
-                    campaign.title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // 설명
-                  Text(
-                    campaign.description,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // 리워드 정보
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${campaign.reward.points}P',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // 하단 정보
-                  Row(
+              // 캠페인 정보
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // 참여자 수
-                      Row(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.people, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
+                          // 제목
                           Text(
-                            '${campaign.participantCount}명',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey[600]),
+                            campaign.title.isNotEmpty
+                                ? campaign.title
+                                : '제목 없음',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                          const SizedBox(height: 8),
+                          // 가격 정보
+                          _buildPriceInfo(),
                         ],
                       ),
-
-                      // 마감일
-                      Text(
-                        _formatDeadline(campaign.deadline),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                      ),
+                      // 플랫폼 정보
+                      _buildPlatformInfo(),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHorizontalCard(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Row(
-          children: [
-            // 이미지
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(12),
-              ),
-              child: CachedNetworkImage(
-                imageUrl: campaign.imageUrl,
-                width: 120,
-                height: 120,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  width: 120,
-                  height: 120,
-                  color: Colors.grey[200],
-                  child: const Center(child: CircularProgressIndicator()),
-                ),
-                errorWidget: (context, url, error) => Container(
-                  width: 120,
-                  height: 120,
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.error),
-                ),
-              ),
-            ),
-
-            // 내용
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 브랜드
-                    Text(
-                      campaign.brand,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    // 제목
-                    Text(
-                      campaign.title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // 리워드 정보
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${campaign.reward.points}P',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-
-                    const Spacer(),
-
-                    // 하단 정보
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // 참여자 수
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.people,
-                              size: 14,
-                              color: Colors.grey[600],
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${campaign.participantCount}명',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-
-                        // 마감일
-                        Text(
-                          _formatDeadline(campaign.deadline),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+  Widget _buildPriceInfo() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildPriceRow(
+          '제품 가격',
+          '${campaign.productPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
         ),
+        const SizedBox(height: 1),
+        _buildPriceRow(
+          '리뷰 비용',
+          '${campaign.reviewReward.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
+          isReward: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPriceRow(String label, String value, {bool isReward = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: isReward ? const Color(0xFF137fec) : Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlatformInfo() {
+    return Container(
+      padding: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('플랫폼', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+          Row(
+            children: [
+              if (campaign.platformLogoUrl.isNotEmpty)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: Image.network(
+                    campaign.platformLogoUrl,
+                    width: 14,
+                    height: 14,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(width: 14, height: 14);
+                    },
+                  ),
+                ),
+              const SizedBox(width: 4),
+              Text(
+                _getPlatformName(
+                  campaign.platform.isNotEmpty ? campaign.platform : '알 수 없음',
+                ),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  String _formatDeadline(DateTime deadline) {
-    final now = DateTime.now();
-    final difference = deadline.difference(now);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays}일 남음';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}시간 남음';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}분 남음';
-    } else {
-      return '마감됨';
+  String _getPlatformName(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'coupang':
+        return '쿠팡';
+      case 'naver':
+        return '네이버 쇼핑';
+      case '11st':
+        return '11번가';
+      case 'visit':
+        return '방문형';
+      default:
+        return platform;
     }
   }
 }

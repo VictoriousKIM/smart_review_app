@@ -100,26 +100,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ],
                       ),
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        child: user.when(
-                          data: (userData) => userData?.photoURL != null
-                              ? ClipOval(
-                                  child: Image.network(
-                                    userData!.photoURL!,
-                                    width: 48,
-                                    height: 48,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : const Icon(Icons.person, color: Colors.white),
-                          loading: () =>
-                              const Icon(Icons.person, color: Colors.white),
-                          error: (_, __) =>
-                              const Icon(Icons.person, color: Colors.white),
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 24),

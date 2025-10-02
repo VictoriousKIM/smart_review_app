@@ -30,9 +30,14 @@ class BottomNavigation extends StatelessWidget {
           label: '캠페인',
         ),
         BottomNavigationBarItem(
+          icon: Icon(Icons.help_outline),
+          activeIcon: Icon(Icons.help),
+          label: '이용가이드',
+        ),
+        BottomNavigationBarItem(
           icon: Icon(Icons.person_outline),
           activeIcon: Icon(Icons.person),
-          label: '프로필',
+          label: '마이페이지',
         ),
       ],
     );
