@@ -109,6 +109,7 @@ class CampaignNotifier extends _$CampaignNotifier {
       data: (user) async {
         if (user == null) {
           _campaigns.clear();
+          _isInitialized = false; // 초기화 플래그 리셋
           return [];
         }
         
@@ -120,12 +121,13 @@ class CampaignNotifier extends _$CampaignNotifier {
         return _campaigns;
       },
       loading: () async {
-        // 로딩 중일 때는 기존 데이터 유지
-        return _campaigns;
+        // 로딩 중일 때는 기존 데이터 유지하되, 빈 상태면 빈 리스트 반환
+        return _campaigns.isEmpty ? [] : _campaigns;
       },
       error: (_, __) async {
-        // 에러 시 빈 리스트 반환
+        // 에러 시 빈 리스트 반환하고 초기화 플래그 리셋
         _campaigns.clear();
+        _isInitialized = false;
         return [];
       },
     );
@@ -149,7 +151,10 @@ class CampaignNotifier extends _$CampaignNotifier {
     if (state.isLoading || !_hasMore) return;
 
     try {
-      state = const AsyncValue.loading();
+      // 로딩 상태를 설정하되 기존 데이터가 있으면 유지
+      if (_campaigns.isEmpty) {
+        state = const AsyncValue.loading();
+      }
 
       final response = await _campaignService.getCampaigns(
         page: _currentPage,
