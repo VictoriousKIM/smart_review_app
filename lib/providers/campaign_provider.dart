@@ -109,22 +109,26 @@ class CampaignNotifier extends _$CampaignNotifier {
       data: (user) async {
         if (user == null) {
           _campaigns.clear();
-          _isInitialized = false;
           return [];
         }
         
-        // 로그인된 사용자라면 항상 캠페인 로드 시도
+        // 로그인된 사용자라면 캠페인 로드
         await _loadCampaigns(refresh: true);
         return _campaigns;
       },
       loading: () async {
-        // 로딩 중일 때는 빈 리스트 반환 (새로고침 시 깔끔한 상태)
-        return [];
+        // ⭐ 핵심 해결책: 로딩 중일 때도 캠페인 로드 시도
+        try {
+          await _loadCampaigns(refresh: true);
+          return _campaigns;
+        } catch (e) {
+          // 인증 실패 시에만 빈 리스트 반환
+          return [];
+        }
       },
       error: (_, __) async {
         // 에러 시 빈 리스트 반환
         _campaigns.clear();
-        _isInitialized = false;
         return [];
       },
     );
