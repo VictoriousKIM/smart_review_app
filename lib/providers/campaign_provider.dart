@@ -89,7 +89,7 @@ Future<ApiResponse<List<Campaign>>> userCampaigns(
 // 캠페인 상태 관리 Notifier
 @Riverpod(keepAlive: true)
 class CampaignNotifier extends _$CampaignNotifier {
-  late final CampaignService _campaignService;
+  CampaignService? _campaignService;
   int _currentPage = 1;
   bool _hasMore = true;
   String? _currentCategory;
@@ -100,7 +100,8 @@ class CampaignNotifier extends _$CampaignNotifier {
 
   @override
   Future<List<Campaign>> build() async {
-    _campaignService = ref.watch(campaignServiceProvider);
+    // CampaignService를 한 번만 초기화
+    _campaignService ??= ref.watch(campaignServiceProvider);
 
     // 인증 상태가 완전히 로드될 때까지 대기
     final authState = ref.watch(currentUserProvider);
@@ -151,7 +152,11 @@ class CampaignNotifier extends _$CampaignNotifier {
     try {
       state = const AsyncValue.loading();
 
-      final response = await _campaignService.getCampaigns(
+      if (_campaignService == null) {
+        throw Exception('CampaignService가 초기화되지 않았습니다.');
+      }
+
+      final response = await _campaignService!.getCampaigns(
         page: _currentPage,
         limit: 10,
         category: _currentCategory,
@@ -198,7 +203,11 @@ class CampaignNotifier extends _$CampaignNotifier {
   }
 
   Future<bool> joinCampaign(String campaignId) async {
-    final response = await _campaignService.joinCampaign(campaignId);
+    if (_campaignService == null) {
+      return false;
+    }
+    
+    final response = await _campaignService!.joinCampaign(campaignId);
     if (response.success) {
       await refreshCampaigns();
       return true;
@@ -207,7 +216,11 @@ class CampaignNotifier extends _$CampaignNotifier {
   }
 
   Future<bool> leaveCampaign(String campaignId) async {
-    final response = await _campaignService.leaveCampaign(campaignId);
+    if (_campaignService == null) {
+      return false;
+    }
+    
+    final response = await _campaignService!.leaveCampaign(campaignId);
     if (response.success) {
       await refreshCampaigns();
       return true;
@@ -219,7 +232,7 @@ class CampaignNotifier extends _$CampaignNotifier {
 // 검색 상태 관리 Notifier
 @Riverpod(keepAlive: true)
 class SearchNotifier extends _$SearchNotifier {
-  late final CampaignService _campaignService;
+  CampaignService? _campaignService;
   String _currentQuery = '';
   String? _currentCategory;
   int _currentPage = 1;
@@ -228,7 +241,7 @@ class SearchNotifier extends _$SearchNotifier {
 
   @override
   Future<List<Campaign>> build() async {
-    _campaignService = ref.watch(campaignServiceProvider);
+    _campaignService ??= ref.watch(campaignServiceProvider);
     return _results;
   }
 
@@ -250,7 +263,11 @@ class SearchNotifier extends _$SearchNotifier {
     try {
       state = const AsyncValue.loading();
 
-      final response = await _campaignService.searchCampaigns(
+      if (_campaignService == null) {
+        throw Exception('CampaignService가 초기화되지 않았습니다.');
+      }
+
+      final response = await _campaignService!.searchCampaigns(
         query: _currentQuery,
         category: _currentCategory,
         page: _currentPage,
