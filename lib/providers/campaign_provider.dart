@@ -110,6 +110,7 @@ class CampaignNotifier extends _$CampaignNotifier {
       data: (user) async {
         if (user == null) {
           _campaigns.clear();
+          _isInitialized = false; // 로그아웃 시 초기화 플래그 리셋
           return [];
         }
 
@@ -121,12 +122,13 @@ class CampaignNotifier extends _$CampaignNotifier {
         return _campaigns;
       },
       loading: () async {
-        // 로딩 중일 때는 기존 데이터 유지
+        // 로딩 중일 때는 기존 데이터 유지 (새로고침 시에는 빈 리스트)
         return _campaigns;
       },
       error: (_, __) async {
-        // 에러 시 빈 리스트 반환
+        // 에러 시 빈 리스트 반환하고 초기화 플래그 리셋
         _campaigns.clear();
+        _isInitialized = false;
         return [];
       },
     );
@@ -206,7 +208,7 @@ class CampaignNotifier extends _$CampaignNotifier {
     if (_campaignService == null) {
       return false;
     }
-    
+
     final response = await _campaignService!.joinCampaign(campaignId);
     if (response.success) {
       await refreshCampaigns();
@@ -219,7 +221,7 @@ class CampaignNotifier extends _$CampaignNotifier {
     if (_campaignService == null) {
       return false;
     }
-    
+
     final response = await _campaignService!.leaveCampaign(campaignId);
     if (response.success) {
       await refreshCampaigns();
