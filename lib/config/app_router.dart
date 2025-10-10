@@ -153,7 +153,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // 캠페인 상세 라우트 (ShellRoute 밖에 배치하여 BottomNavBar가 보이지 않게 함)
       GoRoute(
-        path: '/campaign/:id',
+        path: '/campaigns/:id',
         name: 'campaign-detail',
         builder: (context, state) {
           final campaignId = state.pathParameters['id']!;
