@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/campaign.dart';
 import '../../providers/campaign_provider.dart';
 import '../../widgets/custom_button.dart';
@@ -15,7 +16,13 @@ class CampaignDetailScreen extends ConsumerWidget {
     final campaignAsync = ref.watch(campaignDetailProvider(campaignId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('캠페인 상세')),
+      appBar: AppBar(
+        title: const Text('캠페인 상세'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/campaigns'),
+        ),
+      ),
       body: campaignAsync.when(
         data: (response) {
           if (!response.success || response.data == null) {
