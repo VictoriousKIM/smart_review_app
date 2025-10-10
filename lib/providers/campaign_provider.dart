@@ -102,30 +102,27 @@ class CampaignNotifier extends _$CampaignNotifier {
   Future<List<Campaign>> build() async {
     _campaignService = ref.watch(campaignServiceProvider);
     
-    // 인증 상태가 완전히 로드될 때까지 대기
+    // 인증 상태 확인
     final authState = ref.watch(currentUserProvider);
     
     return authState.when(
       data: (user) async {
         if (user == null) {
           _campaigns.clear();
-          _isInitialized = false; // 초기화 플래그 리셋
+          _isInitialized = false;
           return [];
         }
         
-        // 사용자가 로그인된 상태에서만 캠페인 로드
-        if (!_isInitialized) {
-          await _loadCampaigns(refresh: true);
-          _isInitialized = true;
-        }
+        // 로그인된 사용자라면 항상 캠페인 로드 시도
+        await _loadCampaigns(refresh: true);
         return _campaigns;
       },
       loading: () async {
-        // 로딩 중일 때는 기존 데이터 유지하되, 빈 상태면 빈 리스트 반환
-        return _campaigns.isEmpty ? [] : _campaigns;
+        // 로딩 중일 때는 빈 리스트 반환 (새로고침 시 깔끔한 상태)
+        return [];
       },
       error: (_, __) async {
-        // 에러 시 빈 리스트 반환하고 초기화 플래그 리셋
+        // 에러 시 빈 리스트 반환
         _campaigns.clear();
         _isInitialized = false;
         return [];
