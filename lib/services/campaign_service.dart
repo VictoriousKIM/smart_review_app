@@ -20,16 +20,8 @@ class CampaignService {
     String? sortBy = 'latest',
   }) async {
     try {
-      // 인증 상태 확인
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        return ApiResponse<List<Campaign>>(
-          success: false, 
-          error: '사용자가 로그인되지 않았습니다.'
-        );
-      }
-
       // 쿼리 구성 - 타입 안전성을 위해 단계별 구성
+      // 인증 확인을 제거하고 직접 쿼리 실행 (Supabase가 자동으로 인증 처리)
       dynamic query = _supabase
           .from('campaigns')
           .select()
@@ -71,18 +63,18 @@ class CampaignService {
       return ApiResponse<List<Campaign>>(success: true, data: campaigns);
     } on TimeoutException {
       return ApiResponse<List<Campaign>>(
-        success: false, 
-        error: '요청 시간이 초과되었습니다. 다시 시도해주세요.'
+        success: false,
+        error: '요청 시간이 초과되었습니다. 다시 시도해주세요.',
       );
     } on AuthException catch (e) {
       return ApiResponse<List<Campaign>>(
-        success: false, 
-        error: '인증 오류: ${e.message}'
+        success: false,
+        error: '인증 오류: ${e.message}',
       );
     } catch (e) {
       return ApiResponse<List<Campaign>>(
-        success: false, 
-        error: '캠페인을 불러오는 중 오류가 발생했습니다: ${e.toString()}'
+        success: false,
+        error: '캠페인을 불러오는 중 오류가 발생했습니다: ${e.toString()}',
       );
     }
   }
