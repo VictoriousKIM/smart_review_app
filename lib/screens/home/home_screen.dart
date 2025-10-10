@@ -17,8 +17,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final CampaignService _campaignService = CampaignService();
   List<Campaign> _campaigns = [];
-  List<Campaign> _popularCampaigns = [];
-  List<Campaign> _newCampaigns = [];
   bool _isLoading = true;
 
   @override
@@ -36,23 +34,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // 전체 캠페인 로드
       final campaignsResponse = await _campaignService.getCampaigns();
 
-      // 인기 캠페인 로드
-      final popularResponse = await _campaignService.getPopularCampaigns(
-        limit: 5,
-      );
-
-      // 새 캠페인 로드
-      final newResponse = await _campaignService.getNewCampaigns(limit: 5);
-
       setState(() {
         if (campaignsResponse.success && campaignsResponse.data != null) {
           _campaigns = campaignsResponse.data!;
-        }
-        if (popularResponse.success && popularResponse.data != null) {
-          _popularCampaigns = popularResponse.data!;
-        }
-        if (newResponse.success && newResponse.data != null) {
-          _newCampaigns = newResponse.data!;
         }
         _isLoading = false;
       });
@@ -87,117 +71,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 헤더
-            SafeArea(
-              minimum: const EdgeInsets.only(top: 16),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Theme.of(context).colorScheme.primary,
-                      Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.8),
-                    ],
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '안녕하세요!',
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    user.when(
-                      data: (userData) => Text(
-                        userData?.displayName ?? '게스트',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      loading: () => const Text(
-                        '로딩 중...',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      error: (_, __) => const Text(
-                        '게스트',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      '새로운 리뷰 캠페인을 발견해보세요',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.9),
-                      ),
-                    ),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.8),
                   ],
                 ),
               ),
-            ),
-
-            // 인기 캠페인
-            _buildSection(
-              title: '인기 캠페인',
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _popularCampaigns.isEmpty
-                  ? const Center(child: Text('인기 캠페인이 없습니다'))
-                  : SizedBox(
-                      height: 200,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _popularCampaigns.length,
-                        itemBuilder: (context, index) {
-                          final campaign = _popularCampaigns[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 12),
-                            child: CampaignCard(
-                              campaign: campaign,
-                              onTap: () =>
-                                  _navigateToCampaignDetail(campaign.id),
-                            ),
-                          );
-                        },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '안녕하세요!',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  user.when(
+                    data: (userData) => Text(
+                      userData?.displayName ?? '게스트',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-            ),
-
-            // 새 캠페인
-            _buildSection(
-              title: '새 캠페인',
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _newCampaigns.isEmpty
-                  ? const Center(child: Text('새 캠페인이 없습니다'))
-                  : SizedBox(
-                      height: 200,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _newCampaigns.length,
-                        itemBuilder: (context, index) {
-                          final campaign = _newCampaigns[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 12),
-                            child: CampaignCard(
-                              campaign: campaign,
-                              onTap: () =>
-                                  _navigateToCampaignDetail(campaign.id),
-                            ),
-                          );
-                        },
-                      ),
+                    loading: () => const Text(
+                      '로딩 중...',
+                      style: TextStyle(color: Colors.white),
                     ),
+                    error: (_, __) => const Text(
+                      '게스트',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    '새로운 리뷰 캠페인을 발견해보세요',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             // 전체 캠페인
