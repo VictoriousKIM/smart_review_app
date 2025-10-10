@@ -129,6 +129,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const CampaignsScreen(),
           ),
           GoRoute(
+            path: '/campaigns/:id',
+            name: 'campaign-detail',
+            builder: (context, state) {
+              final campaignId = state.pathParameters['id']!;
+              return CampaignDetailScreen(campaignId: campaignId);
+            },
+          ),
+          GoRoute(
             path: '/guide',
             name: 'guide',
             builder: (context, state) => const GuideScreen(),
@@ -149,16 +157,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const AdvertiserMyPageScreen(),
           ),
         ],
-      ),
-
-      // 캠페인 상세 라우트 (ShellRoute 밖에 배치하여 BottomNavBar가 보이지 않게 함)
-      GoRoute(
-        path: '/campaigns/:id',
-        name: 'campaign-detail',
-        builder: (context, state) {
-          final campaignId = state.pathParameters['id']!;
-          return CampaignDetailScreen(campaignId: campaignId);
-        },
       ),
 
       // 캠페인 생성 라우트
