@@ -122,7 +122,12 @@ class CampaignNotifier extends _$CampaignNotifier {
         return _campaigns;
       },
       loading: () async {
-        // 로딩 중일 때는 기존 데이터 유지 (새로고침 시에는 빈 리스트)
+        // ⭐ 핵심 개선: 로딩 중일 때도 캠페인 로드 시도
+        if (!_isInitialized && _campaigns.isEmpty) {
+          // 인증 상태가 로딩 중이어도 캠페인 로드 시도
+          await _loadCampaigns(refresh: true);
+          _isInitialized = true;
+        }
         return _campaigns;
       },
       error: (_, __) async {
