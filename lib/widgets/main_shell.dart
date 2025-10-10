@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'bottom_navigation.dart';
-import '../providers/campaign_provider.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -14,8 +13,6 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
-  bool _hasRefreshedHome = false;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,13 +50,6 @@ class _MainShellState extends ConsumerState<MainShell> {
     switch (index) {
       case 0:
         context.go('/home');
-        // 홈으로 돌아왔을 때만 한 번 새로고침
-        if (!_hasRefreshedHome) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(campaignProvider.notifier).refreshCampaigns();
-            _hasRefreshedHome = true;
-          });
-        }
         break;
       case 1:
         context.go('/campaigns');
