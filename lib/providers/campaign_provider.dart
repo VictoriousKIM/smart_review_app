@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../models/campaign.dart';
 import '../models/api_response.dart';
 import '../services/campaign_service.dart';
+import 'auth_provider.dart';
 
 part 'campaign_provider.g.dart';
 
@@ -95,15 +96,42 @@ class CampaignNotifier extends _$CampaignNotifier {
   String? _currentType;
   String _currentSortBy = 'latest';
   final List<Campaign> _campaigns = [];
+  bool _isInitialized = false;
 
   @override
   Future<List<Campaign>> build() async {
     _campaignService = ref.watch(campaignServiceProvider);
-    await loadCampaigns(refresh: true);
-    return _campaigns;
+    
+    // 인증 상태가 완전히 로드될 때까지 대기
+    final authState = ref.watch(currentUserProvider);
+    
+    return authState.when(
+      data: (user) async {
+        if (user == null) {
+          _campaigns.clear();
+          return [];
+        }
+        
+        // 사용자가 로그인된 상태에서만 캠페인 로드
+        if (!_isInitialized) {
+          await _loadCampaigns(refresh: true);
+          _isInitialized = true;
+        }
+        return _campaigns;
+      },
+      loading: () async {
+        // 로딩 중일 때는 기존 데이터 유지
+        return _campaigns;
+      },
+      error: (_, __) async {
+        // 에러 시 빈 리스트 반환
+        _campaigns.clear();
+        return [];
+      },
+    );
   }
 
-  Future<void> loadCampaigns({
+  Future<void> _loadCampaigns({
     String? category,
     String? type,
     String? sortBy,
@@ -120,9 +148,9 @@ class CampaignNotifier extends _$CampaignNotifier {
 
     if (state.isLoading || !_hasMore) return;
 
-    state = const AsyncValue.loading();
+    try {
+      state = const AsyncValue.loading();
 
-    state = await AsyncValue.guard(() async {
       final response = await _campaignService.getCampaigns(
         page: _currentPage,
         limit: 10,
@@ -136,15 +164,33 @@ class CampaignNotifier extends _$CampaignNotifier {
         _hasMore = newCampaigns.length == 10;
         _currentPage++;
         _campaigns.addAll(newCampaigns);
+        state = AsyncValue.data(_campaigns);
       } else {
-        throw response.error ?? '캠페인을 불러올 수 없습니다.';
+        throw Exception(response.error ?? '캠페인을 불러올 수 없습니다.');
       }
-      return _campaigns;
-    });
+    } catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
+    }
+  }
+
+  Future<void> loadCampaigns({
+    String? category,
+    String? type,
+    String? sortBy,
+    bool refresh = false,
+  }) async {
+    await _loadCampaigns(
+      category: category,
+      type: type,
+      sortBy: sortBy,
+      refresh: refresh,
+    );
   }
 
   Future<void> refreshCampaigns() async {
-    await loadCampaigns(refresh: true);
+    _isInitialized = false; // 초기화 플래그 리셋
+    await _loadCampaigns(refresh: true);
+    _isInitialized = true;
   }
 
   Future<void> loadMoreCampaigns() async {

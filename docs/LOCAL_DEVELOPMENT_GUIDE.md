@@ -2,6 +2,13 @@
 
 이 문서는 Supabase CLI를 사용한 로컬 개발 환경 설정 및 사용 방법을 설명합니다.
 
+MCP 테스트 시 사용할 수 있는 계정:
+
+| 역할 | 이메일 | 비밀번호 | 설명 |
+|------|--------|----------|------|
+| 개발자 | `dev@example.com` | `dev@example.com` | 일반 사용자 |
+| 관리자 | `admin@example.com` | `admin@example.com` | 관리자 권한 |
+| 리뷰어 | `reviewer@example.com` | `reviewer@example.com` | 리뷰어 권한 |
 ## 🔄 최근 업데이트 (2025-10-09)
 
 ### 인증 시스템 개선

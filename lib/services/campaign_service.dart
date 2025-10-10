@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 import '../models/campaign.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
@@ -19,7 +20,20 @@ class CampaignService {
     String? sortBy = 'latest',
   }) async {
     try {
-      var query = _supabase.from('campaigns').select().eq('status', 'active');
+      // 인증 상태 확인
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<List<Campaign>>(
+          success: false, 
+          error: '사용자가 로그인되지 않았습니다.'
+        );
+      }
+
+      // 쿼리 구성 - 타입 안전성을 위해 단계별 구성
+      dynamic query = _supabase
+          .from('campaigns')
+          .select()
+          .eq('status', 'active');
 
       if (category != null) {
         query = query.eq('category', category);
@@ -29,15 +43,47 @@ class CampaignService {
         query = query.eq('type', type);
       }
 
-      final response = await query;
+      // 정렬 적용
+      switch (sortBy) {
+        case 'latest':
+          query = query.order('created_at', ascending: false);
+          break;
+        case 'popular':
+          query = query.order('current_participants', ascending: false);
+          break;
+        case 'price':
+          query = query.order('product_price', ascending: false);
+          break;
+        default:
+          query = query.order('created_at', ascending: false);
+      }
+
+      // 페이지네이션 적용
+      final offset = (page - 1) * limit;
+      query = query.range(offset, offset + limit - 1);
+
+      final response = await query.timeout(const Duration(seconds: 10));
 
       final campaigns = (response as List)
           .map((json) => Campaign.fromJson(json))
           .toList();
 
       return ApiResponse<List<Campaign>>(success: true, data: campaigns);
+    } on TimeoutException {
+      return ApiResponse<List<Campaign>>(
+        success: false, 
+        error: '요청 시간이 초과되었습니다. 다시 시도해주세요.'
+      );
+    } on AuthException catch (e) {
+      return ApiResponse<List<Campaign>>(
+        success: false, 
+        error: '인증 오류: ${e.message}'
+      );
     } catch (e) {
-      return ApiResponse<List<Campaign>>(success: false, error: e.toString());
+      return ApiResponse<List<Campaign>>(
+        success: false, 
+        error: '캠페인을 불러오는 중 오류가 발생했습니다: ${e.toString()}'
+      );
     }
   }
 

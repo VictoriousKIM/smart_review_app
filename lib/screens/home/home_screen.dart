@@ -16,13 +16,35 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _hasInitialized = false;
+
   @override
   void initState() {
     super.initState();
-    // 캠페인 데이터 로드
+    // 인증 상태가 완전히 로드된 후 캠페인 데이터 로드
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(campaignProvider.notifier).loadCampaigns(refresh: true);
+      _initializeCampaigns();
     });
+  }
+
+  Future<void> _initializeCampaigns() async {
+    if (_hasInitialized) return;
+    
+    final authState = ref.read(currentUserProvider);
+    authState.when(
+      data: (user) {
+        if (user != null && !_hasInitialized) {
+          ref.read(campaignProvider.notifier).refreshCampaigns();
+          _hasInitialized = true;
+        }
+      },
+      loading: () {
+        // 로딩 중일 때는 대기
+      },
+      error: (_, __) {
+        // 에러 시 초기화하지 않음
+      },
+    );
   }
 
   @override
@@ -43,7 +65,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   ) {
     return RefreshIndicator(
       onRefresh: () async {
-        ref.read(campaignProvider.notifier).refreshCampaigns();
+        _hasInitialized = false; // 초기화 플래그 리셋
+        await ref.read(campaignProvider.notifier).refreshCampaigns();
+        _hasInitialized = true;
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
