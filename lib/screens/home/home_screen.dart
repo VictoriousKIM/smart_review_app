@@ -88,8 +88,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             // 헤더
             SafeArea(
+              minimum: const EdgeInsets.only(top: 16),
               child: Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
