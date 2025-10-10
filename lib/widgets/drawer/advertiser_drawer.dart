@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:html' as html;
 import '../../models/user.dart' as app_user;
 import '../../providers/auth_provider.dart';
 
@@ -31,33 +33,42 @@ class AdvertiserDrawer extends ConsumerWidget {
                 _buildMenuItem(
                   icon: Icons.business_outlined,
                   title: '나의 캠페인',
+                  routePath: '/mypage/advertiser/campaigns',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/mypage/advertiser/campaigns');
+                    context.go('/mypage/advertiser/campaigns');
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.add_circle_outline,
                   title: '캠페인 등록',
+                  routePath: '/campaigns/create',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/campaigns/create');
+                    // Flutter 웹에서 URL 업데이트 문제 해결
+                    if (kIsWeb) {
+                      html.window.location.href = '/campaigns/create';
+                    } else {
+                      context.go('/campaigns/create');
+                    }
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.analytics_outlined,
                   title: '캠페인 분석',
+                  routePath: '/mypage/advertiser/analytics',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/mypage/advertiser/analytics');
+                    context.go('/mypage/advertiser/analytics');
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.people_outline,
                   title: '참여자 관리',
+                  routePath: '/mypage/advertiser/participants',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/mypage/advertiser/participants');
+                    context.go('/mypage/advertiser/participants');
                   },
                 ),
 
@@ -68,35 +79,39 @@ class AdvertiserDrawer extends ConsumerWidget {
                 _buildMenuItem(
                   icon: Icons.person_outline,
                   title: '내 계정',
+                  routePath: '/mypage/profile',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/mypage/profile');
+                    context.go('/mypage/profile');
                   },
                 ),
                 if (user.companyId != null) ...[
                   _buildMenuItem(
                     icon: Icons.business_center_outlined,
                     title: '회사 정보',
+                    routePath: '/mypage/advertiser/company',
                     onTap: () {
                       Navigator.pop(context);
-                      context.push('/mypage/advertiser/company');
+                      context.go('/mypage/advertiser/company');
                     },
                   ),
                   _buildMenuItem(
                     icon: Icons.admin_panel_settings_outlined,
                     title: '페널티 관리',
+                    routePath: '/mypage/advertiser/penalties',
                     onTap: () {
                       Navigator.pop(context);
-                      context.push('/mypage/advertiser/penalties');
+                      context.go('/mypage/advertiser/penalties');
                     },
                   ),
                 ],
                 _buildMenuItem(
                   icon: Icons.account_balance_wallet_outlined,
                   title: '내 포인트',
+                  routePath: '/mypage/advertiser/points',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/mypage/advertiser/points');
+                    context.go('/mypage/advertiser/points');
                   },
                 ),
 
@@ -107,33 +122,37 @@ class AdvertiserDrawer extends ConsumerWidget {
                 _buildMenuItem(
                   icon: Icons.notifications_outlined,
                   title: '공지사항',
+                  routePath: '/notices',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/notices');
+                    context.go('/notices');
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.event_outlined,
                   title: '이벤트',
+                  routePath: '/events',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/events');
+                    context.go('/events');
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.help_outline,
                   title: '1:1문의',
+                  routePath: '/inquiry',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/inquiry');
+                    context.go('/inquiry');
                   },
                 ),
                 _buildMenuItem(
                   icon: Icons.campaign_outlined,
                   title: '광고문의',
+                  routePath: '/advertisement-inquiry',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/advertisement-inquiry');
+                    context.go('/advertisement-inquiry');
                   },
                 ),
 
@@ -144,6 +163,7 @@ class AdvertiserDrawer extends ConsumerWidget {
                 _buildMenuItem(
                   icon: Icons.notifications_active_outlined,
                   title: '알림 설정',
+                  routePath: '/settings/notifications',
                   trailing: Switch(
                     value: true, // TODO: 실제 알림 설정 상태 연결
                     onChanged: (value) {
@@ -152,7 +172,7 @@ class AdvertiserDrawer extends ConsumerWidget {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/settings/notifications');
+                    context.go('/settings/notifications');
                   },
                 ),
 
@@ -161,9 +181,10 @@ class AdvertiserDrawer extends ConsumerWidget {
                 _buildMenuItem(
                   icon: Icons.rate_review_outlined,
                   title: '리뷰어 모드로 전환',
+                  routePath: '/mypage/reviewer',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/mypage/reviewer');
+                    context.go('/mypage/reviewer');
                   },
                 ),
               ],
@@ -283,18 +304,41 @@ class AdvertiserDrawer extends ConsumerWidget {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    required String routePath,
     Widget? trailing,
   }) {
+    // 현재 URL 확인
+    final currentPath = kIsWeb ? html.window.location.pathname : '';
+    final isActive = currentPath == routePath;
+    
     return ListTile(
-      leading: Icon(icon, color: const Color(0xFF333333), size: 24),
+      leading: Icon(
+        icon, 
+        color: isActive ? const Color(0xFF2196F3) : const Color(0xFF333333), 
+        size: 24
+      ),
       title: Text(
         title,
-        style: const TextStyle(fontSize: 16, color: Color(0xFF333333)),
+        style: TextStyle(
+          fontSize: 16, 
+          color: isActive ? const Color(0xFF2196F3) : const Color(0xFF333333),
+          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+        ),
       ),
-      trailing:
-          trailing ?? const Icon(Icons.chevron_right, color: Color(0xFF999999)),
+      subtitle: isActive ? Text(
+        routePath,
+        style: const TextStyle(
+          fontSize: 12,
+          color: Color(0xFF2196F3),
+        ),
+      ) : null,
+      trailing: trailing ?? const Icon(Icons.chevron_right, color: Color(0xFF999999)),
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      tileColor: isActive ? const Color(0xFFE3F2FD) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
     );
   }
 

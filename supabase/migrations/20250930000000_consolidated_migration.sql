@@ -32,23 +32,19 @@ CHECK (user_type IN ('user', 'admin'));
 ALTER TABLE "public"."users" 
 ALTER COLUMN user_type SET DEFAULT 'user';
 
--- 광고주 인증 필드 추가
-ALTER TABLE "public"."users" 
-ADD COLUMN "is_advertiser_verified" boolean DEFAULT false;
-
 -- 회사 연결 필드 추가 (나중에 companies 테이블 생성 후 외래키 설정)
 ALTER TABLE "public"."users" 
 ADD COLUMN "company_id" uuid;
 
 -- RLS 정책 추가
 create policy "Users can view own profile" on "public"."users"
-  for select using (auth.uid() = id);
+  for select using ((select auth.uid()) = id);
 
 create policy "Users can update own profile" on "public"."users"
-  for update using (auth.uid() = id);
+  for update using ((select auth.uid()) = id);
 
 create policy "Users can insert own profile" on "public"."users"
-  for insert with check (auth.uid() = id);
+  for insert with check ((select auth.uid()) = id);
 
 -- ===========================================
 -- 2. 회사 테이블 생성
@@ -76,10 +72,10 @@ create policy "Users can view all companies" on "public"."companies"
   for select using (true);
 
 create policy "Users can create companies" on "public"."companies"
-  for insert with check (auth.uid() = created_by);
+  for insert with check ((select auth.uid()) = created_by);
 
 create policy "Users can update own companies" on "public"."companies"
-  for update using (auth.uid() = created_by);
+  for update using ((select auth.uid()) = created_by);
 
 -- 회사-사용자 관계 테이블
 create table "public"."company_users" (
@@ -103,18 +99,16 @@ ALTER TABLE "public"."company_users"
 ADD CONSTRAINT company_users_role_check 
 CHECK (company_role IN ('owner', 'manager'));
 
--- 회사-사용자 관계 RLS 정책
-create policy "Users can view company relationships" on "public"."company_users"
-  for select using (true);
-
-create policy "Users can join companies" on "public"."company_users"
-  for insert with check (auth.uid() = user_id);
-
-create policy "Company owners can manage relationships" on "public"."company_users"
+-- 회사-사용자 관계 RLS 정책 (통합된 정책)
+create policy "Company users management" on "public"."company_users"
   for all using (
+    -- 사용자가 자신의 관계를 관리할 수 있음
+    user_id = (select auth.uid())
+    OR
+    -- 회사 소유자가 회사 관계를 관리할 수 있음
     company_id IN (
       SELECT company_id FROM company_users 
-      WHERE user_id = auth.uid() AND company_role = 'owner'
+      WHERE user_id = (select auth.uid()) AND company_role = 'owner'
     )
   );
 
@@ -132,7 +126,9 @@ create table "public"."campaigns" (
     "title" text not null,
     "description" text,
     "status" text not null default 'active',
+    "category" text not null default 'reviewer', -- 'reviewer', 'press', 'visit'
     "campaign_type" text not null default 'reviewer', -- 'reviewer', 'press', 'visit'
+    "type" text not null default 'reviewer', -- 호환성을 위해 추가
     "product_price" integer not null default 0,
     "review_reward" integer not null default 0,
     "platform" text not null default 'coupang', -- 'coupang', 'naver', '11st', etc.
@@ -174,22 +170,23 @@ ON "public"."campaigns"("created_by", "last_used_at" DESC, "usage_count" DESC);
 create policy "Anyone can view active campaigns" on "public"."campaigns"
   for select using (status = 'active');
 
-create policy "Users can view all campaigns" on "public"."campaigns"
-  for select using (true);
-
 create policy "Users can update own campaigns" on "public"."campaigns"
-  for update using (auth.uid() = created_by);
+  for update using ((select auth.uid()) = created_by);
 
 create policy "Users can insert own campaigns" on "public"."campaigns"
-  for insert with check (auth.uid() = created_by);
+  for insert with check ((select auth.uid()) = created_by);
 
 -- ===========================================
--- 3. 사용자 관련 함수 및 트리거
+-- 4. 사용자 관련 함수 및 트리거 (보안 강화)
 -- ===========================================
 
 -- 사용자 회원가입 시 자동으로 users 테이블에 레코드를 생성하는 함수
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger 
+LANGUAGE plpgsql 
+SECURITY DEFINER 
+SET search_path = ''
+AS $$
 BEGIN
   INSERT INTO public.users (id, display_name, email, user_type)
   VALUES (
@@ -200,7 +197,7 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- 사용자 등록 시 트리거 실행
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
@@ -210,14 +207,18 @@ CREATE TRIGGER on_auth_user_created
 
 -- updated_at을 자동으로 업데이트하는 트리거 함수
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+LANGUAGE plpgsql 
+SET search_path = ''
+AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$;
 
 -- users 테이블에 updated_at 트리거 추가
+DROP TRIGGER IF EXISTS update_users_updated_at ON "public"."users";
 CREATE TRIGGER update_users_updated_at 
     BEFORE UPDATE ON "public"."users" 
     FOR EACH ROW 
@@ -229,7 +230,11 @@ RETURNS TABLE (
     user_type text,
     count bigint,
     percentage numeric
-) AS $$
+) 
+LANGUAGE plpgsql 
+SECURITY DEFINER 
+SET search_path = ''
+AS $$
 BEGIN
     RETURN QUERY
     SELECT 
@@ -243,10 +248,31 @@ BEGIN
     GROUP BY ut.user_type
     ORDER BY count DESC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- ===========================================
--- 4. 기존 사용자들을 users 테이블에 추가 (이미 등록된 사용자들용)
+-- 5. 성능 최적화를 위한 추가 인덱스
+-- ===========================================
+
+-- RLS 정책에서 자주 사용되는 컬럼들에 인덱스 추가
+CREATE INDEX IF NOT EXISTS idx_users_auth_uid ON "public"."users" (id);
+CREATE INDEX IF NOT EXISTS idx_companies_created_by ON "public"."companies" (created_by);
+CREATE INDEX IF NOT EXISTS idx_company_users_user_id ON "public"."company_users" (user_id);
+CREATE INDEX IF NOT EXISTS idx_company_users_company_role ON "public"."company_users" (company_role);
+CREATE INDEX IF NOT EXISTS idx_campaigns_created_by ON "public"."campaigns" (created_by);
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON "public"."campaigns" (status);
+
+-- company_users 테이블에 복합 인덱스 추가
+CREATE INDEX IF NOT EXISTS idx_company_users_user_company_role 
+ON "public"."company_users" (user_id, company_id, company_role);
+
+-- RLS 정책에서 자주 사용되는 패턴을 위한 인덱스
+CREATE INDEX IF NOT EXISTS idx_company_users_owner_lookup 
+ON "public"."company_users" (company_id, company_role) 
+WHERE company_role = 'owner';
+
+-- ===========================================
+-- 6. 기존 사용자들을 users 테이블에 추가 (이미 등록된 사용자들용)
 -- ===========================================
 INSERT INTO public.users (id, display_name, email, user_type)
 SELECT 
@@ -266,7 +292,9 @@ WHERE user_type IS NULL OR user_type NOT IN ('user', 'admin');
 -- 기존 캠페인 데이터에 대한 기본값 설정
 UPDATE "public"."campaigns" 
 SET 
+    "category" = COALESCE("campaign_type", 'reviewer'),
+    "type" = COALESCE("campaign_type", 'reviewer'),
     "is_template" = false,
     "usage_count" = 0,
     "last_used_at" = "created_at"
-WHERE "is_template" IS NULL OR "usage_count" IS NULL OR "last_used_at" IS NULL;
+WHERE "category" IS NULL OR "type" IS NULL OR "is_template" IS NULL OR "usage_count" IS NULL OR "last_used_at" IS NULL;

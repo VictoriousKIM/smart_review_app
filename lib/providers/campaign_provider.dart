@@ -24,8 +24,7 @@ Future<ApiResponse<List<Campaign>>> campaigns(
   return campaignService.getCampaigns(
     page: page,
     limit: limit,
-    category: category,
-    type: type,
+    campaignType: category,
     sortBy: sortBy,
   );
 }
@@ -69,7 +68,7 @@ Future<ApiResponse<List<Campaign>>> searchCampaigns(
   final campaignService = ref.watch(campaignServiceProvider);
   return campaignService.searchCampaigns(
     query: query,
-    category: category,
+    campaignType: category,
     page: page,
     limit: limit,
   );
@@ -161,8 +160,7 @@ class CampaignNotifier extends _$CampaignNotifier {
       final response = await _campaignService!.getCampaigns(
         page: _currentPage,
         limit: 10,
-        category: _currentCategory,
-        type: _currentType,
+        campaignType: _currentCategory,
         sortBy: _currentSortBy,
       );
 
@@ -271,7 +269,7 @@ class SearchNotifier extends _$SearchNotifier {
 
       final response = await _campaignService!.searchCampaigns(
         query: _currentQuery,
-        category: _currentCategory,
+        campaignType: _currentCategory,
         page: _currentPage,
         limit: 10,
       );

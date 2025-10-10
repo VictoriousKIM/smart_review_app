@@ -5,12 +5,12 @@ import '../../../models/user.dart' as app_user;
 import '../../../providers/auth_provider.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../widgets/mypage_common_widgets.dart';
-import '../../../widgets/drawer/reviewer_drawer.dart';
+import '../../../widgets/drawer/advertiser_drawer.dart';
 
-class ReviewerMyPageScreen extends ConsumerWidget {
+class AdvertiserMyPageScreen extends ConsumerWidget {
   final app_user.User? user;
 
-  const ReviewerMyPageScreen({super.key, this.user});
+  const AdvertiserMyPageScreen({super.key, this.user});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,7 +22,7 @@ class ReviewerMyPageScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
-      drawer: const ReviewerDrawer(),
+      drawer: const AdvertiserDrawer(),
       appBar: AppBar(
         title: const Text('마이페이지'),
         backgroundColor: Colors.transparent,
@@ -42,13 +42,13 @@ class ReviewerMyPageScreen extends ConsumerWidget {
             // 상단 파란색 카드
             MyPageCommonWidgets.buildTopCard(
               userName: user.displayName ?? '사용자',
-              userType: '리뷰어',
+              userType: '광고주',
               onSwitchPressed: () {
-                // 광고주 마이페이지로 이동
-                context.push('/mypage/advertiser');
+                // 리뷰어 마이페이지로 이동
+                context.pushReplacement('/mypage/reviewer');
               },
-              switchButtonText: '광고주 전환',
-              showRating: true,
+              switchButtonText: '리뷰어 전환',
+              showRating: false,
             ),
 
             const SizedBox(height: 16),
@@ -56,22 +56,22 @@ class ReviewerMyPageScreen extends ConsumerWidget {
             // 캠페인 상태 섹션
             MyPageCommonWidgets.buildCampaignStatusSection(
               statusItems: [
-                {'label': '신청', 'count': '0'},
-                {'label': '선정', 'count': '0'},
-                {'label': '등록', 'count': '0'},
-                {'label': '완료', 'count': '0'},
+                {'label': '대기중', 'count': '0'},
+                {'label': '모집중', 'count': '0'},
+                {'label': '선정완료', 'count': '0'},
+                {'label': '등록기간', 'count': '0'},
+                {'label': '종료', 'count': '0'},
               ],
+              actionButtonText: '캠페인 등록 >',
+              onActionPressed: () {
+                context.push('/campaigns/create');
+              },
             ),
 
             const SizedBox(height: 16),
 
             // 알림 섹션
             MyPageCommonWidgets.buildNotificationSection(),
-
-            const SizedBox(height: 16),
-
-            // SNS 연결 섹션 (리뷰어만)
-            MyPageCommonWidgets.buildSNSConnectionSection(),
 
             const SizedBox(height: 32),
 

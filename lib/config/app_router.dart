@@ -9,11 +9,26 @@ import '../screens/auth/signup_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/guide/guide_screen.dart';
 import '../screens/mypage/mypage_screen.dart';
-import '../screens/mypage/screens/reviewer_mypage_screen.dart';
-import '../screens/mypage/screens/advertiser_mypage_screen.dart';
+import '../screens/mypage/reviewer/reviewer_mypage_screen.dart';
+import '../screens/mypage/advertiser/advertiser_mypage_screen.dart';
 import '../screens/campaign/campaign_detail_screen.dart';
 import '../screens/campaign/campaigns_screen.dart';
 import '../screens/campaign/campaign_creation_screen.dart';
+import '../screens/mypage/reviewer/reviewer_applications_screen.dart';
+import '../screens/mypage/reviewer/reviewer_reviews_screen.dart';
+import '../screens/mypage/common/points_screen.dart';
+import '../screens/mypage/common/profile_screen.dart';
+import '../screens/mypage/reviewer/sns_connection_screen.dart';
+import '../screens/mypage/advertiser/advertiser_campaigns_screen.dart';
+import '../screens/common/notices_screen.dart';
+import '../screens/common/events_screen.dart';
+import '../screens/common/inquiry_screen.dart';
+import '../screens/common/advertisement_inquiry_screen.dart';
+import '../screens/mypage/advertiser/advertiser_analytics_screen.dart';
+import '../screens/mypage/advertiser/advertiser_participants_screen.dart';
+import '../screens/mypage/advertiser/advertiser_company_screen.dart';
+import '../screens/mypage/advertiser/advertiser_penalties_screen.dart';
+import '../screens/settings/notification_settings_screen.dart';
 import '../widgets/loading_screen.dart';
 
 // GoRouter Refresh Notifier
@@ -129,6 +144,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const CampaignsScreen(),
           ),
           GoRoute(
+            path: '/campaigns/create',
+            name: 'campaigns-create',
+            builder: (context, state) => const CampaignCreationScreen(),
+          ),
+          GoRoute(
             path: '/campaigns/:id',
             name: 'campaign-detail',
             builder: (context, state) {
@@ -144,7 +164,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/mypage',
             name: 'mypage',
-            builder: (context, state) => const MyPageScreen(),
+            redirect: (context, state) async {
+              // 현재 사용자 정보 가져오기
+              final authService = ref.read(authServiceProvider);
+              final user = await authService.currentUser;
+              
+              if (user == null) {
+                return '/login';
+              }
+              
+              // 광고주 인증 여부에 따라 적절한 페이지로 리다이렉트
+              if (user.isAdvertiserVerified) {
+                return '/mypage/advertiser';
+              } else {
+                return '/mypage/reviewer';
+              }
+            },
           ),
           GoRoute(
             path: '/mypage/reviewer',
@@ -156,15 +191,97 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'mypage-advertiser',
             builder: (context, state) => const AdvertiserMyPageScreen(),
           ),
+
+          // 리뷰어 관련 라우트
+          GoRoute(
+            path: '/mypage/reviewer/applications',
+            name: 'reviewer-applications',
+            builder: (context, state) => const ReviewerApplicationsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/reviewer/reviews',
+            name: 'reviewer-reviews',
+            builder: (context, state) => const ReviewerReviewsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/reviewer/points',
+            name: 'reviewer-points',
+            builder: (context, state) =>
+                const PointsScreen(userType: 'reviewer'),
+          ),
+          GoRoute(
+            path: '/mypage/reviewer/sns',
+            name: 'reviewer-sns',
+            builder: (context, state) => const SNSConnectionScreen(),
+          ),
+
+          // 광고주 관련 라우트
+          GoRoute(
+            path: '/mypage/advertiser/campaigns',
+            name: 'advertiser-campaigns',
+            builder: (context, state) => const AdvertiserCampaignsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/advertiser/analytics',
+            name: 'advertiser-analytics',
+            builder: (context, state) => const AdvertiserAnalyticsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/advertiser/participants',
+            name: 'advertiser-participants',
+            builder: (context, state) => const AdvertiserParticipantsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/advertiser/company',
+            name: 'advertiser-company',
+            builder: (context, state) => const AdvertiserCompanyScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/advertiser/penalties',
+            name: 'advertiser-penalties',
+            builder: (context, state) => const AdvertiserPenaltiesScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/advertiser/points',
+            name: 'advertiser-points',
+            builder: (context, state) =>
+                const PointsScreen(userType: 'advertiser'),
+          ),
+
+          // 공통 라우트
+          GoRoute(
+            path: '/mypage/profile',
+            name: 'profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
+          GoRoute(
+            path: '/notices',
+            name: 'notices',
+            builder: (context, state) => const NoticesScreen(),
+          ),
+          GoRoute(
+            path: '/events',
+            name: 'events',
+            builder: (context, state) => const EventsScreen(),
+          ),
+          GoRoute(
+            path: '/inquiry',
+            name: 'inquiry',
+            builder: (context, state) => const InquiryScreen(),
+          ),
+          GoRoute(
+            path: '/advertisement-inquiry',
+            name: 'advertisement-inquiry',
+            builder: (context, state) => const AdvertisementInquiryScreen(),
+          ),
+          GoRoute(
+            path: '/settings/notifications',
+            name: 'notification-settings',
+            builder: (context, state) => const NotificationSettingsScreen(),
+          ),
         ],
       ),
 
-      // 캠페인 생성 라우트
-      GoRoute(
-        path: '/campaign/create',
-        name: 'campaign-create',
-        builder: (context, state) => const CampaignCreationScreen(),
-      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(

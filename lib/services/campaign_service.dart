@@ -15,8 +15,7 @@ class CampaignService {
   Future<ApiResponse<List<Campaign>>> getCampaigns({
     int page = 1,
     int limit = 10,
-    String? category,
-    String? type,
+    String? campaignType,
     String? sortBy = 'latest',
   }) async {
     try {
@@ -35,12 +34,8 @@ class CampaignService {
           .select()
           .eq('status', 'active');
 
-      if (category != null) {
-        query = query.eq('category', category);
-      }
-
-      if (type != null) {
-        query = query.eq('type', type);
+      if (campaignType != null) {
+        query = query.eq('campaign_type', campaignType);
       }
 
       // 정렬 적용
@@ -113,7 +108,7 @@ class CampaignService {
           .from('campaigns')
           .select()
           .eq('status', 'active')
-          .eq('category', 'reviewer')
+          .eq('campaign_type', 'reviewer')
           .order('current_participants', ascending: false)
           .limit(limit);
 
@@ -134,7 +129,7 @@ class CampaignService {
           .from('campaigns')
           .select()
           .eq('status', 'active')
-          .eq('category', 'reviewer')
+          .eq('campaign_type', 'reviewer')
           .order('created_at', ascending: false)
           .limit(limit);
 
@@ -151,7 +146,7 @@ class CampaignService {
   // 캠페인 검색
   Future<ApiResponse<List<Campaign>>> searchCampaigns({
     required String query,
-    String? category,
+    String? campaignType,
     int page = 1,
     int limit = 10,
   }) async {
@@ -161,8 +156,8 @@ class CampaignService {
           .select()
           .eq('status', 'active');
 
-      if (category != null) {
-        searchQuery = searchQuery.eq('category', category);
+      if (campaignType != null) {
+        searchQuery = searchQuery.eq('campaign_type', campaignType);
       }
 
       final response = await searchQuery;
@@ -317,8 +312,7 @@ class CampaignService {
         'product_image_url': previousCampaign.productImageUrl,
         'platform': previousCampaign.platform,
         'platform_logo_url': previousCampaign.platformLogoUrl,
-        'category': previousCampaign.category.name,
-        'type': previousCampaign.type.name,
+        'campaign_type': previousCampaign.campaignType.name,
         'product_price': previousCampaign.productPrice,
         'review_reward': previousCampaign.reviewReward,
         'start_date': startDate.toIso8601String(),
@@ -371,8 +365,7 @@ class CampaignService {
   Future<ApiResponse<Campaign>> createCampaign({
     required String title,
     required String description,
-    required String category,
-    required String type,
+    required String campaignType,
     required String platform,
     required int productPrice,
     required int reviewReward,
@@ -420,8 +413,7 @@ class CampaignService {
         'product_image_url': productImageUrl ?? '',
         'platform': platform,
         'platform_logo_url': platformLogoUrl ?? '',
-        'category': category,
-        'type': type,
+        'campaign_type': campaignType,
         'product_price': productPrice,
         'review_reward': reviewReward,
         'start_date': startDate.toIso8601String(),

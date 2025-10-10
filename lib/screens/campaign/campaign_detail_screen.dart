@@ -189,8 +189,8 @@ class CampaignDetailScreen extends ConsumerWidget {
                 _buildInfoSection(context, '캠페인 정보', [
                   _buildInfoItem(
                     context,
-                    '카테고리',
-                    _getCategoryName(campaign.category),
+                    '캠페인 타입',
+                    _getCategoryName(campaign.campaignType),
                   ),
                   _buildInfoItem(
                     context,

@@ -129,16 +129,15 @@ VALUES
   ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', '테스트 회사', '123-45-67890', 'company@test.com', '02-1234-5678', '서울시 강남구', '5d1e6c3b-7202-4dd8-9a67-d1ff0363f2f1');
 
 -- 3. public.users 테이블에 사용자 정보 동기화
-INSERT INTO public.users (id, display_name, email, user_type, is_advertiser_verified, company_id)
+INSERT INTO public.users (id, display_name, email, user_type, company_id)
 VALUES 
-  ('5d1e6c3b-7202-4dd8-9a67-d1ff0363f2f1', 'dev', 'dev@example.com', 'user', false, null),
-  ('9cb57f0c-6ffe-4ad6-bc91-fd49aec221e3', 'admin', 'admin@example.com', 'user', false, null),
-  ('a0f8827d-2cbe-4e8e-a7cb-003b32b1a1f7', 'reviewer', 'reviewer@example.com', 'user', false, null)
+  ('5d1e6c3b-7202-4dd8-9a67-d1ff0363f2f1', 'dev', 'dev@example.com', 'user', null),
+  ('9cb57f0c-6ffe-4ad6-bc91-fd49aec221e3', 'admin', 'admin@example.com', 'user', null),
+  ('a0f8827d-2cbe-4e8e-a7cb-003b32b1a1f7', 'reviewer', 'reviewer@example.com', 'user', null)
 ON CONFLICT (id) DO UPDATE SET
   display_name = EXCLUDED.display_name,
   email = EXCLUDED.email,
   user_type = EXCLUDED.user_type,
-  is_advertiser_verified = EXCLUDED.is_advertiser_verified,
   company_id = EXCLUDED.company_id,
   updated_at = NOW();
 

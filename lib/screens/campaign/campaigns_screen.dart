@@ -74,7 +74,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
 
     try {
       final response = await _campaignService.getCampaigns(
-        category: _selectedCategory == 'all' ? null : _selectedCategory,
+        campaignType: _selectedCategory == 'all' ? null : _selectedCategory,
       );
 
       if (response.success && response.data != null) {

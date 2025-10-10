@@ -24,8 +24,7 @@ class _CampaignCreationScreenState
   final _reviewRewardController = TextEditingController();
 
   // 폼 상태
-  String _selectedCategory = 'reviewer';
-  String _selectedType = 'reviewer';
+  String _selectedCampaignType = 'reviewer';
   String _selectedPlatform = 'coupang';
   DateTime? _startDate;
   DateTime? _endDate;
@@ -187,7 +186,7 @@ class _CampaignCreationScreenState
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            '${campaign.category.name} • ${campaign.platform} • 사용 ${campaign.usageCount}회',
+                            '${campaign.campaignType.name} • ${campaign.platform} • 사용 ${campaign.usageCount}회',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],
@@ -271,49 +270,23 @@ class _CampaignCreationScreenState
             ),
             const SizedBox(height: 16),
 
-            // 카테고리와 타입
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: '카테고리 *',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'reviewer', child: Text('리뷰어')),
-                      DropdownMenuItem(value: 'press', child: Text('기자단')),
-                      DropdownMenuItem(value: 'visit', child: Text('방문형')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCategory = value!;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedType,
-                    decoration: const InputDecoration(
-                      labelText: '타입 *',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'reviewer', child: Text('리뷰어')),
-                      DropdownMenuItem(value: 'press', child: Text('기자단')),
-                      DropdownMenuItem(value: 'visit', child: Text('방문형')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedType = value!;
-                      });
-                    },
-                  ),
-                ),
+            // 캠페인 타입
+            DropdownButtonFormField<String>(
+              initialValue: _selectedCampaignType,
+              decoration: const InputDecoration(
+                labelText: '캠페인 타입 *',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'reviewer', child: Text('리뷰어')),
+                DropdownMenuItem(value: 'press', child: Text('기자단')),
+                DropdownMenuItem(value: 'visit', child: Text('방문형')),
               ],
+              onChanged: (value) {
+                setState(() {
+                  _selectedCampaignType = value!;
+                });
+              },
             ),
             const SizedBox(height: 16),
 
@@ -516,8 +489,7 @@ class _CampaignCreationScreenState
       _reviewRewardController.text = campaign.reviewReward.toString();
 
       setState(() {
-        _selectedCategory = campaign.category.name;
-        _selectedType = campaign.type.name;
+        _selectedCampaignType = campaign.campaignType.name;
         _selectedPlatform = campaign.platform;
         _startDate = campaign.startDate;
         _endDate = campaign.endDate;
@@ -549,8 +521,7 @@ class _CampaignCreationScreenState
     _reviewRewardController.clear();
 
     setState(() {
-      _selectedCategory = 'reviewer';
-      _selectedType = 'reviewer';
+      _selectedCampaignType = 'reviewer';
       _selectedPlatform = 'coupang';
       _startDate = null;
       _endDate = null;
@@ -622,8 +593,7 @@ class _CampaignCreationScreenState
         response = await CampaignService().createCampaign(
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim(),
-          category: _selectedCategory,
-          type: _selectedType,
+          campaignType: _selectedCampaignType,
           platform: _selectedPlatform,
           productPrice: int.tryParse(_productPriceController.text) ?? 0,
           reviewReward: int.tryParse(_reviewRewardController.text) ?? 0,
@@ -641,7 +611,8 @@ class _CampaignCreationScreenState
               backgroundColor: Colors.green[600],
             ),
           );
-          context.pop();
+          // 광고주 마이페이지로 이동
+          context.go('/mypage/advertiser');
         }
       } else {
         setState(() {

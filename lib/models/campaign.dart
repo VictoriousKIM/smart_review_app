@@ -5,8 +5,7 @@ class Campaign {
   final String productImageUrl;
   final String platform;
   final String platformLogoUrl;
-  final CampaignCategory category;
-  final CampaignType type;
+  final CampaignCategory campaignType;
   final int productPrice;
   final int reviewReward;
   final DateTime? startDate;
@@ -29,8 +28,7 @@ class Campaign {
     required this.productImageUrl,
     required this.platform,
     required this.platformLogoUrl,
-    required this.category,
-    required this.type,
+    required this.campaignType,
     required this.productPrice,
     required this.reviewReward,
     this.startDate,
@@ -54,13 +52,9 @@ class Campaign {
       productImageUrl: json['product_image_url'] ?? '',
       platform: json['platform'] ?? '',
       platformLogoUrl: json['platform_logo_url'] ?? '',
-      category: CampaignCategory.values.firstWhere(
-        (e) => e.name == (json['category'] ?? 'all'),
+      campaignType: CampaignCategory.values.firstWhere(
+        (e) => e.name == (json['campaign_type'] ?? 'all'),
         orElse: () => CampaignCategory.all,
-      ),
-      type: CampaignType.values.firstWhere(
-        (e) => e.name == (json['type'] ?? 'reviewer'),
-        orElse: () => CampaignType.reviewer,
       ),
       productPrice: json['product_price'] ?? 0,
       reviewReward: json['review_reward'] ?? 0,
@@ -97,8 +91,7 @@ class Campaign {
       'product_image_url': productImageUrl,
       'platform': platform,
       'platform_logo_url': platformLogoUrl,
-      'category': category.name,
-      'type': type.name,
+      'campaign_type': campaignType.name,
       'product_price': productPrice,
       'review_reward': reviewReward,
       'start_date': startDate?.toIso8601String(),
@@ -122,8 +115,7 @@ class Campaign {
     String? productImageUrl,
     String? platform,
     String? platformLogoUrl,
-    CampaignCategory? category,
-    CampaignType? type,
+    CampaignCategory? campaignType,
     int? productPrice,
     int? reviewReward,
     DateTime? startDate,
@@ -145,8 +137,7 @@ class Campaign {
       productImageUrl: productImageUrl ?? this.productImageUrl,
       platform: platform ?? this.platform,
       platformLogoUrl: platformLogoUrl ?? this.platformLogoUrl,
-      category: category ?? this.category,
-      type: type ?? this.type,
+      campaignType: campaignType ?? this.campaignType,
       productPrice: productPrice ?? this.productPrice,
       reviewReward: reviewReward ?? this.reviewReward,
       startDate: startDate ?? this.startDate,

@@ -10,7 +10,6 @@ class User {
   final int level;
   final int reviewCount;
   final UserType userType;
-  final bool isAdvertiserVerified;
   final String? companyId;
   final CompanyRole? companyRole;
   final SNSConnections? snsConnections;
@@ -25,11 +24,13 @@ class User {
     this.level = 1,
     this.reviewCount = 0,
     this.userType = UserType.user,
-    this.isAdvertiserVerified = false,
     this.companyId,
     this.companyRole,
     this.snsConnections,
   });
+
+  // company_id가 있으면 광고주로 판단
+  bool get isAdvertiserVerified => companyId != null;
 
   factory User.fromSupabaseUser(supabase.User user) {
     final metadata = user.userMetadata ?? {};
@@ -43,7 +44,6 @@ class User {
         (e) => e.name == metadata['user_type'],
         orElse: () => UserType.user,
       ),
-      isAdvertiserVerified: metadata['is_advertiser_verified'] ?? false,
       companyId: metadata['company_id'],
       companyRole: metadata['company_role'] != null
           ? CompanyRole.values.firstWhere(
@@ -77,7 +77,6 @@ class User {
         (e) => e.name == profileData['user_type'],
         orElse: () => UserType.user,
       ),
-      isAdvertiserVerified: profileData['is_advertiser_verified'] ?? false,
       companyId: profileData['company_id'],
       companyRole: profileData['company_role'] != null
           ? CompanyRole.values.firstWhere(
@@ -105,7 +104,6 @@ class User {
         (e) => e.name == (json['user_type'] ?? json['userType']),
         orElse: () => UserType.user,
       ),
-      isAdvertiserVerified: json['is_advertiser_verified'] ?? false,
       companyId: json['company_id'],
       companyRole: json['company_role'] != null
           ? CompanyRole.values.firstWhere(
@@ -130,7 +128,6 @@ class User {
       'level': level,
       'review_count': reviewCount,
       'user_type': userType.name,
-      'is_advertiser_verified': isAdvertiserVerified,
       'company_id': companyId,
       'company_role': companyRole?.name,
       'sns_connections': snsConnections?.toJson(),
@@ -147,7 +144,6 @@ class User {
     int? level,
     int? reviewCount,
     UserType? userType,
-    bool? isAdvertiserVerified,
     String? companyId,
     CompanyRole? companyRole,
     SNSConnections? snsConnections,
@@ -162,7 +158,6 @@ class User {
       level: level ?? this.level,
       reviewCount: reviewCount ?? this.reviewCount,
       userType: userType ?? this.userType,
-      isAdvertiserVerified: isAdvertiserVerified ?? this.isAdvertiserVerified,
       companyId: companyId ?? this.companyId,
       companyRole: companyRole ?? this.companyRole,
       snsConnections: snsConnections ?? this.snsConnections,
