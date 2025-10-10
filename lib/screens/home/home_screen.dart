@@ -35,10 +35,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       // 전체 캠페인 로드
       final campaignsResponse = await _campaignService.getCampaigns();
-      
+
       // 인기 캠페인 로드
-      final popularResponse = await _campaignService.getPopularCampaigns(limit: 5);
-      
+      final popularResponse = await _campaignService.getPopularCampaigns(
+        limit: 5,
+      );
+
       // 새 캠페인 로드
       final newResponse = await _campaignService.getNewCampaigns(limit: 5);
 
@@ -85,56 +87,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 헤더
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Theme.of(context).colorScheme.primary,
-                    Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.8),
-                  ],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '안녕하세요!',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+            SafeArea(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.primary,
+                      Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.8),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  user.when(
-                    data: (userData) => Text(
-                      userData?.displayName ?? '게스트',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '안녕하세요!',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    user.when(
+                      data: (userData) => Text(
+                        userData?.displayName ?? '게스트',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      loading: () => const Text(
+                        '로딩 중...',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      error: (_, __) => const Text(
+                        '게스트',
+                        style: TextStyle(color: Colors.white),
                       ),
                     ),
-                    loading: () => const Text(
-                      '로딩 중...',
-                      style: TextStyle(color: Colors.white),
+                    const SizedBox(height: 24),
+                    Text(
+                      '새로운 리뷰 캠페인을 발견해보세요',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
                     ),
-                    error: (_, __) => const Text(
-                      '게스트',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    '새로운 리뷰 캠페인을 발견해보세요',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
@@ -144,26 +149,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _popularCampaigns.isEmpty
-                      ? const Center(child: Text('인기 캠페인이 없습니다'))
-                      : SizedBox(
-                          height: 200,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _popularCampaigns.length,
-                            itemBuilder: (context, index) {
-                              final campaign = _popularCampaigns[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 12),
-                                child: CampaignCard(
-                                  campaign: campaign,
-                                  onTap: () =>
-                                      _navigateToCampaignDetail(campaign.id),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
+                  ? const Center(child: Text('인기 캠페인이 없습니다'))
+                  : SizedBox(
+                      height: 200,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _popularCampaigns.length,
+                        itemBuilder: (context, index) {
+                          final campaign = _popularCampaigns[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: CampaignCard(
+                              campaign: campaign,
+                              onTap: () =>
+                                  _navigateToCampaignDetail(campaign.id),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
             ),
 
             // 새 캠페인
@@ -172,26 +177,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _newCampaigns.isEmpty
-                      ? const Center(child: Text('새 캠페인이 없습니다'))
-                      : SizedBox(
-                          height: 200,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _newCampaigns.length,
-                            itemBuilder: (context, index) {
-                              final campaign = _newCampaigns[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 12),
-                                child: CampaignCard(
-                                  campaign: campaign,
-                                  onTap: () =>
-                                      _navigateToCampaignDetail(campaign.id),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
+                  ? const Center(child: Text('새 캠페인이 없습니다'))
+                  : SizedBox(
+                      height: 200,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _newCampaigns.length,
+                        itemBuilder: (context, index) {
+                          final campaign = _newCampaigns[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: CampaignCard(
+                              campaign: campaign,
+                              onTap: () =>
+                                  _navigateToCampaignDetail(campaign.id),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
             ),
 
             // 전체 캠페인
@@ -200,26 +205,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _campaigns.isEmpty
-                      ? const Center(child: Text('캠페인이 없습니다'))
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _campaigns.length,
-                          itemBuilder: (context, index) {
-                            final campaign = _campaigns[index];
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              child: CampaignCard(
-                                campaign: campaign,
-                                onTap: () =>
-                                    _navigateToCampaignDetail(campaign.id),
-                              ),
-                            );
-                          },
-                        ),
+                  ? const Center(child: Text('캠페인이 없습니다'))
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _campaigns.length,
+                      itemBuilder: (context, index) {
+                        final campaign = _campaigns[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: CampaignCard(
+                            campaign: campaign,
+                            onTap: () => _navigateToCampaignDetail(campaign.id),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
