@@ -6,30 +6,76 @@ import 'auth_provider.dart';
 
 part 'campaign_provider.g.dart';
 
+// CampaignService Provider
 @Riverpod(keepAlive: true)
 CampaignService campaignService(Ref ref) => CampaignService();
 
-// 인기 캠페인 가져오기
+// 캠페인 목록 Provider
+@riverpod
+Future<ApiResponse<List<Campaign>>> campaigns(
+  Ref ref, {
+  required int page,
+  int limit = 10,
+  String? category,
+  String? type,
+  String sortBy = 'latest',
+}) {
+  final campaignService = ref.watch(campaignServiceProvider);
+  return campaignService.getCampaigns(
+    page: page,
+    limit: limit,
+    category: category,
+    type: type,
+    sortBy: sortBy,
+  );
+}
+
+// 캠페인 상세 정보 Provider
+@riverpod
+Future<ApiResponse<Campaign>> campaignDetail(Ref ref, String campaignId) {
+  final campaignService = ref.watch(campaignServiceProvider);
+  return campaignService.getCampaignById(campaignId);
+}
+
+// 인기 캠페인 Provider
 @riverpod
 Future<ApiResponse<List<Campaign>>> popularCampaigns(
   Ref ref, {
-  int limit = 5,
-}) async {
+  required int limit,
+}) {
   final campaignService = ref.watch(campaignServiceProvider);
   return campaignService.getPopularCampaigns(limit: limit);
 }
 
-// 새 캠페인 가져오기
+// 새 캠페인 Provider
 @riverpod
 Future<ApiResponse<List<Campaign>>> newCampaigns(
   Ref ref, {
-  int limit = 5,
-}) async {
+  required int limit,
+}) {
   final campaignService = ref.watch(campaignServiceProvider);
   return campaignService.getNewCampaigns(limit: limit);
 }
 
-// 사용자별 캠페인 가져오기
+// 캠페인 검색 Provider
+@riverpod
+Future<ApiResponse<List<Campaign>>> searchCampaigns(
+  Ref ref, {
+  required String query,
+  String? category,
+  int page = 1,
+  int limit = 10,
+}) {
+  final campaignService = ref.watch(campaignServiceProvider);
+  return campaignService.searchCampaigns(
+    query: query,
+    category: category,
+    page: page,
+    limit: limit,
+  );
+}
+
+// 사용자 캠페인 목록 Provider
 @riverpod
 Future<ApiResponse<List<Campaign>>> userCampaigns(
   Ref ref, {
@@ -40,36 +86,220 @@ Future<ApiResponse<List<Campaign>>> userCampaigns(
   return campaignService.getUserCampaigns(page: page, limit: limit);
 }
 
-// 캠페인 상태 관리 Notifier
-@Riverpod(keepAlive: false)
-class CampaignNotifier extends _$CampaignNotifier {
-  @override
-  Future<List<Campaign>> build() async {
-    print('🔍 CampaignProvider.build() 호출됨 - 새로고침 후 즉시 캠페인 로드');
-    
-    try {
-      // CampaignService 직접 호출
-      final campaignService = CampaignService();
+// 캠페인 목록 Provider - 새로고침 후 즉시 로딩
+@riverpod
+Future<List<Campaign>> campaignList(Ref ref) async {
+  // 인증 상태 확인
+  final authState = ref.watch(currentUserProvider);
+  
+  return authState.when(
+    data: (user) async {
+      if (user == null) return [];
+      
+      // 인증된 사용자라면 즉시 캠페인 로드
+      final campaignService = ref.watch(campaignServiceProvider);
       final response = await campaignService.getCampaigns();
       
-      print('🔍 CampaignService 응답: success=${response.success}, data=${response.data?.length}개');
-      
       if (response.success && response.data != null) {
-        print('🔍 캠페인 로드 성공: ${response.data!.length}개');
         return response.data!;
-      } else {
-        print('❌ CampaignService 실패: ${response.error}');
+      }
+      return [];
+    },
+    loading: () async => [],
+    error: (_, __) async => [],
+  );
+}
+
+// 캠페인 상태 관리 Notifier (기존 기능 유지)
+@Riverpod(keepAlive: true)
+class CampaignNotifier extends _$CampaignNotifier {
+  late final CampaignService _campaignService;
+  int _currentPage = 1;
+  bool _hasMore = true;
+  String? _currentCategory;
+  String? _currentType;
+  String _currentSortBy = 'latest';
+  final List<Campaign> _campaigns = [];
+
+  @override
+  Future<List<Campaign>> build() async {
+    _campaignService = ref.watch(campaignServiceProvider);
+    
+    // 인증 상태 확인
+    final authState = ref.watch(currentUserProvider);
+    
+    return authState.when(
+      data: (user) async {
+        if (user == null) {
+          _campaigns.clear();
+          return [];
+        }
+        
+        // 로그인된 사용자라면 항상 캠페인 로드 시도
+        await _loadCampaigns(refresh: true);
+        return _campaigns;
+      },
+      loading: () async {
+        // 로딩 중일 때는 빈 리스트 반환 (새로고침 시 깔끔한 상태)
         return [];
+      },
+      error: (_, __) async {
+        // 에러 시 빈 리스트 반환
+        _campaigns.clear();
+        return [];
+      },
+    );
+  }
+
+  Future<void> _loadCampaigns({
+    String? category,
+    String? type,
+    String? sortBy,
+    bool refresh = false,
+  }) async {
+    if (refresh) {
+      _currentPage = 1;
+      _hasMore = true;
+      _campaigns.clear();
+      _currentCategory = category;
+      _currentType = type;
+      _currentSortBy = sortBy ?? 'latest';
+    }
+
+    if (state.isLoading || !_hasMore) return;
+
+    try {
+      // 로딩 상태를 설정하되 기존 데이터가 있으면 유지
+      if (_campaigns.isEmpty) {
+        state = const AsyncValue.loading();
+      }
+
+      final response = await _campaignService.getCampaigns(
+        page: _currentPage,
+        limit: 10,
+        category: _currentCategory,
+        type: _currentType,
+        sortBy: _currentSortBy,
+      );
+
+      if (response.success && response.data != null) {
+        final newCampaigns = response.data!;
+        _hasMore = newCampaigns.length == 10;
+        _currentPage++;
+        _campaigns.addAll(newCampaigns);
+        state = AsyncValue.data(_campaigns);
+      } else {
+        throw Exception(response.error ?? '캠페인을 불러올 수 없습니다.');
       }
     } catch (e) {
-      print('❌ CampaignProvider 에러 발생: ${e.toString()}');
-      return [];
+      state = AsyncValue.error(e, StackTrace.current);
     }
   }
-  
-  // 새로고침 메서드
+
+  Future<void> loadCampaigns({
+    String? category,
+    String? type,
+    String? sortBy,
+    bool refresh = false,
+  }) async {
+    await _loadCampaigns(
+      category: category,
+      type: type,
+      sortBy: sortBy,
+      refresh: refresh,
+    );
+  }
+
   Future<void> refreshCampaigns() async {
-    print('🔍 refreshCampaigns 호출됨');
-    ref.invalidateSelf();
+    await _loadCampaigns(refresh: true);
+  }
+
+  Future<void> loadMoreCampaigns() async {
+    await loadCampaigns();
+  }
+
+  Future<bool> joinCampaign(String campaignId) async {
+    final response = await _campaignService.joinCampaign(campaignId);
+    if (response.success) {
+      await refreshCampaigns();
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> leaveCampaign(String campaignId) async {
+    final response = await _campaignService.leaveCampaign(campaignId);
+    if (response.success) {
+      await refreshCampaigns();
+      return true;
+    }
+    return false;
+  }
+}
+
+// 검색 상태 관리 Notifier
+@Riverpod(keepAlive: true)
+class SearchNotifier extends _$SearchNotifier {
+  late final CampaignService _campaignService;
+  String _currentQuery = '';
+  String? _currentCategory;
+  int _currentPage = 1;
+  bool _hasMore = true;
+  final List<Campaign> _results = [];
+
+  @override
+  Future<List<Campaign>> build() async {
+    _campaignService = ref.watch(campaignServiceProvider);
+    return _results;
+  }
+
+  Future<void> search({
+    required String query,
+    String? category,
+    bool refresh = false,
+  }) async {
+    if (refresh) {
+      _currentPage = 1;
+      _hasMore = true;
+      _results.clear();
+      _currentQuery = query;
+      _currentCategory = category;
+    }
+
+    if (state.isLoading || !_hasMore) return;
+
+    state = const AsyncValue.loading();
+
+    state = await AsyncValue.guard(() async {
+      final response = await _campaignService.searchCampaigns(
+        query: _currentQuery,
+        category: _currentCategory,
+        page: _currentPage,
+        limit: 10,
+      );
+
+      if (response.success && response.data != null) {
+        final newResults = response.data!;
+        _hasMore = newResults.length == 10;
+        _currentPage++;
+        _results.addAll(newResults);
+      } else {
+        throw response.error ?? '검색 결과를 불러올 수 없습니다.';
+      }
+      return _results;
+    });
+  }
+
+  Future<void> loadMoreResults() async {
+    await search(query: _currentQuery, category: _currentCategory);
+  }
+
+  void clearSearch() {
+    _results.clear();
+    _currentQuery = '';
+    _currentCategory = null;
+    _currentPage = 1;
+    _hasMore = true;
+    state = const AsyncValue.data([]);
   }
 }
