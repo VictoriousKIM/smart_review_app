@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/campaign.dart';
 import '../../services/campaign_service.dart';
 import '../../widgets/campaign_card.dart';
@@ -266,10 +267,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
           child: CampaignCard(
             campaign: campaign,
             onTap: () {
-              // 캠페인 상세 페이지로 이동
-              // Navigator.push(context, MaterialPageRoute(
-              //   builder: (context) => CampaignDetailScreen(campaign: campaign),
-              // ));
+              context.push('/campaign/${campaign.id}');
             },
           ),
         );
