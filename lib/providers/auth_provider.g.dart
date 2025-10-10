@@ -58,9 +58,9 @@ final class CurrentUserProvider
         $FunctionalProvider<
           AsyncValue<app_user.User?>,
           app_user.User?,
-          Stream<app_user.User?>
+          FutureOr<app_user.User?>
         >
-    with $FutureModifier<app_user.User?>, $StreamProvider<app_user.User?> {
+    with $FutureModifier<app_user.User?>, $FutureProvider<app_user.User?> {
   const CurrentUserProvider._()
     : super(
         from: null,
@@ -77,17 +77,17 @@ final class CurrentUserProvider
 
   @$internal
   @override
-  $StreamProviderElement<app_user.User?> $createElement(
+  $FutureProviderElement<app_user.User?> $createElement(
     $ProviderPointer pointer,
-  ) => $StreamProviderElement(pointer);
+  ) => $FutureProviderElement(pointer);
 
   @override
-  Stream<app_user.User?> create(Ref ref) {
+  FutureOr<app_user.User?> create(Ref ref) {
     return currentUser(ref);
   }
 }
 
-String _$currentUserHash() => r'a415615e8937881062916eca7bd9f04f7f3ca0fb';
+String _$currentUserHash() => r'7d4d1427065ee2b96f91f8519d7e2c6286227d1e';
 
 @ProviderFor(isLoggedIn)
 const isLoggedInProvider = IsLoggedInProvider._();
@@ -127,7 +127,7 @@ final class IsLoggedInProvider extends $FunctionalProvider<bool, bool, bool>
   }
 }
 
-String _$isLoggedInHash() => r'ac56433d3e69133cf4a55dcec563ef0403ba2147';
+String _$isLoggedInHash() => r'9a0c1820df26973033af16713a10b42a0f3f4a71';
 
 @ProviderFor(userType)
 const userTypeProvider = UserTypeProvider._();
@@ -174,7 +174,7 @@ final class UserTypeProvider
   }
 }
 
-String _$userTypeHash() => r'99d2f87d4e0a53f9a3499b3233ee2c89db063701';
+String _$userTypeHash() => r'19fd73ee1ad21968c6db7250ba9dcda6fd1c4350';
 
 @ProviderFor(AuthNotifier)
 const authProvider = AuthNotifierProvider._();
@@ -200,7 +200,7 @@ final class AuthNotifierProvider
   AuthNotifier create() => AuthNotifier();
 }
 
-String _$authNotifierHash() => r'e0660a0ffa2d4ce29e3cdd5463c1a4b797ddcd9e';
+String _$authNotifierHash() => r'9e98187984d5124d6124b9c3b2182e3123ba8529';
 
 abstract class _$AuthNotifier extends $StreamNotifier<app_user.User?> {
   Stream<app_user.User?> build();

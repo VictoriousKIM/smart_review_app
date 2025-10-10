@@ -2,6 +2,20 @@
 
 이 문서는 Supabase CLI를 사용한 로컬 개발 환경 설정 및 사용 방법을 설명합니다.
 
+## 🔄 최근 업데이트 (2025-10-09)
+
+### 인증 시스템 개선
+- **GoRouter 통합 개선**: AuthService의 `authStateChanges` Stream을 사용하여 실시간 인증 상태 변화 감지
+- **자동 리다이렉션**: 로그인/로그아웃 시 GoRouter가 자동으로 적절한 페이지로 리다이렉션
+- **Context 안전성**: `context.mounted` 체크를 통한 안전한 네비게이션 처리
+- **로딩 상태 처리**: 인증 상태 로딩 중 `/loading` 페이지로 리다이렉션하여 UX 개선
+
+### 코드 품질 개선
+- 모든 deprecated API 제거 (`withOpacity` → `withValues`, Radio API 업데이트)
+- 불필요한 언더스코어 사용 제거
+- BuildContext async gap 문제 해결
+- 린터 오류 전체 해결
+
 ## 📋 사전 요구사항
 
 - **Docker Desktop** (필수)

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,54 +16,69 @@ import '../screens/campaign/campaigns_screen.dart';
 import '../screens/campaign/campaign_creation_screen.dart';
 import '../widgets/loading_screen.dart';
 
+// GoRouter Refresh Notifier
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
+
 // 라우터 설정
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(currentUserProvider);
+  // AuthService를 사용하여 실시간 인증 상태 변화 감지
+  final authService = ref.watch(authServiceProvider);
+
+  // GoRouter가 재생성되지 않도록 keepAlive 사용
+  ref.keepAlive();
 
   return GoRouter(
-    initialLocation: '/',
     debugLogDiagnostics: true,
-    redirect: (context, state) {
-      return authState.when(
-        data: (user) {
-          final isLoggedIn = user != null;
-          final isLoggingIn = state.matchedLocation == '/login';
-          final isSigningUp = state.matchedLocation == '/signup';
-          final isRoot = state.matchedLocation == '/';
-
-          // 루트 경로 접근 시 인증 상태에 따라 적절한 페이지로 리다이렉트
-          if (isRoot) {
-            return isLoggedIn ? '/home' : '/login';
-          }
-
-          // 로그인되지 않은 상태에서 보호된 경로 접근 시 로그인 페이지로 리다이렉트
-          if (!isLoggedIn && !isLoggingIn && !isSigningUp) {
-            return '/login';
-          }
-
-          // 로그인된 상태에서 로그인/회원가입 페이지 접근 시 홈으로 리다이렉트
-          if (isLoggedIn && (isLoggingIn || isSigningUp)) {
-            return '/home';
-          }
-
-          return null; // 리다이렉트 없음
-        },
-        loading: () {
-          // ⭐ 핵심 개선: 로딩 중일 때는 리다이렉트하지 않음 (현재 페이지 유지)
-          return null; // 현재 페이지 유지
-        },
-        error: (_, __) {
-          // 에러 발생 시 로그인 페이지로 리다이렉트
-          final isLoggingIn = state.matchedLocation == '/login';
-          final isSigningUp = state.matchedLocation == '/signup';
-
-          if (!isLoggingIn && !isSigningUp) {
-            return '/login';
-          }
-
-          return null;
-        },
+    refreshListenable: GoRouterRefreshStream(authService.authStateChanges),
+    redirect: (context, state) async {
+      debugPrint(
+        '🔍 Redirect called: ${state.matchedLocation} (uri: ${state.uri})',
       );
+
+      // 현재 인증 상태를 직접 확인 (authProvider를 watch하지 않음)
+      final user = await authService.currentUser;
+      final isLoggedIn = user != null;
+
+      final isLoggingIn = state.matchedLocation == '/login';
+      final isSigningUp = state.matchedLocation == '/signup';
+      final isRoot = state.matchedLocation == '/';
+      final isLoading = state.matchedLocation == '/loading';
+
+      // 로딩 페이지는 항상 허용
+      if (isLoading) {
+        return null;
+      }
+
+      // 루트 경로 접근 시 인증 상태에 따라 적절한 페이지로 리다이렉트
+      // 단, state.uri.path가 '/'가 아니면 (다른 URL로 직접 접근한 경우) 스킵
+      if (isRoot && state.uri.path == '/') {
+        return isLoggedIn ? '/home' : '/login';
+      }
+
+      // 로그인되지 않은 상태에서 보호된 경로 접근 시 로그인 페이지로 리다이렉트
+      if (!isLoggedIn && !isLoggingIn && !isSigningUp) {
+        return '/login';
+      }
+
+      // 로그인된 상태에서 로그인/회원가입 페이지 접근 시 홈으로 리다이렉트
+      if (isLoggedIn && (isLoggingIn || isSigningUp)) {
+        return '/home';
+      }
+
+      return null; // 리다이렉트 없음
     },
     routes: [
       // 루트 경로 - 인증 상태에 따라 적절한 페이지로 리다이렉트

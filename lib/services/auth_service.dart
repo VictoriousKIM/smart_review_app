@@ -248,11 +248,8 @@ class AuthService {
     app_user.UserType userType,
   ) async {
     try {
-      final profile = await _supabase
-          .from('users')
-          .select()
-          .eq('id', user.id)
-          .single();
+      // 프로필이 존재하는지 확인
+      await _supabase.from('users').select().eq('id', user.id).single();
 
       // 프로필이 존재하면 업데이트 (필요 시)
       await _supabase

@@ -36,7 +36,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             }
           },
           loading: () {},
-          error: (_, __) {},
+          error: (_, _) {},
         );
       });
     }
@@ -162,8 +162,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         onChanged: (value) {
                           setState(() {
                             _isAdvertiser = value!;
-                            _selectedUserType =
-                                app_user.UserType.user; // 항상 user 타입
+                            _selectedUserType = app_user.UserType.user;
                           });
                         },
                       ),
@@ -176,7 +175,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           setState(() {
                             _isAdvertiser = value!;
                             _selectedUserType =
-                                app_user.UserType.user; // 항상 user 타입
+                                app_user.UserType.user; // 광고주도 user 타입으로 설정
                           });
                         },
                       ),

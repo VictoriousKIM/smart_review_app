@@ -153,7 +153,7 @@ class _CampaignCreationScreenState
               const Center(child: CircularProgressIndicator())
             else
               DropdownButtonFormField<Campaign>(
-                value: _selectedPreviousCampaign,
+                initialValue: _selectedPreviousCampaign,
                 decoration: InputDecoration(
                   hintText: '이전 캠페인을 선택하세요 (선택사항)',
                   border: const OutlineInputBorder(),
@@ -276,7 +276,7 @@ class _CampaignCreationScreenState
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _selectedCategory,
+                    initialValue: _selectedCategory,
                     decoration: const InputDecoration(
                       labelText: '카테고리 *',
                       border: OutlineInputBorder(),
@@ -296,7 +296,7 @@ class _CampaignCreationScreenState
                 const SizedBox(width: 16),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _selectedType,
+                    initialValue: _selectedType,
                     decoration: const InputDecoration(
                       labelText: '타입 *',
                       border: OutlineInputBorder(),
@@ -343,7 +343,7 @@ class _CampaignCreationScreenState
 
             // 플랫폼
             DropdownButtonFormField<String>(
-              value: _selectedPlatform,
+              initialValue: _selectedPlatform,
               decoration: const InputDecoration(
                 labelText: '플랫폼 *',
                 border: OutlineInputBorder(),

@@ -10,9 +10,9 @@ AuthService authService(Ref ref) => AuthService();
 
 // 현재 사용자 Provider
 @riverpod
-Stream<app_user.User?> currentUser(Ref ref) {
+Future<app_user.User?> currentUser(Ref ref) async {
   final authService = ref.watch(authServiceProvider);
-  return authService.authStateChanges;
+  return await authService.currentUser;
 }
 
 // 로그인 상태 Provider
@@ -22,7 +22,7 @@ bool isLoggedIn(Ref ref) {
   return user.when(
     data: (user) => user != null,
     loading: () => false,
-    error: (_, __) => false,
+    error: (_, _) => false,
   );
 }
 
@@ -33,7 +33,7 @@ app_user.UserType? userType(Ref ref) {
   return user.when(
     data: (user) => user?.userType,
     loading: () => null,
-    error: (_, __) => null,
+    error: (_, _) => null,
   );
 }
 

@@ -37,14 +37,6 @@ class ReviewerDrawer extends ConsumerWidget {
                   },
                 ),
                 _buildMenuItem(
-                  icon: Icons.favorite_outline,
-                  title: '찜한 캠페인',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/mypage/reviewer/favorites');
-                  },
-                ),
-                _buildMenuItem(
                   icon: Icons.star_outline,
                   title: '내 리뷰',
                   onTap: () {
@@ -168,7 +160,7 @@ class ReviewerDrawer extends ConsumerWidget {
         children: [
           CircleAvatar(
             radius: 30,
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             child: Text(
               (user.displayName ?? user.email).substring(0, 1).toUpperCase(),
               style: const TextStyle(
@@ -192,7 +184,7 @@ class ReviewerDrawer extends ConsumerWidget {
             user.email,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 8),
@@ -201,7 +193,7 @@ class ReviewerDrawer extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
@@ -221,7 +213,7 @@ class ReviewerDrawer extends ConsumerWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(

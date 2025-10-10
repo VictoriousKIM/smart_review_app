@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/email_login_form.dart';
@@ -32,56 +31,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await signInMethod();
 
-      if (mounted) {
-        // 잠시 기다린 후 사용자 데이터를 확인
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        final authState = ref.read(currentUserProvider);
-        authState.when(
-          data: (user) {
-            if (user != null) {
-              // 사용자 프로필이 완전하지 않으면 추가 정보 입력 화면으로 이동
-              if (user.displayName == null || user.displayName!.isEmpty) {
-                context.go('/signup?social=true');
-              } else {
-                // 프로필이 완전하면 홈 화면으로 이동
-                context.go('/home');
-              }
-            }
-          },
-          loading: () {
-            // 로딩 중이면 잠시 더 기다린 후 다시 확인
-            Future.delayed(const Duration(milliseconds: 1000), () {
-              if (mounted) {
-                final authState = ref.read(currentUserProvider);
-                authState.when(
-                  data: (user) {
-                    if (user != null) {
-                      if (user.displayName == null ||
-                          user.displayName!.isEmpty) {
-                        context.go('/signup?social=true');
-                      } else {
-                        context.go('/home');
-                      }
-                    }
-                  },
-                  loading: () {},
-                  error: (error, _) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('로그인 실패: $error')));
-                  },
-                );
-              }
-            });
-          },
-          error: (error, _) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('로그인 실패: $error')));
-          },
-        );
-      }
+      // 로그인 성공 시 GoRouter의 redirect가 자동으로 처리하므로
+      // 여기서는 별도의 네비게이션 처리가 필요 없습니다.
+      // AuthProvider의 상태가 변경되면 자동으로 리다이렉트됩니다.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

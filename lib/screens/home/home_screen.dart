@@ -93,7 +93,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               '로딩 중...',
                               style: TextStyle(color: Colors.white),
                             ),
-                            error: (_, __) => const Text(
+                            error: (_, _) => const Text(
                               '사용자',
                               style: TextStyle(color: Colors.white),
                             ),

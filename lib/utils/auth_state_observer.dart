@@ -25,28 +25,26 @@ class _AuthStateObserverState extends State<AuthStateObserver> {
   void initState() {
     super.initState();
 
-    // 위젯이 생성될 때 Supabase 인증 스트림 구독 시작
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
-      (data) {
-        final event = data.event;
+    // URL 정리 기능을 임시로 비활성화
+    // GoRouter 초기화 타이밍 문제로 인해 비활성화
+    // TODO: 더 나은 솔루션 찾기
 
-        // 로그인 이벤트 또는 앱 재시작 시 세션 복구 이벤트가 발생했을 때
-        if (event == AuthChangeEvent.signedIn ||
-            event == AuthChangeEvent.initialSession) {
-          // 현재 라우트 정보를 가져와서 URL 정리 로직 실행
-          // 여기서 context를 직접 사용하는 대신, GoRouter의 상태를 참조하여 처리
-          // build context가 아직 준비되지 않았을 수 있으므로 약간의 지연을 줌
-          Future.delayed(const Duration(milliseconds: 50), () {
-            if (mounted) {
-              _cleanUrlIfNecessary(context);
-            }
-          });
-        }
-      },
-      onError: (error) {
-        debugPrint('AuthStateObserver onAuthStateChange error: $error');
-      },
-    );
+    // _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
+    //   (data) {
+    //     final event = data.event;
+    //     if (event == AuthChangeEvent.signedIn ||
+    //         event == AuthChangeEvent.initialSession) {
+    //       Future.delayed(const Duration(milliseconds: 50), () {
+    //         if (mounted) {
+    //           _cleanUrlIfNecessary(context);
+    //         }
+    //       });
+    //     }
+    //   },
+    //   onError: (error) {
+    //     debugPrint('AuthStateObserver onAuthStateChange error: $error');
+    //   },
+    //);
   }
 
   @override
@@ -61,7 +59,21 @@ class _AuthStateObserverState extends State<AuthStateObserver> {
       // GoRouter가 활성화되어 있고, 위젯이 여전히 트리에 있는지 확인
       if (!context.mounted) return;
 
-      final GoRouter router = GoRouter.of(context);
+      // GoRouter.of를 안전하게 호출하기 위해 try-catch 사용
+      final GoRouter? router;
+      try {
+        router = GoRouter.of(context);
+      } catch (e) {
+        // GoRouter가 아직 초기화되지 않았으면 나중에 다시 시도
+        debugPrint('GoRouter not yet initialized, will retry: $e');
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) {
+            _cleanUrlIfNecessary(context);
+          }
+        });
+        return;
+      }
+
       // 현재 라우팅 정보를 가져오는 더 안정적인 방법
       final String location = router.routeInformationProvider.value.uri
           .toString();
