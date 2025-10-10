@@ -103,6 +103,12 @@ class CampaignNotifier extends _$CampaignNotifier {
     // CampaignService를 한 번만 초기화
     _campaignService ??= ref.watch(campaignServiceProvider);
 
+    // ⭐ 핵심 개선: 인증 상태에 관계없이 캠페인 로드 시도
+    if (!_isInitialized && _campaigns.isEmpty) {
+      await _loadCampaigns(refresh: true);
+      _isInitialized = true;
+    }
+
     // 인증 상태가 완전히 로드될 때까지 대기
     final authState = ref.watch(currentUserProvider);
 
@@ -113,21 +119,10 @@ class CampaignNotifier extends _$CampaignNotifier {
           _isInitialized = false; // 로그아웃 시 초기화 플래그 리셋
           return [];
         }
-
-        // 사용자가 로그인된 상태에서만 캠페인 로드
-        if (!_isInitialized) {
-          await _loadCampaigns(refresh: true);
-          _isInitialized = true;
-        }
         return _campaigns;
       },
       loading: () async {
-        // ⭐ 핵심 개선: 로딩 중일 때도 캠페인 로드 시도
-        if (!_isInitialized && _campaigns.isEmpty) {
-          // 인증 상태가 로딩 중이어도 캠페인 로드 시도
-          await _loadCampaigns(refresh: true);
-          _isInitialized = true;
-        }
+        // 로딩 중일 때도 캠페인 데이터 반환
         return _campaigns;
       },
       error: (_, __) async {
