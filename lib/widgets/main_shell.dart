@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'bottom_navigation.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -17,9 +16,34 @@ class _MainShellState extends ConsumerState<MainShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: widget.child,
-      bottomNavigationBar: BottomNavigation(
+      bottomNavigationBar: BottomNavigationBar(
         currentIndex: _calculateSelectedIndex(context),
         onTap: (index) => _onItemTapped(index, context),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Colors.grey[600],
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: '홈',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.campaign_outlined),
+            activeIcon: Icon(Icons.campaign),
+            label: '캠페인',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.help_outline),
+            activeIcon: Icon(Icons.help),
+            label: '이용가이드',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: '마이페이지',
+          ),
+        ],
       ),
     );
   }
