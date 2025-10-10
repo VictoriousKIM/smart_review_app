@@ -267,6 +267,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
           child: CampaignCard(
             campaign: campaign,
             onTap: () {
+              print('🔥 Campaign card tapped: ${campaign.id}');
               context.push('/campaign/${campaign.id}');
             },
           ),

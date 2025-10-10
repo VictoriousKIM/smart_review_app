@@ -176,6 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _navigateToCampaignDetail(String campaignId) {
+    print('🔥 Home campaign card tapped: $campaignId');
     context.push('/campaign/$campaignId');
   }
 }
