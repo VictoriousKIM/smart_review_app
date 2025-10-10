@@ -56,7 +56,7 @@ class _MainShellState extends ConsumerState<MainShell> {
         // 홈으로 돌아왔을 때만 한 번 새로고침
         if (!_hasRefreshedHome) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.invalidate(campaignListProvider);
+            ref.read(campaignProvider.notifier).refreshCampaigns();
             _hasRefreshedHome = true;
           });
         }

@@ -50,7 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    final campaigns = ref.watch(campaignListProvider);
+    final campaigns = ref.watch(campaignProvider);
     final popularCampaigns = ref.watch(popularCampaignsProvider(limit: 5));
     final newCampaigns = ref.watch(newCampaignsProvider(limit: 5));
 
@@ -66,7 +66,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return RefreshIndicator(
       onRefresh: () async {
         _hasInitialized = false; // 초기화 플래그 리셋
-        ref.invalidate(campaignListProvider); // 새로운 provider 무효화
+        await ref.read(campaignProvider.notifier).refreshCampaigns();
         _hasInitialized = true;
       },
       child: SingleChildScrollView(

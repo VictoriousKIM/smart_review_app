@@ -86,31 +86,7 @@ Future<ApiResponse<List<Campaign>>> userCampaigns(
   return campaignService.getUserCampaigns(page: page, limit: limit);
 }
 
-// 캠페인 목록 Provider - 새로고침 후 즉시 로딩
-@riverpod
-Future<List<Campaign>> campaignList(Ref ref) async {
-  // 인증 상태 확인
-  final authState = ref.watch(currentUserProvider);
-  
-  return authState.when(
-    data: (user) async {
-      if (user == null) return [];
-      
-      // 인증된 사용자라면 즉시 캠페인 로드
-      final campaignService = ref.watch(campaignServiceProvider);
-      final response = await campaignService.getCampaigns();
-      
-      if (response.success && response.data != null) {
-        return response.data!;
-      }
-      return [];
-    },
-    loading: () async => [],
-    error: (_, __) async => [],
-  );
-}
-
-// 캠페인 상태 관리 Notifier (기존 기능 유지)
+// 캠페인 상태 관리 Notifier
 @Riverpod(keepAlive: true)
 class CampaignNotifier extends _$CampaignNotifier {
   late final CampaignService _campaignService;
@@ -120,28 +96,32 @@ class CampaignNotifier extends _$CampaignNotifier {
   String? _currentType;
   String _currentSortBy = 'latest';
   final List<Campaign> _campaigns = [];
+  bool _isInitialized = false;
 
   @override
   Future<List<Campaign>> build() async {
     _campaignService = ref.watch(campaignServiceProvider);
-    
-    // 인증 상태 확인
+
+    // 인증 상태가 완전히 로드될 때까지 대기
     final authState = ref.watch(currentUserProvider);
-    
+
     return authState.when(
       data: (user) async {
         if (user == null) {
           _campaigns.clear();
           return [];
         }
-        
-        // 로그인된 사용자라면 항상 캠페인 로드 시도
-        await _loadCampaigns(refresh: true);
+
+        // 사용자가 로그인된 상태에서만 캠페인 로드
+        if (!_isInitialized) {
+          await _loadCampaigns(refresh: true);
+          _isInitialized = true;
+        }
         return _campaigns;
       },
       loading: () async {
-        // 로딩 중일 때는 빈 리스트 반환 (새로고침 시 깔끔한 상태)
-        return [];
+        // 로딩 중일 때는 기존 데이터 유지
+        return _campaigns;
       },
       error: (_, __) async {
         // 에러 시 빈 리스트 반환
@@ -169,10 +149,7 @@ class CampaignNotifier extends _$CampaignNotifier {
     if (state.isLoading || !_hasMore) return;
 
     try {
-      // 로딩 상태를 설정하되 기존 데이터가 있으면 유지
-      if (_campaigns.isEmpty) {
-        state = const AsyncValue.loading();
-      }
+      state = const AsyncValue.loading();
 
       final response = await _campaignService.getCampaigns(
         page: _currentPage,
@@ -211,7 +188,9 @@ class CampaignNotifier extends _$CampaignNotifier {
   }
 
   Future<void> refreshCampaigns() async {
+    _isInitialized = false; // 초기화 플래그 리셋
     await _loadCampaigns(refresh: true);
+    _isInitialized = true;
   }
 
   Future<void> loadMoreCampaigns() async {
@@ -268,9 +247,9 @@ class SearchNotifier extends _$SearchNotifier {
 
     if (state.isLoading || !_hasMore) return;
 
-    state = const AsyncValue.loading();
+    try {
+      state = const AsyncValue.loading();
 
-    state = await AsyncValue.guard(() async {
       final response = await _campaignService.searchCampaigns(
         query: _currentQuery,
         category: _currentCategory,
@@ -283,11 +262,13 @@ class SearchNotifier extends _$SearchNotifier {
         _hasMore = newResults.length == 10;
         _currentPage++;
         _results.addAll(newResults);
+        state = AsyncValue.data(_results);
       } else {
-        throw response.error ?? '검색 결과를 불러올 수 없습니다.';
+        throw Exception(response.error ?? '검색 결과를 불러올 수 없습니다.');
       }
-      return _results;
-    });
+    } catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
+    }
   }
 
   Future<void> loadMoreResults() async {

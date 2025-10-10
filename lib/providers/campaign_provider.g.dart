@@ -51,6 +51,200 @@ final class CampaignServiceProvider
 
 String _$campaignServiceHash() => r'9ee780caaa31706c34f02e5aa5372b99919c0a4f';
 
+@ProviderFor(campaigns)
+const campaignsProvider = CampaignsFamily._();
+
+final class CampaignsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<ApiResponse<List<Campaign>>>,
+          ApiResponse<List<Campaign>>,
+          FutureOr<ApiResponse<List<Campaign>>>
+        >
+    with
+        $FutureModifier<ApiResponse<List<Campaign>>>,
+        $FutureProvider<ApiResponse<List<Campaign>>> {
+  const CampaignsProvider._({
+    required CampaignsFamily super.from,
+    required ({
+      int page,
+      int limit,
+      String? category,
+      String? type,
+      String sortBy,
+    })
+    super.argument,
+  }) : super(
+         retry: null,
+         name: r'campaignsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$campaignsHash();
+
+  @override
+  String toString() {
+    return r'campaignsProvider'
+        ''
+        '$argument';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<ApiResponse<List<Campaign>>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<ApiResponse<List<Campaign>>> create(Ref ref) {
+    final argument =
+        this.argument
+            as ({
+              int page,
+              int limit,
+              String? category,
+              String? type,
+              String sortBy,
+            });
+    return campaigns(
+      ref,
+      page: argument.page,
+      limit: argument.limit,
+      category: argument.category,
+      type: argument.type,
+      sortBy: argument.sortBy,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is CampaignsProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$campaignsHash() => r'e7921e46f68061540f25bc58e23bdba3a21e0a56';
+
+final class CampaignsFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<ApiResponse<List<Campaign>>>,
+          ({int page, int limit, String? category, String? type, String sortBy})
+        > {
+  const CampaignsFamily._()
+    : super(
+        retry: null,
+        name: r'campaignsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  CampaignsProvider call({
+    required int page,
+    int limit = 10,
+    String? category,
+    String? type,
+    String sortBy = 'latest',
+  }) => CampaignsProvider._(
+    argument: (
+      page: page,
+      limit: limit,
+      category: category,
+      type: type,
+      sortBy: sortBy,
+    ),
+    from: this,
+  );
+
+  @override
+  String toString() => r'campaignsProvider';
+}
+
+@ProviderFor(campaignDetail)
+const campaignDetailProvider = CampaignDetailFamily._();
+
+final class CampaignDetailProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<ApiResponse<Campaign>>,
+          ApiResponse<Campaign>,
+          FutureOr<ApiResponse<Campaign>>
+        >
+    with
+        $FutureModifier<ApiResponse<Campaign>>,
+        $FutureProvider<ApiResponse<Campaign>> {
+  const CampaignDetailProvider._({
+    required CampaignDetailFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'campaignDetailProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$campaignDetailHash();
+
+  @override
+  String toString() {
+    return r'campaignDetailProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<ApiResponse<Campaign>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<ApiResponse<Campaign>> create(Ref ref) {
+    final argument = this.argument as String;
+    return campaignDetail(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is CampaignDetailProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$campaignDetailHash() => r'3e7903cfdfb4a52f1aef9c74b9674c70991f100f';
+
+final class CampaignDetailFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<ApiResponse<Campaign>>, String> {
+  const CampaignDetailFamily._()
+    : super(
+        retry: null,
+        name: r'campaignDetailProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  CampaignDetailProvider call(String campaignId) =>
+      CampaignDetailProvider._(argument: campaignId, from: this);
+
+  @override
+  String toString() => r'campaignDetailProvider';
+}
+
 @ProviderFor(popularCampaigns)
 const popularCampaignsProvider = PopularCampaignsFamily._();
 
@@ -108,7 +302,7 @@ final class PopularCampaignsProvider
   }
 }
 
-String _$popularCampaignsHash() => r'69d74228d65058992d0907cf2e1555fab7bd1436';
+String _$popularCampaignsHash() => r'43899473fce278b6fb3aa473df9ec4b5a7f11e2c';
 
 final class PopularCampaignsFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<ApiResponse<List<Campaign>>>, int> {
@@ -121,7 +315,7 @@ final class PopularCampaignsFamily extends $Family
         isAutoDispose: true,
       );
 
-  PopularCampaignsProvider call({int limit = 5}) =>
+  PopularCampaignsProvider call({required int limit}) =>
       PopularCampaignsProvider._(argument: limit, from: this);
 
   @override
@@ -185,7 +379,7 @@ final class NewCampaignsProvider
   }
 }
 
-String _$newCampaignsHash() => r'4ebc4c77e51a555492ebab67859d5faadd967ee5';
+String _$newCampaignsHash() => r'11a5674f8822e6fd4a4c65e3fbaea364d66bee35';
 
 final class NewCampaignsFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<ApiResponse<List<Campaign>>>, int> {
@@ -198,11 +392,108 @@ final class NewCampaignsFamily extends $Family
         isAutoDispose: true,
       );
 
-  NewCampaignsProvider call({int limit = 5}) =>
+  NewCampaignsProvider call({required int limit}) =>
       NewCampaignsProvider._(argument: limit, from: this);
 
   @override
   String toString() => r'newCampaignsProvider';
+}
+
+@ProviderFor(searchCampaigns)
+const searchCampaignsProvider = SearchCampaignsFamily._();
+
+final class SearchCampaignsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<ApiResponse<List<Campaign>>>,
+          ApiResponse<List<Campaign>>,
+          FutureOr<ApiResponse<List<Campaign>>>
+        >
+    with
+        $FutureModifier<ApiResponse<List<Campaign>>>,
+        $FutureProvider<ApiResponse<List<Campaign>>> {
+  const SearchCampaignsProvider._({
+    required SearchCampaignsFamily super.from,
+    required ({String query, String? category, int page, int limit})
+    super.argument,
+  }) : super(
+         retry: null,
+         name: r'searchCampaignsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$searchCampaignsHash();
+
+  @override
+  String toString() {
+    return r'searchCampaignsProvider'
+        ''
+        '$argument';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<ApiResponse<List<Campaign>>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<ApiResponse<List<Campaign>>> create(Ref ref) {
+    final argument =
+        this.argument
+            as ({String query, String? category, int page, int limit});
+    return searchCampaigns(
+      ref,
+      query: argument.query,
+      category: argument.category,
+      page: argument.page,
+      limit: argument.limit,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is SearchCampaignsProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$searchCampaignsHash() => r'982a6cdff229d37d2c66d828a921bcdaa068f942';
+
+final class SearchCampaignsFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<ApiResponse<List<Campaign>>>,
+          ({String query, String? category, int page, int limit})
+        > {
+  const SearchCampaignsFamily._()
+    : super(
+        retry: null,
+        name: r'searchCampaignsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  SearchCampaignsProvider call({
+    required String query,
+    String? category,
+    int page = 1,
+    int limit = 10,
+  }) => SearchCampaignsProvider._(
+    argument: (query: query, category: category, page: page, limit: limit),
+    from: this,
+  );
+
+  @override
+  String toString() => r'searchCampaignsProvider';
 }
 
 @ProviderFor(userCampaigns)
@@ -297,7 +588,7 @@ final class CampaignNotifierProvider
         argument: null,
         retry: null,
         name: r'campaignProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -310,9 +601,54 @@ final class CampaignNotifierProvider
   CampaignNotifier create() => CampaignNotifier();
 }
 
-String _$campaignNotifierHash() => r'394353d1328f81a4e0a595fd33949a9acedc7b5b';
+String _$campaignNotifierHash() => r'9a1b024118e2aeb9d82f8d4a29f9f3b95bab6f79';
 
 abstract class _$CampaignNotifier extends $AsyncNotifier<List<Campaign>> {
+  FutureOr<List<Campaign>> build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref = this.ref as $Ref<AsyncValue<List<Campaign>>, List<Campaign>>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<List<Campaign>>, List<Campaign>>,
+              AsyncValue<List<Campaign>>,
+              Object?,
+              Object?
+            >;
+    element.handleValue(ref, created);
+  }
+}
+
+@ProviderFor(SearchNotifier)
+const searchProvider = SearchNotifierProvider._();
+
+final class SearchNotifierProvider
+    extends $AsyncNotifierProvider<SearchNotifier, List<Campaign>> {
+  const SearchNotifierProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'searchProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$searchNotifierHash();
+
+  @$internal
+  @override
+  SearchNotifier create() => SearchNotifier();
+}
+
+String _$searchNotifierHash() => r'102cef11af35532d0f6436f048bea16d6d0bd447';
+
+abstract class _$SearchNotifier extends $AsyncNotifier<List<Campaign>> {
   FutureOr<List<Campaign>> build();
   @$mustCallSuper
   @override
