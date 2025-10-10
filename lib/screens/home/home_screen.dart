@@ -29,7 +29,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _initializeCampaigns() async {
     if (_hasInitialized) return;
-    
+
     final authState = ref.read(currentUserProvider);
     authState.when(
       data: (user) {

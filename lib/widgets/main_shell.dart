@@ -46,10 +46,10 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   void _onItemTapped(int index, BuildContext context) {
     final currentIndex = _calculateSelectedIndex(context);
-    
+
     // 같은 탭을 다시 클릭한 경우는 무시
     if (currentIndex == index) return;
-    
+
     switch (index) {
       case 0:
         context.go('/home');
