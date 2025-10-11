@@ -65,28 +65,21 @@ class CampaignCard extends StatelessWidget {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 제목
-                          Text(
-                            campaign.title.isNotEmpty
-                                ? campaign.title
-                                : '제목 없음',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          // 가격 정보
-                          _buildPriceInfo(),
-                        ],
+                      // 제목
+                      Text(
+                        campaign.title.isNotEmpty ? campaign.title : '제목 없음',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 8),
+                      // 가격 정보
+                      _buildPriceInfo(),
+                      const SizedBox(height: 8),
                       // 플랫폼 정보
                       _buildPlatformInfo(),
                     ],

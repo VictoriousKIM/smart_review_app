@@ -157,6 +157,4 @@ class Campaign {
 
 enum CampaignCategory { all, reviewer, press, visit }
 
-enum CampaignType { reviewer, press, visit }
-
 enum CampaignStatus { active, completed, upcoming }

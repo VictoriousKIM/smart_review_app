@@ -215,3 +215,68 @@ INSERT INTO campaigns (
   '5d1e6c3b-7202-4dd8-9a67-d1ff0363f2f1',
   'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
 );
+
+-- 6. 캠페인 신청 시드 데이터
+INSERT INTO campaign_participants (campaign_id, user_id, status, applied_at, application_message)
+SELECT 
+  c.id,
+  u.id,
+  'applied',
+  NOW() - INTERVAL '5 days',
+  '안녕하세요! 이 캠페인에 참여하고 싶습니다.'
+FROM campaigns c, users u
+WHERE c.title = '무선 이어폰 리뷰 캠페인' 
+  AND u.email = 'dev@example.com'
+LIMIT 1;
+
+INSERT INTO campaign_participants (campaign_id, user_id, status, applied_at, approved_at, application_message)
+SELECT 
+  c.id,
+  u.id,
+  'approved',
+  NOW() - INTERVAL '10 days',
+  NOW() - INTERVAL '8 days',
+  '헤드폰 리뷰에 관심이 많습니다!'
+FROM campaigns c, users u
+WHERE c.title = '스마트워치 체험단 모집' 
+  AND u.email = 'dev@example.com'
+LIMIT 1;
+
+INSERT INTO campaign_participants (campaign_id, user_id, status, applied_at, rejected_at, application_message, rejection_reason)
+SELECT 
+  c.id,
+  u.id,
+  'rejected',
+  NOW() - INTERVAL '15 days',
+  NOW() - INTERVAL '12 days',
+  '키보드 리뷰를 잘 작성할 수 있습니다.',
+  '이번에는 다른 분들께 기회를 드리겠습니다.'
+FROM campaigns c, users u
+WHERE c.title = '카페 체인 신메뉴 체험단' 
+  AND u.email = 'dev@example.com'
+LIMIT 1;
+
+-- 7. 알림 시드 데이터
+INSERT INTO notifications (user_id, type, title, message, related_campaign_id)
+SELECT 
+  u.id,
+  'application_approved',
+  '캠페인 선정 알림',
+  '축하합니다! 스마트워치 체험단 모집 캠페인에 선정되었습니다.',
+  c.id
+FROM users u, campaigns c
+WHERE u.email = 'dev@example.com' 
+  AND c.title = '스마트워치 체험단 모집'
+LIMIT 1;
+
+INSERT INTO notifications (user_id, type, title, message, related_campaign_id)
+SELECT 
+  u.id,
+  'application_rejected',
+  '캠페인 미선정 알림',
+  '죄송합니다. 카페 체인 신메뉴 체험단 캠페인에는 선정되지 않았습니다.',
+  c.id
+FROM users u, campaigns c
+WHERE u.email = 'dev@example.com' 
+  AND c.title = '카페 체인 신메뉴 체험단'
+LIMIT 1;

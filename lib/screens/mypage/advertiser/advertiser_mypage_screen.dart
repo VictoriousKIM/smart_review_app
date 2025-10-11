@@ -22,12 +22,18 @@ class AdvertiserMyPageScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
-      drawer: const AdvertiserDrawer(),
+      endDrawer: const AdvertiserDrawer(),
       appBar: AppBar(
         title: const Text('마이페이지'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {

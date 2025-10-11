@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../services/auth_service.dart';
 import '../../../widgets/custom_button.dart';
 
 class PointsScreen extends ConsumerStatefulWidget {
@@ -15,6 +16,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   bool _isLoading = true;
   int _currentPoints = 0;
   List<Map<String, dynamic>> _pointHistory = [];
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -27,47 +29,37 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
       _isLoading = true;
     });
 
-    // TODO: 실제 API 호출로 교체
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final user = await _authService.currentUser;
+      if (user != null) {
+        setState(() {
+          _currentPoints = user.points;
+          _isLoading = false;
+        });
 
-    setState(() {
-      _currentPoints = 125000;
-      _pointHistory = [
-        {
-          'id': '1',
-          'type': 'earned',
-          'amount': 30000,
-          'description': '헤드폰 리뷰 완료',
-          'date': '2024-01-12',
-          'campaignTitle': '헤드폰 리뷰 캠페인',
-        },
-        {
-          'id': '2',
-          'type': 'earned',
-          'amount': 25000,
-          'description': '키보드 리뷰 완료',
-          'date': '2024-01-08',
-          'campaignTitle': '키보드 리뷰 캠페인',
-        },
-        {
-          'id': '3',
-          'type': 'used',
-          'amount': -5000,
-          'description': '포인트 출금',
-          'date': '2024-01-05',
-          'campaignTitle': null,
-        },
-        {
-          'id': '4',
-          'type': 'earned',
-          'amount': 20000,
-          'description': '스마트폰 리뷰 완료',
-          'date': '2024-01-01',
-          'campaignTitle': '스마트폰 리뷰 캠페인',
-        },
-      ];
-      _isLoading = false;
-    });
+        // TODO: 실제 포인트 내역 API 호출
+        // 현재는 빈 리스트로 설정
+        _pointHistory = [];
+      } else {
+        setState(() {
+          _currentPoints = 0;
+          _pointHistory = [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _currentPoints = 0;
+        _pointHistory = [];
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('포인트 정보를 불러올 수 없습니다: $e')));
+      }
+    }
   }
 
   @override
@@ -75,7 +67,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
       appBar: AppBar(
-        title: Text('내 포인트'),
+        title: const Text('내 포인트'),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),

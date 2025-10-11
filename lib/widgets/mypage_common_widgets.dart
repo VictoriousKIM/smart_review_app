@@ -165,7 +165,6 @@ class MyPageCommonWidgets {
           ),
           const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: BorderRadius.circular(8),
@@ -204,7 +203,13 @@ class MyPageCommonWidgets {
             ),
           ),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -215,7 +220,7 @@ class MyPageCommonWidgets {
       width: 1,
       height: 40,
       color: Colors.grey[300],
-      margin: const EdgeInsets.symmetric(horizontal: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 

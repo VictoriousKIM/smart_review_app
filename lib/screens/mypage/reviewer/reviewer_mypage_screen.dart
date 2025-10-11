@@ -22,7 +22,7 @@ class ReviewerMyPageScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
-      drawer: const ReviewerDrawer(),
+      endDrawer: const ReviewerDrawer(),
       appBar: AppBar(
         title: const Text('마이페이지'),
         backgroundColor: Colors.transparent,
@@ -33,6 +33,12 @@ class ReviewerMyPageScreen extends ConsumerWidget {
             onPressed: () {
               // 알림 기능 구현
             },
+          ),
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
+            ),
           ),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../services/review_service.dart';
 import '../../../widgets/custom_button.dart';
 
 class ReviewerReviewsScreen extends ConsumerStatefulWidget {
@@ -13,6 +14,7 @@ class ReviewerReviewsScreen extends ConsumerStatefulWidget {
 class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _reviews = [];
+  final ReviewService _reviewService = ReviewService();
 
   @override
   void initState() {
@@ -25,34 +27,38 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
       _isLoading = true;
     });
 
-    // TODO: 실제 API 호출로 교체
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final response = await _reviewService.getUserReviews();
 
-    setState(() {
-      _reviews = [
-        {
-          'id': '1',
-          'campaignTitle': '헤드폰 리뷰 캠페인',
-          'status': 'completed',
-          'statusText': '완료',
-          'rating': 5,
-          'reviewText': '정말 좋은 헤드폰이었습니다. 음질이 뛰어나고 착용감도 편안했습니다.',
-          'createdAt': '2024-01-12',
-          'reward': 30000,
-        },
-        {
-          'id': '2',
-          'campaignTitle': '키보드 리뷰 캠페인',
-          'status': 'draft',
-          'statusText': '작성중',
-          'rating': 0,
-          'reviewText': '',
-          'createdAt': '2024-01-08',
-          'reward': 25000,
-        },
-      ];
-      _isLoading = false;
-    });
+      if (response.success && response.data != null) {
+        setState(() {
+          _reviews = response.data!;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _reviews = [];
+          _isLoading = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response.error ?? '리뷰 목록을 불러올 수 없습니다')),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _reviews = [];
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('오류가 발생했습니다: $e')));
+      }
+    }
   }
 
   @override
@@ -118,16 +124,31 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
   }
 
   Widget _buildReviewCard(Map<String, dynamic> review) {
+    final campaign = review['campaigns'] as Map<String, dynamic>?;
+    if (campaign == null) return const SizedBox.shrink();
+
+    final status = review['status'] as String;
+    final createdAt = DateTime.parse(review['created_at'] as String);
+
     Color statusColor;
-    switch (review['status']) {
-      case 'completed':
+    String statusText;
+
+    switch (status) {
+      case 'approved':
         statusColor = Colors.green;
+        statusText = '승인됨';
         break;
-      case 'draft':
+      case 'rejected':
+        statusColor = Colors.red;
+        statusText = '반려됨';
+        break;
+      case 'submitted':
         statusColor = Colors.orange;
+        statusText = '심사중';
         break;
       default:
         statusColor = Colors.grey;
+        statusText = '작성중';
     }
 
     return Container(
@@ -154,7 +175,7 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    review['campaignTitle'],
+                    campaign['title'] ?? '제목 없음',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -171,7 +192,7 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    review['statusText'],
+                    statusText,
                     style: TextStyle(
                       fontSize: 12,
                       color: statusColor,
@@ -182,12 +203,14 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            if (review['rating'] > 0) ...[
+            if (review['rating'] != null && review['rating'] > 0) ...[
               Row(
                 children: [
                   ...List.generate(5, (index) {
                     return Icon(
-                      index < review['rating'] ? Icons.star : Icons.star_border,
+                      index < (review['rating'] as int)
+                          ? Icons.star
+                          : Icons.star_border,
                       size: 16,
                       color: Colors.amber,
                     );
@@ -201,9 +224,10 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
               ),
               const SizedBox(height: 8),
             ],
-            if (review['reviewText'].isNotEmpty) ...[
+            if (review['content'] != null &&
+                (review['content'] as String).isNotEmpty) ...[
               Text(
-                review['reviewText'],
+                review['content'] as String,
                 style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
@@ -215,7 +239,7 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
                 Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 4),
                 Text(
-                  '작성일: ${review['createdAt']}',
+                  '작성일: ${createdAt.toString().split(' ')[0]}',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
                 const Spacer(),
@@ -226,17 +250,24 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '${review['reward'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
+                  '${(campaign['review_reward'] ?? 0).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
               ],
             ),
-            if (review['status'] == 'draft') ...[
+            if (review['rejection_reason'] != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '반려 사유: ${review['rejection_reason']}',
+                style: TextStyle(fontSize: 12, color: Colors.red[600]),
+              ),
+            ],
+            if (status == 'draft' || status == 'rejected') ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: CustomButton(
-                  text: '리뷰 계속 작성하기',
+                  text: status == 'draft' ? '리뷰 계속 작성하기' : '리뷰 수정하기',
                   onPressed: () {
                     // TODO: 리뷰 작성 화면으로 이동
                     ScaffoldMessenger.of(context).showSnackBar(

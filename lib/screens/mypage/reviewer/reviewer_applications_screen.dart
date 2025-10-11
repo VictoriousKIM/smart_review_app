@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../services/campaign_application_service.dart';
 import '../../../widgets/custom_button.dart';
 
 class ReviewerApplicationsScreen extends ConsumerStatefulWidget {
@@ -14,6 +15,8 @@ class _ReviewerApplicationsScreenState
     extends ConsumerState<ReviewerApplicationsScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _applications = [];
+  final CampaignApplicationService _applicationService =
+      CampaignApplicationService();
 
   @override
   void initState() {
@@ -26,38 +29,38 @@ class _ReviewerApplicationsScreenState
       _isLoading = true;
     });
 
-    // TODO: 실제 API 호출로 교체
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final response = await _applicationService.getUserApplications();
 
-    setState(() {
-      _applications = [
-        {
-          'id': '1',
-          'campaignTitle': '새로운 스마트폰 리뷰 캠페인',
-          'status': 'pending',
-          'statusText': '심사중',
-          'appliedAt': '2024-01-15',
-          'reward': 50000,
-        },
-        {
-          'id': '2',
-          'campaignTitle': '헤드폰 리뷰 캠페인',
-          'status': 'approved',
-          'statusText': '선정됨',
-          'appliedAt': '2024-01-10',
-          'reward': 30000,
-        },
-        {
-          'id': '3',
-          'campaignTitle': '키보드 리뷰 캠페인',
-          'status': 'rejected',
-          'statusText': '미선정',
-          'appliedAt': '2024-01-05',
-          'reward': 25000,
-        },
-      ];
-      _isLoading = false;
-    });
+      if (response.success && response.data != null) {
+        setState(() {
+          _applications = response.data!;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _applications = [];
+          _isLoading = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response.error ?? '신청 내역을 불러올 수 없습니다')),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _applications = [];
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('오류가 발생했습니다: $e')));
+      }
+    }
   }
 
   @override
@@ -123,16 +126,31 @@ class _ReviewerApplicationsScreenState
   }
 
   Widget _buildApplicationCard(Map<String, dynamic> application) {
+    final campaign = application['campaigns'] as Map<String, dynamic>?;
+    if (campaign == null) return const SizedBox.shrink();
+
+    final status = application['status'] as String;
+    final appliedAt = DateTime.parse(application['applied_at'] as String);
+
     Color statusColor;
-    switch (application['status']) {
+    String statusText;
+
+    switch (status) {
       case 'approved':
         statusColor = Colors.green;
+        statusText = '선정됨';
         break;
       case 'rejected':
         statusColor = Colors.red;
+        statusText = '미선정';
+        break;
+      case 'completed':
+        statusColor = Colors.blue;
+        statusText = '완료';
         break;
       default:
         statusColor = Colors.orange;
+        statusText = '심사중';
     }
 
     return Container(
@@ -159,7 +177,7 @@ class _ReviewerApplicationsScreenState
               children: [
                 Expanded(
                   child: Text(
-                    application['campaignTitle'],
+                    campaign['title'] ?? '제목 없음',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -176,7 +194,7 @@ class _ReviewerApplicationsScreenState
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    application['statusText'],
+                    statusText,
                     style: TextStyle(
                       fontSize: 12,
                       color: statusColor,
@@ -192,7 +210,7 @@ class _ReviewerApplicationsScreenState
                 Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 4),
                 Text(
-                  '신청일: ${application['appliedAt']}',
+                  '신청일: ${appliedAt.toString().split(' ')[0]}',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
               ],
@@ -207,12 +225,26 @@ class _ReviewerApplicationsScreenState
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '보상: ${application['reward'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
+                  '보상: ${(campaign['review_reward'] ?? 0).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
               ],
             ),
-            if (application['status'] == 'approved') ...[
+            if (application['application_message'] != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '신청 메시지: ${application['application_message']}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+            if (application['rejection_reason'] != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '거절 사유: ${application['rejection_reason']}',
+                style: TextStyle(fontSize: 12, color: Colors.red[600]),
+              ),
+            ],
+            if (status == 'approved') ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,

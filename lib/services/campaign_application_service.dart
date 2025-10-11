@@ -2,22 +2,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
 
-class ReviewService {
-  static final ReviewService _instance = ReviewService._internal();
-  factory ReviewService() => _instance;
-  ReviewService._internal();
+class CampaignApplicationService {
+  static final CampaignApplicationService _instance =
+      CampaignApplicationService._internal();
+  factory CampaignApplicationService() => _instance;
+  CampaignApplicationService._internal();
 
   final SupabaseClient _supabase = SupabaseConfig.client;
 
-  // 리뷰 작성
-  Future<ApiResponse<Map<String, dynamic>>> createReview({
+  // 캠페인 신청
+  Future<ApiResponse<Map<String, dynamic>>> applyToCampaign({
     required String campaignId,
-    required String campaignParticipantId,
-    required String title,
-    required String content,
-    required int rating,
-    String? reviewUrl,
-    required String platform,
+    String? applicationMessage,
   }) async {
     try {
       final user = _supabase.auth.currentUser;
@@ -28,86 +24,62 @@ class ReviewService {
         );
       }
 
-      // 캠페인 참여자 확인
-      final participant = await _supabase
+      // 이미 신청했는지 확인
+      final existingApplication = await _supabase
           .from('campaign_participants')
-          .select('status, user_id')
-          .eq('id', campaignParticipantId)
-          .single();
-
-      if (participant['user_id'] != user.id) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '권한이 없습니다.',
-        );
-      }
-
-      if (participant['status'] != 'approved') {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '선정된 캠페인에만 리뷰를 작성할 수 있습니다.',
-        );
-      }
-
-      // 이미 리뷰가 있는지 확인
-      final existingReview = await _supabase
-          .from('reviews')
           .select()
           .eq('campaign_id', campaignId)
           .eq('user_id', user.id)
           .maybeSingle();
 
-      if (existingReview != null) {
+      if (existingApplication != null) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
-          error: '이미 리뷰를 작성한 캠페인입니다.',
+          error: '이미 신청한 캠페인입니다.',
         );
       }
 
-      // 리뷰 데이터 삽입
-      final reviewData = {
+      // 캠페인 정보 확인
+      final campaign = await _supabase
+          .from('campaigns')
+          .select()
+          .eq('id', campaignId)
+          .eq('status', 'active')
+          .single();
+
+      if (campaign == null) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          error: '존재하지 않거나 비활성화된 캠페인입니다.',
+        );
+      }
+
+      // 신청 데이터 삽입
+      final applicationData = {
         'campaign_id': campaignId,
         'user_id': user.id,
-        'campaign_participant_id': campaignParticipantId,
-        'title': title,
-        'content': content,
-        'rating': rating,
-        'review_url': reviewUrl,
-        'platform': platform,
-        'status': 'submitted',
-        'submitted_at': DateTime.now().toIso8601String(),
+        'status': 'applied',
+        'applied_at': DateTime.now().toIso8601String(),
+        'application_message': applicationMessage,
       };
 
       final response = await _supabase
-          .from('reviews')
-          .insert(reviewData)
+          .from('campaign_participants')
+          .insert(applicationData)
           .select()
           .single();
-
-      // 캠페인 참여자 상태를 완료로 업데이트
-      await _supabase
-          .from('campaign_participants')
-          .update({
-            'status': 'completed',
-            'completed_at': DateTime.now().toIso8601String(),
-            'review_content': content,
-            'review_rating': rating,
-            'review_url': reviewUrl,
-            'review_submitted_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', campaignParticipantId);
 
       return ApiResponse<Map<String, dynamic>>(success: true, data: response);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
-        error: '리뷰 작성 실패: $e',
+        error: '캠페인 신청 실패: $e',
       );
     }
   }
 
-  // 사용자의 리뷰 목록 조회
-  Future<ApiResponse<List<Map<String, dynamic>>>> getUserReviews({
+  // 사용자의 캠페인 신청 내역 조회
+  Future<ApiResponse<List<Map<String, dynamic>>>> getUserApplications({
     String? status,
     int page = 1,
     int limit = 20,
@@ -122,7 +94,7 @@ class ReviewService {
       }
 
       dynamic query = _supabase
-          .from('reviews')
+          .from('campaign_participants')
           .select('''
             *,
             campaigns (
@@ -133,11 +105,16 @@ class ReviewService {
               platform,
               platform_logo_url,
               product_price,
-              review_reward
+              review_reward,
+              start_date,
+              end_date,
+              max_participants,
+              current_participants,
+              status
             )
           ''')
           .eq('user_id', user.id)
-          .order('created_at', ascending: false);
+          .order('applied_at', ascending: false);
 
       if (status != null) {
         query = query.eq('status', status);
@@ -156,32 +133,55 @@ class ReviewService {
     } catch (e) {
       return ApiResponse<List<Map<String, dynamic>>>(
         success: false,
-        error: '리뷰 목록 조회 실패: $e',
+        error: '신청 내역 조회 실패: $e',
       );
     }
   }
 
-  // 캠페인의 리뷰 목록 조회
-  Future<ApiResponse<List<Map<String, dynamic>>>> getCampaignReviews({
+  // 캠페인의 신청자 목록 조회 (광고주용)
+  Future<ApiResponse<List<Map<String, dynamic>>>> getCampaignApplications({
     required String campaignId,
     String? status,
     int page = 1,
     int limit = 20,
   }) async {
     try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: false,
+          error: '로그인이 필요합니다.',
+        );
+      }
+
+      // 캠페인 소유자 확인
+      final campaign = await _supabase
+          .from('campaigns')
+          .select('created_by')
+          .eq('id', campaignId)
+          .single();
+
+      if (campaign['created_by'] != user.id) {
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: false,
+          error: '권한이 없습니다.',
+        );
+      }
+
       dynamic query = _supabase
-          .from('reviews')
+          .from('campaign_participants')
           .select('''
             *,
             users (
               id,
               display_name,
-              level,
-              review_count
+              email,
+              review_count,
+              level
             )
           ''')
           .eq('campaign_id', campaignId)
-          .order('created_at', ascending: false);
+          .order('applied_at', ascending: false);
 
       if (status != null) {
         query = query.eq('status', status);
@@ -200,14 +200,14 @@ class ReviewService {
     } catch (e) {
       return ApiResponse<List<Map<String, dynamic>>>(
         success: false,
-        error: '캠페인 리뷰 목록 조회 실패: $e',
+        error: '신청자 목록 조회 실패: $e',
       );
     }
   }
 
-  // 리뷰 상태 업데이트 (광고주용)
-  Future<ApiResponse<Map<String, dynamic>>> updateReviewStatus({
-    required String reviewId,
+  // 신청 상태 업데이트 (광고주용)
+  Future<ApiResponse<Map<String, dynamic>>> updateApplicationStatus({
+    required String applicationId,
     required String status,
     String? rejectionReason,
   }) async {
@@ -220,15 +220,15 @@ class ReviewService {
         );
       }
 
-      // 리뷰 정보 조회
-      final review = await _supabase
-          .from('reviews')
+      // 신청 정보 조회
+      final application = await _supabase
+          .from('campaign_participants')
           .select('campaign_id, campaigns!inner(created_by)')
-          .eq('id', reviewId)
+          .eq('id', applicationId)
           .single();
 
       // 권한 확인
-      if (review['campaigns']['created_by'] != user.id) {
+      if (application['campaigns']['created_by'] != user.id) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '권한이 없습니다.',
@@ -252,12 +252,15 @@ class ReviewService {
             updateData['rejection_reason'] = rejectionReason;
           }
           break;
+        case 'completed':
+          updateData['completed_at'] = DateTime.now().toIso8601String();
+          break;
       }
 
       final response = await _supabase
-          .from('reviews')
+          .from('campaign_participants')
           .update(updateData)
-          .eq('id', reviewId)
+          .eq('id', applicationId)
           .select()
           .single();
 
@@ -265,108 +268,51 @@ class ReviewService {
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
-        error: '리뷰 상태 업데이트 실패: $e',
+        error: '신청 상태 업데이트 실패: $e',
       );
     }
   }
 
-  // 리뷰 수정
-  Future<ApiResponse<Map<String, dynamic>>> updateReview({
-    required String reviewId,
-    required String title,
-    required String content,
-    required int rating,
-    String? reviewUrl,
-  }) async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '로그인이 필요합니다.',
-        );
-      }
-
-      // 리뷰 정보 조회 및 권한 확인
-      final review = await _supabase
-          .from('reviews')
-          .select('user_id, status')
-          .eq('id', reviewId)
-          .single();
-
-      if (review['user_id'] != user.id) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '권한이 없습니다.',
-        );
-      }
-
-      if (review['status'] == 'approved') {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '승인된 리뷰는 수정할 수 없습니다.',
-        );
-      }
-
-      // 리뷰 업데이트
-      final updateData = {
-        'title': title,
-        'content': content,
-        'rating': rating,
-        'review_url': reviewUrl,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      final response = await _supabase
-          .from('reviews')
-          .update(updateData)
-          .eq('id', reviewId)
-          .select()
-          .single();
-
-      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
-    } catch (e) {
-      return ApiResponse<Map<String, dynamic>>(
-        success: false,
-        error: '리뷰 수정 실패: $e',
-      );
-    }
-  }
-
-  // 리뷰 삭제
-  Future<ApiResponse<void>> deleteReview(String reviewId) async {
+  // 신청 취소 (사용자용)
+  Future<ApiResponse<void>> cancelApplication(String applicationId) async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
-      // 리뷰 정보 조회 및 권한 확인
-      final review = await _supabase
-          .from('reviews')
+      // 신청 정보 조회 및 권한 확인
+      final application = await _supabase
+          .from('campaign_participants')
           .select('user_id, status')
-          .eq('id', reviewId)
+          .eq('id', applicationId)
           .single();
 
-      if (review['user_id'] != user.id) {
+      if (application['user_id'] != user.id) {
         return ApiResponse<void>(success: false, error: '권한이 없습니다.');
       }
 
-      if (review['status'] == 'approved') {
-        return ApiResponse<void>(success: false, error: '승인된 리뷰는 삭제할 수 없습니다.');
+      if (application['status'] != 'applied') {
+        return ApiResponse<void>(
+          success: false,
+          error: '이미 처리된 신청은 취소할 수 없습니다.',
+        );
       }
 
-      // 리뷰 삭제
-      await _supabase.from('reviews').delete().eq('id', reviewId);
+      // 신청 삭제
+      await _supabase
+          .from('campaign_participants')
+          .delete()
+          .eq('id', applicationId);
 
       return ApiResponse<void>(success: true);
     } catch (e) {
-      return ApiResponse<void>(success: false, error: '리뷰 삭제 실패: $e');
+      return ApiResponse<void>(success: false, error: '신청 취소 실패: $e');
     }
   }
 
-  // 사용자의 리뷰 통계 조회
-  Future<ApiResponse<Map<String, int>>> getUserReviewStats() async {
+  // 사용자의 신청 통계 조회
+  Future<ApiResponse<Map<String, int>>> getUserApplicationStats() async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) {
@@ -377,16 +323,16 @@ class ReviewService {
       }
 
       final response = await _supabase
-          .from('reviews')
+          .from('campaign_participants')
           .select('status')
           .eq('user_id', user.id);
 
       final stats = <String, int>{
         'total': response.length,
-        'draft': 0,
-        'submitted': 0,
+        'applied': 0,
         'approved': 0,
         'rejected': 0,
+        'completed': 0,
       };
 
       for (final item in response) {
@@ -400,8 +346,9 @@ class ReviewService {
     } catch (e) {
       return ApiResponse<Map<String, int>>(
         success: false,
-        error: '리뷰 통계 조회 실패: $e',
+        error: '통계 조회 실패: $e',
       );
     }
   }
 }
+

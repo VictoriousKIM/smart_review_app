@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/user.dart' as app_user;
 import '../../providers/auth_provider.dart';
-import 'screens/reviewer_mypage_screen.dart';
-import 'screens/advertiser_mypage_screen.dart';
+import 'reviewer/reviewer_mypage_screen.dart';
+import 'advertiser/advertiser_mypage_screen.dart';
 
 class MyPageScreen extends ConsumerWidget {
   final app_user.User? user;
