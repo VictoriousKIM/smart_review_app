@@ -159,7 +159,7 @@ class _AdvertisementInquiryScreenState
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -173,7 +173,7 @@ class _AdvertisementInquiryScreenState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
+                color: statusColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -204,7 +204,7 @@ class _AdvertisementInquiryScreenState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
+                color: Colors.blue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(

@@ -154,7 +154,7 @@ class _NotificationSettingsScreenState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -173,7 +173,7 @@ class _NotificationSettingsScreenState
             ),
           ),
           const SizedBox(height: 16),
-          ...items.map((item) => _buildNotificationItem(item)).toList(),
+          ...items.map((item) => _buildNotificationItem(item)),
         ],
       ),
     );
@@ -191,7 +191,7 @@ class _NotificationSettingsScreenState
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: Colors.blue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(item['icon'] as IconData, color: Colors.blue, size: 20),
@@ -225,7 +225,7 @@ class _NotificationSettingsScreenState
               });
               _saveNotificationSetting(key, value);
             },
-            activeColor: const Color(0xFF137fec),
+            activeThumbColor: const Color(0xFF137fec),
           ),
         ],
       ),

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:html' as html;
 import '../../models/user.dart' as app_user;
 import '../../providers/auth_provider.dart';
 
@@ -31,6 +29,7 @@ class ReviewerDrawer extends ConsumerWidget {
                 // 리뷰어 활동 섹션
                 _buildSectionHeader('리뷰어 활동'),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.campaign_outlined,
                   title: '캠페인 신청내역',
                   routePath: '/mypage/reviewer/applications',
@@ -40,6 +39,7 @@ class ReviewerDrawer extends ConsumerWidget {
                   },
                 ),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.star_outline,
                   title: '내 리뷰',
                   routePath: '/mypage/reviewer/reviews',
@@ -49,6 +49,7 @@ class ReviewerDrawer extends ConsumerWidget {
                   },
                 ),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.account_balance_wallet_outlined,
                   title: '내 포인트',
                   routePath: '/mypage/reviewer/points',
@@ -63,6 +64,7 @@ class ReviewerDrawer extends ConsumerWidget {
                 // 계정 관리 섹션
                 _buildSectionHeader('계정관리'),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.person_outline,
                   title: '내 계정',
                   routePath: '/mypage/profile',
@@ -72,6 +74,7 @@ class ReviewerDrawer extends ConsumerWidget {
                   },
                 ),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.share_outlined,
                   title: 'SNS 연결',
                   routePath: '/mypage/reviewer/sns',
@@ -86,6 +89,7 @@ class ReviewerDrawer extends ConsumerWidget {
                 // 고객 센터 섹션
                 _buildSectionHeader('고객 센터'),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.notifications_outlined,
                   title: '공지사항',
                   routePath: '/notices',
@@ -95,6 +99,7 @@ class ReviewerDrawer extends ConsumerWidget {
                   },
                 ),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.event_outlined,
                   title: '이벤트',
                   routePath: '/events',
@@ -104,6 +109,7 @@ class ReviewerDrawer extends ConsumerWidget {
                   },
                 ),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.help_outline,
                   title: '1:1문의',
                   routePath: '/inquiry',
@@ -118,13 +124,14 @@ class ReviewerDrawer extends ConsumerWidget {
                 // 설정 섹션
                 _buildSectionHeader('설정'),
                 _buildMenuItem(
+                  context: context,
                   icon: Icons.notifications_active_outlined,
                   title: '알림 설정',
                   routePath: '/settings/notifications',
                   trailing: Switch(
-                    value: true, // TODO: 실제 알림 설정 상태 연결
+                    value: true, // 임시 값 (향후 실제 알림 설정 상태와 연결 예정)
                     onChanged: (value) {
-                      // TODO: 알림 설정 토글 로직
+                      // 향후 알림 설정 토글 로직 구현 예정
                     },
                   ),
                   onTap: () {
@@ -137,6 +144,7 @@ class ReviewerDrawer extends ConsumerWidget {
                 if (user.isAdvertiserVerified) ...[
                   const Divider(),
                   _buildMenuItem(
+                    context: context,
                     icon: Icons.business_outlined,
                     title: '광고주 모드로 전환',
                     routePath: '/mypage/advertiser',
@@ -260,6 +268,7 @@ class ReviewerDrawer extends ConsumerWidget {
   }
 
   Widget _buildMenuItem({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required VoidCallback onTap,
@@ -267,37 +276,35 @@ class ReviewerDrawer extends ConsumerWidget {
     Widget? trailing,
   }) {
     // 현재 URL 확인
-    final currentPath = kIsWeb ? html.window.location.pathname : '';
+    final currentPath = GoRouterState.of(context).uri.path;
     final isActive = currentPath == routePath;
-    
+
     return ListTile(
       leading: Icon(
-        icon, 
-        color: isActive ? const Color(0xFF4CAF50) : const Color(0xFF333333), 
-        size: 24
+        icon,
+        color: isActive ? const Color(0xFF4CAF50) : const Color(0xFF333333),
+        size: 24,
       ),
       title: Text(
         title,
         style: TextStyle(
-          fontSize: 16, 
+          fontSize: 16,
           color: isActive ? const Color(0xFF4CAF50) : const Color(0xFF333333),
           fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
-      subtitle: isActive ? Text(
-        routePath,
-        style: const TextStyle(
-          fontSize: 12,
-          color: Color(0xFF4CAF50),
-        ),
-      ) : null,
-      trailing: trailing ?? const Icon(Icons.chevron_right, color: Color(0xFF999999)),
+      subtitle: isActive
+          ? Text(
+              routePath,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF4CAF50)),
+            )
+          : null,
+      trailing:
+          trailing ?? const Icon(Icons.chevron_right, color: Color(0xFF999999)),
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       tileColor: isActive ? const Color(0xFFE8F5E8) : null,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     );
   }
 

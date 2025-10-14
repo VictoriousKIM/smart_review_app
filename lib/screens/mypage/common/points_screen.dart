@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
 import '../../../widgets/custom_button.dart';
 
@@ -70,6 +71,10 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         title: const Text('내 포인트'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage'),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -113,7 +118,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.3),
+            color: Colors.green.withValues(alpha: 0.3),
             spreadRadius: 2,
             blurRadius: 8,
             offset: const Offset(0, 4),
@@ -144,7 +149,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
             '≈ ${(_currentPoints / 1000).toStringAsFixed(0)}원',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
             ),
           ),
         ],
@@ -239,7 +244,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -253,8 +258,8 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
             height: 40,
             decoration: BoxDecoration(
               color: isEarned
-                  ? Colors.green.withOpacity(0.1)
-                  : Colors.red.withOpacity(0.1),
+                  ? Colors.green.withValues(alpha: 0.1)
+                  : Colors.red.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(

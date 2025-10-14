@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../widgets/custom_button.dart';
 
 class InquiryScreen extends ConsumerStatefulWidget {
@@ -40,6 +41,10 @@ class _InquiryScreenState extends ConsumerState<InquiryScreen> {
         title: const Text('1:1 문의'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage'),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -114,7 +119,7 @@ class _InquiryScreenState extends ConsumerState<InquiryScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -165,7 +170,7 @@ class _InquiryScreenState extends ConsumerState<InquiryScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedCategory,
+          initialValue: _selectedCategory,
           decoration: InputDecoration(
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),

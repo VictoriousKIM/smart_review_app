@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
+import 'campaign_log_service.dart';
 
 class CampaignApplicationService {
   static final CampaignApplicationService _instance =
@@ -9,6 +10,9 @@ class CampaignApplicationService {
   CampaignApplicationService._internal();
 
   final SupabaseClient _supabase = SupabaseConfig.client;
+  final CampaignLogService _campaignLogService = CampaignLogService(
+    SupabaseConfig.client,
+  );
 
   // 캠페인 신청
   Future<ApiResponse<Map<String, dynamic>>> applyToCampaign({
@@ -24,21 +28,6 @@ class CampaignApplicationService {
         );
       }
 
-      // 이미 신청했는지 확인
-      final existingApplication = await _supabase
-          .from('campaign_participants')
-          .select()
-          .eq('campaign_id', campaignId)
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-      if (existingApplication != null) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '이미 신청한 캠페인입니다.',
-        );
-      }
-
       // 캠페인 정보 확인
       final campaign = await _supabase
           .from('campaigns')
@@ -47,15 +36,25 @@ class CampaignApplicationService {
           .eq('status', 'active')
           .single();
 
-      if (campaign == null) {
+      // CampaignLogService를 사용하여 신청
+      final result = await _campaignLogService.applyToCampaign(
+        campaignId: campaignId,
+        userId: user.id,
+        applicationMessage: applicationMessage,
+        rewardType: 'platform_points',
+        rewardAmount: campaign['review_reward'],
+      );
+
+      if (!result.success) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
-          error: '존재하지 않거나 비활성화된 캠페인입니다.',
+          error: result.error,
         );
       }
 
-      // 신청 데이터 삽입
-      final applicationData = {
+      // 신청 성공 응답 데이터 구성
+      final responseData = {
+        'id': result.data,
         'campaign_id': campaignId,
         'user_id': user.id,
         'status': 'applied',
@@ -63,13 +62,10 @@ class CampaignApplicationService {
         'application_message': applicationMessage,
       };
 
-      final response = await _supabase
-          .from('campaign_participants')
-          .insert(applicationData)
-          .select()
-          .single();
-
-      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
+      return ApiResponse<Map<String, dynamic>>(
+        success: true,
+        data: responseData,
+      );
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -93,42 +89,62 @@ class CampaignApplicationService {
         );
       }
 
-      dynamic query = _supabase
-          .from('campaign_participants')
-          .select('''
-            *,
-            campaigns (
-              id,
-              title,
-              description,
-              product_image_url,
-              platform,
-              platform_logo_url,
-              product_price,
-              review_reward,
-              start_date,
-              end_date,
-              max_participants,
-              current_participants,
-              status
-            )
-          ''')
-          .eq('user_id', user.id)
-          .order('applied_at', ascending: false);
+      // CampaignLogService를 사용하여 로그 조회
+      final result = await _campaignLogService.getUserCampaignLogs(
+        userId: user.id,
+        status: status,
+      );
 
-      if (status != null) {
-        query = query.eq('status', status);
+      if (!result.success) {
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: false,
+          error: result.error,
+        );
       }
 
-      // 페이지네이션
-      final offset = (page - 1) * limit;
-      query = query.range(offset, offset + limit - 1);
+      // CampaignLog를 Map으로 변환
+      final applications = result.data!
+          .map(
+            (log) => {
+              'id': log.id,
+              'campaign_id': log.campaignId,
+              'user_id': log.userId,
+              'status': log.status,
+              'applied_at': log.appliedAt?.toIso8601String(),
+              'application_message': log.applicationMessage,
+              'reward_type': log.rewardType,
+              'reward_amount': log.rewardAmount,
+              'campaigns': log.campaign != null
+                  ? {
+                      'id': log.campaign!.id,
+                      'title': log.campaign!.title,
+                      'description': log.campaign!.description,
+                      'product_image_url': log.campaign!.productImageUrl,
+                      'platform': log.campaign!.platform,
+                      'platform_logo_url': log.campaign!.platformLogoUrl,
+                      'product_price': log.campaign!.productPrice,
+                      'review_reward': log.campaign!.reviewReward,
+                      'start_date': log.campaign!.startDate?.toIso8601String(),
+                      'end_date': log.campaign!.endDate?.toIso8601String(),
+                      'max_participants': log.campaign!.maxParticipants,
+                      'current_participants': log.campaign!.currentParticipants,
+                      'status': log.campaign!.status,
+                    }
+                  : null,
+            },
+          )
+          .toList();
 
-      final response = await query.timeout(const Duration(seconds: 10));
+      // 페이지네이션 적용
+      final offset = (page - 1) * limit;
+      final paginatedApplications = applications
+          .skip(offset)
+          .take(limit)
+          .toList();
 
       return ApiResponse<List<Map<String, dynamic>>>(
         success: true,
-        data: List<Map<String, dynamic>>.from(response),
+        data: paginatedApplications,
       );
     } catch (e) {
       return ApiResponse<List<Map<String, dynamic>>>(
@@ -168,34 +184,54 @@ class CampaignApplicationService {
         );
       }
 
-      dynamic query = _supabase
-          .from('campaign_participants')
-          .select('''
-            *,
-            users (
-              id,
-              display_name,
-              email,
-              review_count,
-              level
-            )
-          ''')
-          .eq('campaign_id', campaignId)
-          .order('applied_at', ascending: false);
+      // CampaignLogService를 사용하여 로그 조회
+      final result = await _campaignLogService.getCampaignLogs(
+        campaignId: campaignId,
+        status: status,
+      );
 
-      if (status != null) {
-        query = query.eq('status', status);
+      if (!result.success) {
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: false,
+          error: result.error,
+        );
       }
 
-      // 페이지네이션
-      final offset = (page - 1) * limit;
-      query = query.range(offset, offset + limit - 1);
+      // CampaignLog를 Map으로 변환
+      final applications = result.data!
+          .map(
+            (log) => {
+              'id': log.id,
+              'campaign_id': log.campaignId,
+              'user_id': log.userId,
+              'status': log.status,
+              'applied_at': log.appliedAt?.toIso8601String(),
+              'application_message': log.applicationMessage,
+              'reward_type': log.rewardType,
+              'reward_amount': log.rewardAmount,
+              'users': log.user != null
+                  ? {
+                      'id': log.user!.uid,
+                      'display_name': log.user!.displayName,
+                      'email': log.user!.email,
+                      'review_count': log.user!.reviewCount,
+                      'level': log.user!.level,
+                    }
+                  : null,
+            },
+          )
+          .toList();
 
-      final response = await query.timeout(const Duration(seconds: 10));
+      // 페이지네이션 적용
+      final offset = (page - 1) * limit;
+      final paginatedApplications = applications
+          .skip(offset)
+          .take(limit)
+          .toList();
 
       return ApiResponse<List<Map<String, dynamic>>>(
         success: true,
-        data: List<Map<String, dynamic>>.from(response),
+        data: paginatedApplications,
       );
     } catch (e) {
       return ApiResponse<List<Map<String, dynamic>>>(
@@ -222,7 +258,7 @@ class CampaignApplicationService {
 
       // 신청 정보 조회
       final application = await _supabase
-          .from('campaign_participants')
+          .from('campaign_logs')
           .select('campaign_id, campaigns!inner(created_by)')
           .eq('id', applicationId)
           .single();
@@ -235,36 +271,42 @@ class CampaignApplicationService {
         );
       }
 
-      // 상태 업데이트 데이터 준비
-      final updateData = <String, dynamic>{
-        'status': status,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      // 상태별 추가 필드 설정
+      // 상태별 추가 데이터 준비
+      Map<String, dynamic>? additionalData;
       switch (status) {
         case 'approved':
-          updateData['approved_at'] = DateTime.now().toIso8601String();
+          additionalData = {'approved_at': DateTime.now().toIso8601String()};
           break;
         case 'rejected':
-          updateData['rejected_at'] = DateTime.now().toIso8601String();
-          if (rejectionReason != null) {
-            updateData['rejection_reason'] = rejectionReason;
-          }
-          break;
-        case 'completed':
-          updateData['completed_at'] = DateTime.now().toIso8601String();
+          additionalData = {
+            'rejected_at': DateTime.now().toIso8601String(),
+            'rejection_reason': rejectionReason,
+          };
           break;
       }
 
-      final response = await _supabase
-          .from('campaign_participants')
-          .update(updateData)
-          .eq('id', applicationId)
+      // CampaignLogService를 사용하여 상태 업데이트
+      final result = await _campaignLogService.updateStatus(
+        campaignLogId: applicationId,
+        status: status,
+        additionalData: additionalData,
+      );
+
+      if (!result.success) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          error: result.error,
+        );
+      }
+
+      // 업데이트된 로그 조회
+      final updatedLog = await _supabase
+          .from('campaign_logs')
           .select()
+          .eq('id', applicationId)
           .single();
 
-      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
+      return ApiResponse<Map<String, dynamic>>(success: true, data: updatedLog);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -283,7 +325,7 @@ class CampaignApplicationService {
 
       // 신청 정보 조회 및 권한 확인
       final application = await _supabase
-          .from('campaign_participants')
+          .from('campaign_logs')
           .select('user_id, status')
           .eq('id', applicationId)
           .single();
@@ -300,10 +342,7 @@ class CampaignApplicationService {
       }
 
       // 신청 삭제
-      await _supabase
-          .from('campaign_participants')
-          .delete()
-          .eq('id', applicationId);
+      await _supabase.from('campaign_logs').delete().eq('id', applicationId);
 
       return ApiResponse<void>(success: true);
     } catch (e) {
@@ -322,25 +361,24 @@ class CampaignApplicationService {
         );
       }
 
-      final response = await _supabase
-          .from('campaign_participants')
-          .select('status')
-          .eq('user_id', user.id);
+      // CampaignLogService를 사용하여 통계 조회
+      final result = await _campaignLogService.getStatusStats(userId: user.id);
 
-      final stats = <String, int>{
-        'total': response.length,
-        'applied': 0,
-        'approved': 0,
-        'rejected': 0,
-        'completed': 0,
-      };
-
-      for (final item in response) {
-        final status = item['status'] as String;
-        if (stats.containsKey(status)) {
-          stats[status] = stats[status]! + 1;
-        }
+      if (!result.success) {
+        return ApiResponse<Map<String, int>>(
+          success: false,
+          error: result.error,
+        );
       }
+
+      // 통계 데이터 구성
+      final stats = <String, int>{
+        'total': result.data!.values.fold(0, (sum, count) => sum + count),
+        'applied': result.data!['applied'] ?? 0,
+        'approved': result.data!['approved'] ?? 0,
+        'rejected': result.data!['rejected'] ?? 0,
+        'completed': result.data!['payment_completed'] ?? 0,
+      };
 
       return ApiResponse<Map<String, int>>(success: true, data: stats);
     } catch (e) {
@@ -351,4 +389,3 @@ class CampaignApplicationService {
     }
   }
 }
-

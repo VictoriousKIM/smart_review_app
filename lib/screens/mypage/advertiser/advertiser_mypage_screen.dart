@@ -28,17 +28,17 @@ class AdvertiserMyPageScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () => Scaffold.of(context).openEndDrawer(),
-            ),
-          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {
               // 알림 기능 구현
             },
+          ),
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
+            ),
           ),
         ],
       ),

@@ -152,45 +152,28 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       return Colors.grey;
                     }),
                   ),
-                  child: Column(
-                    children: [
-                      RadioListTile<bool>(
-                        title: const Text('리뷰어'),
-                        subtitle: const Text('캠페인에 참여하여 리뷰를 작성합니다'),
-                        value: false,
-                        groupValue: _isAdvertiser,
-                        onChanged: (value) {
-                          setState(() {
-                            _isAdvertiser = value!;
-                            _selectedUserType = app_user.UserType.user;
-                          });
-                        },
-                      ),
-                      RadioListTile<bool>(
-                        title: const Text('광고주'),
-                        subtitle: const Text('캠페인을 생성하고 관리합니다'),
-                        value: true,
-                        groupValue: _isAdvertiser,
-                        onChanged: (value) {
-                          setState(() {
-                            _isAdvertiser = value!;
-                            _selectedUserType =
-                                app_user.UserType.user; // 광고주도 user 타입으로 설정
-                          });
-                        },
-                      ),
-                      RadioListTile<app_user.UserType>(
-                        title: const Text('관리자'),
-                        subtitle: const Text('시스템 전체를 관리합니다'),
-                        value: app_user.UserType.admin,
-                        groupValue: _selectedUserType,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedUserType = value!;
-                          });
-                        },
-                      ),
-                    ],
+                  child: RadioGroup<bool>(
+                    groupValue: _isAdvertiser,
+                    onChanged: (value) {
+                      setState(() {
+                        _isAdvertiser = value!;
+                        _selectedUserType = app_user.UserType.user;
+                      });
+                    },
+                    child: Column(
+                      children: [
+                        RadioListTile<bool>(
+                          title: const Text('리뷰어'),
+                          subtitle: const Text('캠페인에 참여하여 리뷰를 작성합니다'),
+                          value: false,
+                        ),
+                        RadioListTile<bool>(
+                          title: const Text('광고주'),
+                          subtitle: const Text('캠페인을 생성하고 관리합니다'),
+                          value: true,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 

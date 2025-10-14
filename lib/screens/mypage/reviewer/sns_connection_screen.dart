@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../widgets/custom_button.dart';
 
 class SNSConnectionScreen extends ConsumerStatefulWidget {
@@ -59,6 +60,10 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
         title: const Text('SNS 연결'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage'),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -167,7 +172,7 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ...snsList.map((sns) => _buildSNSItem(sns)).toList(),
+        ...snsList.map((sns) => _buildSNSItem(sns)),
       ],
     );
   }
@@ -184,7 +189,7 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),

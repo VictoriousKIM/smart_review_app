@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../services/auth_service.dart';
+import '../../../models/user.dart' as app_user;
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -12,10 +15,12 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isLoading = true;
   bool _isEditing = false;
-  Map<String, dynamic> _userProfile = {};
+  bool _isSaving = false;
+  app_user.User? _user;
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -35,23 +40,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _isLoading = true;
     });
 
-    // TODO: 실제 API 호출로 교체
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      // 현재 사용자 정보 가져오기
+      final user = await _authService.currentUser;
 
-    setState(() {
-      _userProfile = {
-        'displayName': '홍길동',
-        'email': 'hong@example.com',
-        'userType': 'reviewer',
-        'isAdvertiserVerified': true,
-        'joinDate': '2023-12-01',
-        'reviewCount': 15,
-        'totalPoints': 125000,
-      };
-      _displayNameController.text = _userProfile['displayName'];
-      _emailController.text = _userProfile['email'];
-      _isLoading = false;
-    });
+      if (user != null) {
+        setState(() {
+          _user = user;
+          _displayNameController.text = user.displayName ?? '';
+          _emailController.text = user.email;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('사용자 정보를 불러올 수 없습니다')));
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('프로필 로드 실패: $e')));
+      }
+    }
   }
 
   @override
@@ -62,6 +81,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         title: const Text('내 계정'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage'),
+        ),
         actions: [
           if (!_isEditing)
             TextButton(
@@ -76,7 +99,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Row(
               children: [
                 TextButton(onPressed: _cancelEdit, child: const Text('취소')),
-                TextButton(onPressed: _saveProfile, child: const Text('저장')),
+                TextButton(
+                  onPressed: _isSaving ? null : _saveProfile,
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('저장'),
+                ),
               ],
             ),
         ],
@@ -127,7 +159,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -140,7 +172,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             radius: 50,
             backgroundColor: const Color(0xFF137fec),
             child: Text(
-              _userProfile['displayName'].substring(0, 1),
+              (_user?.displayName?.isNotEmpty == true)
+                  ? _user!.displayName!.substring(0, 1)
+                  : (_user?.email.isNotEmpty == true)
+                  ? _user!.email.substring(0, 1).toUpperCase()
+                  : 'U',
               style: const TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
@@ -173,7 +209,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -226,7 +262,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 8),
 
             // 광고주 인증 상태
-            if (_userProfile['isAdvertiserVerified'])
+            if (_user?.isAdvertiserVerified == true)
               _buildInfoRow('광고주 인증', '인증 완료'),
           ],
         ),
@@ -307,7 +343,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -326,7 +362,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildInfoRow('가입일', _userProfile['joinDate']),
+          _buildInfoRow(
+            '가입일',
+            _user?.createdAt != null
+                ? '${_user!.createdAt.year}-${_user!.createdAt.month.toString().padLeft(2, '0')}-${_user!.createdAt.day.toString().padLeft(2, '0')}'
+                : '알 수 없음',
+          ),
           const SizedBox(height: 8),
           _buildInfoRow('계정 상태', '활성'),
         ],
@@ -342,7 +383,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -366,7 +407,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Expanded(
                 child: _buildStatCard(
                   '리뷰 작성',
-                  '${_userProfile['reviewCount']}개',
+                  '${_user?.reviewCount ?? 0}개',
                   Icons.star_outline,
                   Colors.amber,
                 ),
@@ -375,7 +416,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Expanded(
                 child: _buildStatCard(
                   '보유 포인트',
-                  '${_userProfile['totalPoints'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
+                  '${(_user?.points ?? 0).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
                   Icons.account_balance_wallet,
                   Colors.green,
                 ),
@@ -396,7 +437,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -424,21 +465,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         SizedBox(
           width: double.infinity,
           child: CustomButton(
-            text: '비밀번호 변경',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('비밀번호 변경 기능은 준비 중입니다')),
-              );
-            },
-            backgroundColor: Colors.white,
-            textColor: const Color(0xFF137fec),
-            borderColor: const Color(0xFF137fec),
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: CustomButton(
             text: '계정 삭제',
             onPressed: () {
               _showDeleteAccountDialog();
@@ -453,34 +479,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   String _getUserTypeText() {
-    switch (_userProfile['userType']) {
-      case 'reviewer':
-        return '리뷰어';
-      case 'advertiser':
-        return '광고주';
-      default:
-        return '사용자';
+    if (_user?.isAdvertiserVerified == true) {
+      return '광고주';
+    } else {
+      return '리뷰어';
     }
   }
 
   void _cancelEdit() {
     setState(() {
       _isEditing = false;
-      _displayNameController.text = _userProfile['displayName'];
-      _emailController.text = _userProfile['email'];
+      _displayNameController.text = _user?.displayName ?? '';
+      _emailController.text = _user?.email ?? '';
     });
   }
 
-  void _saveProfile() {
+  void _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        _userProfile['displayName'] = _displayNameController.text.trim();
-        _isEditing = false;
+        _isSaving = true;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('프로필이 저장되었습니다')));
+      try {
+        // 사용자 프로필 업데이트
+        await _authService.updateUserProfile({
+          'display_name': _displayNameController.text.trim(),
+        });
+
+        // 프로필 다시 로드
+        await _loadUserProfile();
+
+        setState(() {
+          _isEditing = false;
+          _isSaving = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('프로필이 저장되었습니다')));
+        }
+      } catch (e) {
+        setState(() {
+          _isSaving = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('프로필 저장 실패: $e')));
+        }
+      }
     }
   }
 

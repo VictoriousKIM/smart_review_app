@@ -25,7 +25,7 @@ class _AdvertiserAnalyticsScreenState
       _isLoading = true;
     });
 
-    // TODO: 실제 API 호출로 교체
+    // 임시 데이터 로딩 시뮬레이션 (향후 실제 API 호출로 교체 예정)
     await Future.delayed(const Duration(seconds: 1));
 
     setState(() {
@@ -93,7 +93,7 @@ class _AdvertiserAnalyticsScreenState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -167,7 +167,7 @@ class _AdvertiserAnalyticsScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -197,7 +197,7 @@ class _AdvertiserAnalyticsScreenState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -216,9 +216,9 @@ class _AdvertiserAnalyticsScreenState
             ),
           ),
           const SizedBox(height: 16),
-          ...(_analytics['monthlyStats'] as List)
-              .map((stat) => _buildMonthlyStatItem(stat))
-              .toList(),
+          ...(_analytics['monthlyStats'] as List).map(
+            (stat) => _buildMonthlyStatItem(stat),
+          ),
         ],
       ),
     );
@@ -312,7 +312,7 @@ class _AdvertiserAnalyticsScreenState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -361,7 +361,7 @@ class _AdvertiserAnalyticsScreenState
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Icon(icon, color: color, size: 20),

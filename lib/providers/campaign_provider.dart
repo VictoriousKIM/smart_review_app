@@ -92,7 +92,6 @@ class CampaignNotifier extends _$CampaignNotifier {
   int _currentPage = 1;
   bool _hasMore = true;
   String? _currentCategory;
-  String? _currentType;
   String _currentSortBy = 'latest';
   final List<Campaign> _campaigns = [];
   bool _isInitialized = false;
@@ -124,7 +123,7 @@ class CampaignNotifier extends _$CampaignNotifier {
         // 로딩 중일 때도 캠페인 데이터 반환
         return _campaigns;
       },
-      error: (_, __) async {
+      error: (_, _) async {
         // 에러 시 빈 리스트 반환하고 초기화 플래그 리셋
         _campaigns.clear();
         _isInitialized = false;
@@ -144,7 +143,6 @@ class CampaignNotifier extends _$CampaignNotifier {
       _hasMore = true;
       _campaigns.clear();
       _currentCategory = category;
-      _currentType = type;
       _currentSortBy = sortBy ?? 'latest';
     }
 

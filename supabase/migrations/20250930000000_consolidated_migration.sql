@@ -296,151 +296,73 @@ SET
 WHERE "is_template" IS NULL OR "usage_count" IS NULL OR "last_used_at" IS NULL;
 
 -- ===========================================
--- 7. 캠페인 참여자 테이블 (신청, 선정, 완료 상태 관리)
+-- 7. 캠페인 로그 테이블 (통합된 캠페인 활동 관리)
 -- ===========================================
-create table "public"."campaign_participants" (
+create table "public"."campaign_logs" (
     "id" uuid default gen_random_uuid() not null,
     "created_at" timestamp with time zone not null default now(),
     "updated_at" timestamp with time zone not null default now(),
+    
+    -- 기본 참조
     "campaign_id" uuid references campaigns(id) on delete cascade not null,
     "user_id" uuid references auth.users(id) on delete cascade not null,
-    "status" text not null default 'applied', -- 'applied', 'approved', 'rejected', 'completed'
-    "applied_at" timestamp with time zone not null default now(),
-    "approved_at" timestamp with time zone,
-    "rejected_at" timestamp with time zone,
-    "completed_at" timestamp with time zone,
-    "application_message" text, -- 신청 시 작성한 메시지
-    "rejection_reason" text, -- 거절 사유
-    "review_url" text, -- 작성한 리뷰 URL
-    "review_content" text, -- 리뷰 내용
-    "review_rating" integer, -- 리뷰 평점 (1-5)
-    "review_submitted_at" timestamp with time zone,
-    "reward_paid" boolean default false,
-    "reward_paid_at" timestamp with time zone,
+    
+    -- 상태 관리 (세분화된 상태)
+    "status" text not null,
+    "activity_at" timestamp with time zone not null default now(),
+    
+    -- 활동 데이터 (각 단계별 데이터 누적 저장)
+    "data" jsonb default '{}',
+    
+    -- 리워드 정보
+    "reward_type" text, -- 'platform_points', 'direct_payment', 'mixed'
+    "reward_amount" integer,
+    
+    -- 한 사용자당 한 캠페인당 하나의 로그만 허용
     UNIQUE(campaign_id, user_id)
 );
 
-alter table "public"."campaign_participants" enable row level security;
+alter table "public"."campaign_logs" enable row level security;
 
-CREATE UNIQUE INDEX campaign_participants_pkey ON public.campaign_participants USING btree (id);
-alter table "public"."campaign_participants" add constraint "campaign_participants_pkey" PRIMARY KEY using index "campaign_participants_pkey";
+CREATE UNIQUE INDEX campaign_logs_pkey ON public.campaign_logs USING btree (id);
+alter table "public"."campaign_logs" add constraint "campaign_logs_pkey" PRIMARY KEY using index "campaign_logs_pkey";
 
--- 캠페인 참여자 관련 인덱스
-CREATE INDEX IF NOT EXISTS idx_campaign_participants_campaign_id ON "public"."campaign_participants" (campaign_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_participants_user_id ON "public"."campaign_participants" (user_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_participants_status ON "public"."campaign_participants" (status);
-CREATE INDEX IF NOT EXISTS idx_campaign_participants_applied_at ON "public"."campaign_participants" (applied_at DESC);
+-- 캠페인 로그 관련 인덱스
+CREATE INDEX IF NOT EXISTS idx_campaign_logs_campaign_id ON "public"."campaign_logs" (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_logs_user_id ON "public"."campaign_logs" (user_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_logs_status ON "public"."campaign_logs" (status);
+CREATE INDEX IF NOT EXISTS idx_campaign_logs_campaign_user ON "public"."campaign_logs" (campaign_id, user_id);
 
--- status CHECK 제약 조건
-ALTER TABLE "public"."campaign_participants" 
-ADD CONSTRAINT campaign_participants_status_check 
-CHECK (status IN ('applied', 'approved', 'rejected', 'completed'));
+-- Generated Columns (자주 조회되는 필드)
+ALTER TABLE campaign_logs 
+ADD COLUMN title text GENERATED ALWAYS AS (data->>'title') STORED;
 
--- review_rating CHECK 제약 조건
-ALTER TABLE "public"."campaign_participants" 
-ADD CONSTRAINT campaign_participants_rating_check 
-CHECK (review_rating IS NULL OR (review_rating >= 1 AND review_rating <= 5));
+ALTER TABLE campaign_logs 
+ADD COLUMN rating integer GENERATED ALWAYS AS ((data->>'rating')::int) STORED;
 
--- 캠페인 참여자 RLS 정책
-create policy "Users can view own applications" on "public"."campaign_participants"
-  for select using ((select auth.uid()) = user_id);
+-- 캠페인 로그 RLS 정책
+create policy "Users can view their own campaign logs" on campaign_logs
+    FOR SELECT USING (auth.uid() = user_id);
 
-create policy "Campaign creators can view their campaign applications" on "public"."campaign_participants"
-  for select using (
-    campaign_id IN (
-      SELECT id FROM campaigns WHERE created_by = (select auth.uid())
-    )
-  );
+create policy "Users can insert their own campaign logs" on campaign_logs
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-create policy "Users can apply to campaigns" on "public"."campaign_participants"
-  for insert with check ((select auth.uid()) = user_id);
+create policy "Users can update their own campaign logs" on campaign_logs
+    FOR UPDATE USING (auth.uid() = user_id);
 
-create policy "Campaign creators can update application status" on "public"."campaign_participants"
-  for update using (
-    campaign_id IN (
-      SELECT id FROM campaigns WHERE created_by = (select auth.uid())
-    )
-  );
-
-create policy "Users can update own application" on "public"."campaign_participants"
-  for update using ((select auth.uid()) = user_id);
+create policy "Advertisers can view logs for their campaigns" on campaign_logs
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM campaigns 
+            WHERE campaigns.id = campaign_logs.campaign_id 
+            AND campaigns.company_id IN (
+                SELECT id FROM companies WHERE user_id = auth.uid()
+            )
+        )
+    );
 
 -- ===========================================
--- 8. 리뷰 테이블 (별도 관리용)
--- ===========================================
-create table "public"."reviews" (
-    "id" uuid default gen_random_uuid() not null,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone not null default now(),
-    "campaign_id" uuid references campaigns(id) on delete cascade not null,
-    "user_id" uuid references auth.users(id) on delete cascade not null,
-    "campaign_participant_id" uuid references campaign_participants(id) on delete cascade not null,
-    "title" text not null,
-    "content" text not null,
-    "rating" integer not null,
-    "review_url" text,
-    "platform" text not null, -- 'coupang', 'naver', '11st', etc.
-    "status" text not null default 'draft', -- 'draft', 'submitted', 'approved', 'rejected'
-    "submitted_at" timestamp with time zone,
-    "approved_at" timestamp with time zone,
-    "rejected_at" timestamp with time zone,
-    "rejection_reason" text,
-    "view_count" integer default 0,
-    "like_count" integer default 0,
-    UNIQUE(campaign_id, user_id)
-);
-
-alter table "public"."reviews" enable row level security;
-
-CREATE UNIQUE INDEX reviews_pkey ON public.reviews USING btree (id);
-alter table "public"."reviews" add constraint "reviews_pkey" PRIMARY KEY using index "reviews_pkey";
-
--- 리뷰 관련 인덱스
-CREATE INDEX IF NOT EXISTS idx_reviews_campaign_id ON "public"."reviews" (campaign_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON "public"."reviews" (user_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_status ON "public"."reviews" (status);
-CREATE INDEX IF NOT EXISTS idx_reviews_rating ON "public"."reviews" (rating);
-CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON "public"."reviews" (created_at DESC);
-
--- rating CHECK 제약 조건
-ALTER TABLE "public"."reviews" 
-ADD CONSTRAINT reviews_rating_check 
-CHECK (rating >= 1 AND rating <= 5);
-
--- status CHECK 제약 조건
-ALTER TABLE "public"."reviews" 
-ADD CONSTRAINT reviews_status_check 
-CHECK (status IN ('draft', 'submitted', 'approved', 'rejected'));
-
--- 리뷰 RLS 정책
-create policy "Anyone can view approved reviews" on "public"."reviews"
-  for select using (status = 'approved');
-
-create policy "Users can view own reviews" on "public"."reviews"
-  for select using ((select auth.uid()) = user_id);
-
-create policy "Campaign creators can view their campaign reviews" on "public"."reviews"
-  for select using (
-    campaign_id IN (
-      SELECT id FROM campaigns WHERE created_by = (select auth.uid())
-    )
-  );
-
-create policy "Users can create reviews" on "public"."reviews"
-  for insert with check ((select auth.uid()) = user_id);
-
-create policy "Users can update own reviews" on "public"."reviews"
-  for update using ((select auth.uid()) = user_id);
-
-create policy "Campaign creators can update review status" on "public"."reviews"
-  for update using (
-    campaign_id IN (
-      SELECT id FROM campaigns WHERE created_by = (select auth.uid())
-    )
-  );
-
--- ===========================================
--- 9. 알림 테이블
+-- 8. 알림 테이블
 -- ===========================================
 create table "public"."notifications" (
     "id" uuid default gen_random_uuid() not null,
@@ -452,8 +374,7 @@ create table "public"."notifications" (
     "is_read" boolean default false,
     "read_at" timestamp with time zone,
     "related_campaign_id" uuid references campaigns(id) on delete set null,
-    "related_participant_id" uuid references campaign_participants(id) on delete set null,
-    "related_review_id" uuid references reviews(id) on delete set null
+    "related_campaign_log_id" uuid references campaign_logs(id) on delete set null
 );
 
 alter table "public"."notifications" enable row level security;

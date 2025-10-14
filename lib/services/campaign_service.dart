@@ -344,7 +344,7 @@ class CampaignService {
             .eq('id', previousCampaign.id);
       } catch (updateError) {
         // 사용 횟수 업데이트 실패는 로그만 남기고 계속 진행
-        print('Warning: Failed to update usage count: $updateError');
+        // print('Warning: Failed to update usage count: $updateError');
       }
 
       final campaign = Campaign.fromJson(response);

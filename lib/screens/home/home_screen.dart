@@ -108,7 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       '로딩 중...',
                       style: TextStyle(color: Colors.white),
                     ),
-                    error: (_, __) => const Text(
+                    error: (_, _) => const Text(
                       '게스트',
                       style: TextStyle(color: Colors.white),
                     ),
@@ -176,7 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _navigateToCampaignDetail(String campaignId) {
-    print('🔥 Home campaign card tapped: $campaignId');
+    // print('🔥 Home campaign card tapped: $campaignId');
     context.go('/campaigns/$campaignId');
   }
 }

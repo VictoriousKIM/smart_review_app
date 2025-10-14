@@ -8,7 +8,6 @@ import '../widgets/main_shell.dart';
 import '../screens/auth/signup_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/guide/guide_screen.dart';
-import '../screens/mypage/mypage_screen.dart';
 import '../screens/mypage/reviewer/reviewer_mypage_screen.dart';
 import '../screens/mypage/advertiser/advertiser_mypage_screen.dart';
 import '../screens/campaign/campaign_detail_screen.dart';
@@ -168,11 +167,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               // 현재 사용자 정보 가져오기
               final authService = ref.read(authServiceProvider);
               final user = await authService.currentUser;
-              
+
               if (user == null) {
                 return '/login';
               }
-              
+
               // 광고주 인증 여부에 따라 적절한 페이지로 리다이렉트
               if (user.isAdvertiserVerified) {
                 return '/mypage/advertiser';
@@ -281,7 +280,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(

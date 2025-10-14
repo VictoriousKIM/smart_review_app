@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
+import 'campaign_log_service.dart';
 
 class ReviewService {
   static final ReviewService _instance = ReviewService._internal();
@@ -8,16 +9,17 @@ class ReviewService {
   ReviewService._internal();
 
   final SupabaseClient _supabase = SupabaseConfig.client;
+  final CampaignLogService _campaignLogService = CampaignLogService(
+    SupabaseConfig.client,
+  );
 
   // 리뷰 작성
   Future<ApiResponse<Map<String, dynamic>>> createReview({
     required String campaignId,
-    required String campaignParticipantId,
     required String title,
     required String content,
     required int rating,
     String? reviewUrl,
-    required String platform,
   }) async {
     try {
       final user = _supabase.auth.currentUser;
@@ -28,76 +30,60 @@ class ReviewService {
         );
       }
 
-      // 캠페인 참여자 확인
-      final participant = await _supabase
-          .from('campaign_participants')
-          .select('status, user_id')
-          .eq('id', campaignParticipantId)
-          .single();
+      // 캠페인 로그 조회
+      final logResult = await _campaignLogService.getCampaignLog(
+        campaignId: campaignId,
+        userId: user.id,
+      );
 
-      if (participant['user_id'] != user.id) {
+      if (!logResult.success || logResult.data == null) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
-          error: '권한이 없습니다.',
+          error: '캠페인 신청 내역을 찾을 수 없습니다.',
         );
       }
 
-      if (participant['status'] != 'approved') {
+      final campaignLog = logResult.data!;
+
+      // 리뷰 작성 가능한 상태인지 확인
+      if (campaignLog.status != 'approved' &&
+          campaignLog.status != 'purchased') {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '선정된 캠페인에만 리뷰를 작성할 수 있습니다.',
         );
       }
 
-      // 이미 리뷰가 있는지 확인
-      final existingReview = await _supabase
-          .from('reviews')
-          .select()
-          .eq('campaign_id', campaignId)
-          .eq('user_id', user.id)
-          .maybeSingle();
+      // CampaignLogService를 사용하여 리뷰 제출
+      final result = await _campaignLogService.submitReview(
+        campaignLogId: campaignLog.id,
+        title: title,
+        content: content,
+        rating: rating,
+        reviewUrl: reviewUrl,
+      );
 
-      if (existingReview != null) {
+      if (!result.success) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
-          error: '이미 리뷰를 작성한 캠페인입니다.',
+          error: result.error,
         );
       }
 
-      // 리뷰 데이터 삽입
+      // 리뷰 데이터 구성
       final reviewData = {
+        'id': campaignLog.id,
         'campaign_id': campaignId,
         'user_id': user.id,
-        'campaign_participant_id': campaignParticipantId,
         'title': title,
         'content': content,
         'rating': rating,
         'review_url': reviewUrl,
-        'platform': platform,
-        'status': 'submitted',
+        'status': 'review_submitted',
         'submitted_at': DateTime.now().toIso8601String(),
       };
 
-      final response = await _supabase
-          .from('reviews')
-          .insert(reviewData)
-          .select()
-          .single();
-
-      // 캠페인 참여자 상태를 완료로 업데이트
-      await _supabase
-          .from('campaign_participants')
-          .update({
-            'status': 'completed',
-            'completed_at': DateTime.now().toIso8601String(),
-            'review_content': content,
-            'review_rating': rating,
-            'review_url': reviewUrl,
-            'review_submitted_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', campaignParticipantId);
-
-      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
+      return ApiResponse<Map<String, dynamic>>(success: true, data: reviewData);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -121,37 +107,57 @@ class ReviewService {
         );
       }
 
-      dynamic query = _supabase
-          .from('reviews')
-          .select('''
-            *,
-            campaigns (
-              id,
-              title,
-              description,
-              product_image_url,
-              platform,
-              platform_logo_url,
-              product_price,
-              review_reward
-            )
-          ''')
-          .eq('user_id', user.id)
-          .order('created_at', ascending: false);
+      // CampaignLogService를 사용하여 로그 조회
+      final result = await _campaignLogService.getUserCampaignLogs(
+        userId: user.id,
+        status: status,
+      );
 
-      if (status != null) {
-        query = query.eq('status', status);
+      if (!result.success) {
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: false,
+          error: result.error,
+        );
       }
 
-      // 페이지네이션
-      final offset = (page - 1) * limit;
-      query = query.range(offset, offset + limit - 1);
+      // 리뷰가 있는 로그만 필터링
+      final reviews = result.data!
+          .where((log) => log.title.isNotEmpty || log.reviewContent.isNotEmpty)
+          .map(
+            (log) => {
+              'id': log.id,
+              'campaign_id': log.campaignId,
+              'user_id': log.userId,
+              'title': log.title,
+              'content': log.reviewContent,
+              'rating': log.rating,
+              'review_url': log.reviewUrl,
+              'status': log.status,
+              'submitted_at': log.reviewSubmittedAt?.toIso8601String(),
+              'approved_at': log.reviewApprovedAt?.toIso8601String(),
+              'campaigns': log.campaign != null
+                  ? {
+                      'id': log.campaign!.id,
+                      'title': log.campaign!.title,
+                      'description': log.campaign!.description,
+                      'product_image_url': log.campaign!.productImageUrl,
+                      'platform': log.campaign!.platform,
+                      'platform_logo_url': log.campaign!.platformLogoUrl,
+                      'product_price': log.campaign!.productPrice,
+                      'review_reward': log.campaign!.reviewReward,
+                    }
+                  : null,
+            },
+          )
+          .toList();
 
-      final response = await query.timeout(const Duration(seconds: 10));
+      // 페이지네이션 적용
+      final offset = (page - 1) * limit;
+      final paginatedReviews = reviews.skip(offset).take(limit).toList();
 
       return ApiResponse<List<Map<String, dynamic>>>(
         success: true,
-        data: List<Map<String, dynamic>>.from(response),
+        data: paginatedReviews,
       );
     } catch (e) {
       return ApiResponse<List<Map<String, dynamic>>>(
@@ -169,33 +175,53 @@ class ReviewService {
     int limit = 20,
   }) async {
     try {
-      dynamic query = _supabase
-          .from('reviews')
-          .select('''
-            *,
-            users (
-              id,
-              display_name,
-              level,
-              review_count
-            )
-          ''')
-          .eq('campaign_id', campaignId)
-          .order('created_at', ascending: false);
+      // CampaignLogService를 사용하여 로그 조회
+      final result = await _campaignLogService.getCampaignLogs(
+        campaignId: campaignId,
+        status: status,
+      );
 
-      if (status != null) {
-        query = query.eq('status', status);
+      if (!result.success) {
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: false,
+          error: result.error,
+        );
       }
 
-      // 페이지네이션
-      final offset = (page - 1) * limit;
-      query = query.range(offset, offset + limit - 1);
+      // 리뷰가 있는 로그만 필터링
+      final reviews = result.data!
+          .where((log) => log.title.isNotEmpty || log.reviewContent.isNotEmpty)
+          .map(
+            (log) => {
+              'id': log.id,
+              'campaign_id': log.campaignId,
+              'user_id': log.userId,
+              'title': log.title,
+              'content': log.reviewContent,
+              'rating': log.rating,
+              'review_url': log.reviewUrl,
+              'status': log.status,
+              'submitted_at': log.reviewSubmittedAt?.toIso8601String(),
+              'approved_at': log.reviewApprovedAt?.toIso8601String(),
+              'users': log.user != null
+                  ? {
+                      'id': log.user!.uid,
+                      'display_name': log.user!.displayName,
+                      'level': log.user!.level,
+                      'review_count': log.user!.reviewCount,
+                    }
+                  : null,
+            },
+          )
+          .toList();
 
-      final response = await query.timeout(const Duration(seconds: 10));
+      // 페이지네이션 적용
+      final offset = (page - 1) * limit;
+      final paginatedReviews = reviews.skip(offset).take(limit).toList();
 
       return ApiResponse<List<Map<String, dynamic>>>(
         success: true,
-        data: List<Map<String, dynamic>>.from(response),
+        data: paginatedReviews,
       );
     } catch (e) {
       return ApiResponse<List<Map<String, dynamic>>>(
@@ -222,7 +248,7 @@ class ReviewService {
 
       // 리뷰 정보 조회
       final review = await _supabase
-          .from('reviews')
+          .from('campaign_logs')
           .select('campaign_id, campaigns!inner(created_by)')
           .eq('id', reviewId)
           .single();
@@ -235,33 +261,44 @@ class ReviewService {
         );
       }
 
-      // 상태 업데이트 데이터 준비
-      final updateData = <String, dynamic>{
-        'status': status,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      // 상태별 추가 필드 설정
+      // 상태별 추가 데이터 준비
+      Map<String, dynamic>? additionalData;
       switch (status) {
-        case 'approved':
-          updateData['approved_at'] = DateTime.now().toIso8601String();
+        case 'review_approved':
+          additionalData = {
+            'review_approved_at': DateTime.now().toIso8601String(),
+          };
           break;
         case 'rejected':
-          updateData['rejected_at'] = DateTime.now().toIso8601String();
-          if (rejectionReason != null) {
-            updateData['rejection_reason'] = rejectionReason;
-          }
+          additionalData = {
+            'rejected_at': DateTime.now().toIso8601String(),
+            'rejection_reason': rejectionReason,
+          };
           break;
       }
 
-      final response = await _supabase
-          .from('reviews')
-          .update(updateData)
-          .eq('id', reviewId)
+      // CampaignLogService를 사용하여 상태 업데이트
+      final result = await _campaignLogService.updateStatus(
+        campaignLogId: reviewId,
+        status: status,
+        additionalData: additionalData,
+      );
+
+      if (!result.success) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          error: result.error,
+        );
+      }
+
+      // 업데이트된 로그 조회
+      final updatedLog = await _supabase
+          .from('campaign_logs')
           .select()
+          .eq('id', reviewId)
           .single();
 
-      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
+      return ApiResponse<Map<String, dynamic>>(success: true, data: updatedLog);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -289,8 +326,8 @@ class ReviewService {
 
       // 리뷰 정보 조회 및 권한 확인
       final review = await _supabase
-          .from('reviews')
-          .select('user_id, status')
+          .from('campaign_logs')
+          .select('user_id, status, data')
           .eq('id', reviewId)
           .single();
 
@@ -301,15 +338,35 @@ class ReviewService {
         );
       }
 
-      if (review['status'] == 'approved') {
+      if (review['status'] == 'review_approved') {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '승인된 리뷰는 수정할 수 없습니다.',
         );
       }
 
-      // 리뷰 업데이트
-      final updateData = {
+      // 리뷰 데이터 업데이트
+      final currentData = Map<String, dynamic>.from(review['data'] ?? {});
+      currentData.addAll({
+        'title': title,
+        'review_content': content,
+        'rating': rating,
+        'review_url': reviewUrl,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+
+      // 로그 업데이트
+      await _supabase
+          .from('campaign_logs')
+          .update({
+            'data': currentData,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', reviewId);
+
+      // 업데이트된 데이터 반환
+      final responseData = {
+        'id': reviewId,
         'title': title,
         'content': content,
         'rating': rating,
@@ -317,14 +374,10 @@ class ReviewService {
         'updated_at': DateTime.now().toIso8601String(),
       };
 
-      final response = await _supabase
-          .from('reviews')
-          .update(updateData)
-          .eq('id', reviewId)
-          .select()
-          .single();
-
-      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
+      return ApiResponse<Map<String, dynamic>>(
+        success: true,
+        data: responseData,
+      );
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -343,7 +396,7 @@ class ReviewService {
 
       // 리뷰 정보 조회 및 권한 확인
       final review = await _supabase
-          .from('reviews')
+          .from('campaign_logs')
           .select('user_id, status')
           .eq('id', reviewId)
           .single();
@@ -352,12 +405,32 @@ class ReviewService {
         return ApiResponse<void>(success: false, error: '권한이 없습니다.');
       }
 
-      if (review['status'] == 'approved') {
+      if (review['status'] == 'review_approved') {
         return ApiResponse<void>(success: false, error: '승인된 리뷰는 삭제할 수 없습니다.');
       }
 
-      // 리뷰 삭제
-      await _supabase.from('reviews').delete().eq('id', reviewId);
+      // 리뷰 데이터만 삭제 (로그는 유지)
+      final currentData = Map<String, dynamic>.from(review['data'] ?? {});
+      currentData.remove('title');
+      currentData.remove('review_content');
+      currentData.remove('rating');
+      currentData.remove('review_url');
+      currentData.remove('review_submitted_at');
+
+      // 상태를 이전 단계로 되돌리기
+      String previousStatus = 'approved'; // 기본적으로 approved로 되돌림
+      if (review['status'] == 'review_submitted') {
+        previousStatus = 'approved';
+      }
+
+      await _supabase
+          .from('campaign_logs')
+          .update({
+            'status': previousStatus,
+            'data': currentData,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', reviewId);
 
       return ApiResponse<void>(success: true);
     } catch (e) {
@@ -376,25 +449,25 @@ class ReviewService {
         );
       }
 
-      final response = await _supabase
-          .from('reviews')
-          .select('status')
-          .eq('user_id', user.id);
+      // CampaignLogService를 사용하여 통계 조회
+      final result = await _campaignLogService.getStatusStats(userId: user.id);
 
-      final stats = <String, int>{
-        'total': response.length,
-        'draft': 0,
-        'submitted': 0,
-        'approved': 0,
-        'rejected': 0,
-      };
-
-      for (final item in response) {
-        final status = item['status'] as String;
-        if (stats.containsKey(status)) {
-          stats[status] = stats[status]! + 1;
-        }
+      if (!result.success) {
+        return ApiResponse<Map<String, int>>(
+          success: false,
+          error: result.error,
+        );
       }
+
+      // 리뷰 관련 통계 구성
+      final stats = <String, int>{
+        'total':
+            (result.data!['review_submitted'] ?? 0) +
+            (result.data!['review_approved'] ?? 0),
+        'submitted': result.data!['review_submitted'] ?? 0,
+        'approved': result.data!['review_approved'] ?? 0,
+        'rejected': result.data!['rejected'] ?? 0,
+      };
 
       return ApiResponse<Map<String, int>>(success: true, data: stats);
     } catch (e) {
