@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/point_service.dart';
 import '../../../widgets/custom_button.dart';
 
 class PointsScreen extends ConsumerStatefulWidget {
@@ -33,14 +34,41 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
     try {
       final user = await _authService.currentUser;
       if (user != null) {
+        // PointService를 사용하여 실제 포인트 조회
+        final wallets = await PointService.getUserWallets(user.uid);
+        final personalWallet = wallets.isNotEmpty
+            ? wallets.firstWhere(
+                (w) => w.walletType == 'PERSONAL',
+                orElse: () => wallets.first,
+              )
+            : null;
+
         setState(() {
-          _currentPoints = user.points;
+          _currentPoints = personalWallet?.points ?? 0;
           _isLoading = false;
         });
 
-        // TODO: 실제 포인트 내역 API 호출
-        // 현재는 빈 리스트로 설정
-        _pointHistory = [];
+        // 실제 포인트 내역 로드
+        if (personalWallet != null) {
+          final logs = await PointService.getWalletLogs(
+            walletId: personalWallet.walletId,
+            limit: 50,
+          );
+
+          _pointHistory = logs
+              .map(
+                (log) => {
+                  'type': log.amount > 0 ? 'earned' : 'spent',
+                  'amount': log.amount,
+                  'description': log.description ?? '포인트 거래',
+                  'date': _formatDate(log.createdAt),
+                  'balance': log.balanceAfter,
+                },
+              )
+              .toList();
+        } else {
+          _pointHistory = [];
+        }
       } else {
         setState(() {
           _currentPoints = 0;
@@ -60,6 +88,21 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('포인트 정보를 불러올 수 없습니다: $e')));
       }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return '오늘 ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      return '어제 ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}일 전';
+    } else {
+      return '${date.month}/${date.day}';
     }
   }
 
@@ -310,15 +353,59 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   }
 
   void _showWithdrawDialog() {
+    final amountController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('포인트 출금'),
-        content: const Text('포인트 출금 기능은 준비 중입니다.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('출금할 포인트를 입력해주세요.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '출금 포인트',
+                hintText: '예: 1000',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '보유 포인트: ${_currentPoints.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final amount = int.tryParse(amountController.text);
+              if (amount == null || amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('올바른 금액을 입력해주세요.')),
+                );
+                return;
+              }
+
+              if (amount > _currentPoints) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('보유 포인트보다 많은 금액을 출금할 수 없습니다.')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+              await _requestWithdrawal(amount);
+            },
+            child: const Text('출금 요청'),
           ),
         ],
       ),
@@ -326,18 +413,102 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   }
 
   void _showChargeDialog() {
+    final amountController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('포인트 충전'),
-        content: const Text('포인트 충전 기능은 준비 중입니다.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('충전할 포인트를 입력해주세요.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '충전 포인트',
+                hintText: '예: 10000',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '1포인트 = 1원 (예: 10,000포인트 = 10,000원)',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final amount = int.tryParse(amountController.text);
+              if (amount == null || amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('올바른 금액을 입력해주세요.')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+              await _requestCharge(amount);
+            },
+            child: const Text('충전 요청'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _requestWithdrawal(int amount) async {
+    try {
+      final user = await _authService.currentUser;
+      if (user == null) return;
+
+      await PointService.requestPersonalWithdrawal(
+        userId: user.uid,
+        amount: amount,
+      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('출금 요청이 완료되었습니다.')));
+
+      // 포인트 정보 다시 로드
+      await _loadPointsData();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('출금 요청 중 오류가 발생했습니다: $e')));
+    }
+  }
+
+  Future<void> _requestCharge(int amount) async {
+    try {
+      final user = await _authService.currentUser;
+      if (user == null) return;
+
+      await PointService.requestPointCharge(
+        userId: user.uid,
+        amount: amount,
+        cashAmount: amount.toDouble(),
+      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('충전 요청이 완료되었습니다.')));
+
+      // 포인트 정보 다시 로드
+      await _loadPointsData();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('충전 요청 중 오류가 발생했습니다: $e')));
+    }
   }
 }

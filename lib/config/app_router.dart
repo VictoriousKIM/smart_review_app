@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../widgets/main_shell.dart';
-import '../screens/auth/signup_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/guide/guide_screen.dart';
 import '../screens/mypage/reviewer/reviewer_mypage_screen.dart';
@@ -28,6 +27,7 @@ import '../screens/mypage/advertiser/advertiser_participants_screen.dart';
 import '../screens/mypage/advertiser/advertiser_company_screen.dart';
 import '../screens/mypage/advertiser/advertiser_penalties_screen.dart';
 import '../screens/settings/notification_settings_screen.dart';
+import '../screens/account_deletion_screen.dart';
 import '../widgets/loading_screen.dart';
 
 // GoRouter Refresh Notifier
@@ -67,7 +67,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = user != null;
 
       final isLoggingIn = state.matchedLocation == '/login';
-      final isSigningUp = state.matchedLocation == '/signup';
       final isRoot = state.matchedLocation == '/';
       final isLoading = state.matchedLocation == '/loading';
 
@@ -83,12 +82,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // 로그인되지 않은 상태에서 보호된 경로 접근 시 로그인 페이지로 리다이렉트
-      if (!isLoggedIn && !isLoggingIn && !isSigningUp) {
+      if (!isLoggedIn && !isLoggingIn) {
         return '/login';
       }
 
-      // 로그인된 상태에서 로그인/회원가입 페이지 접근 시 홈으로 리다이렉트
-      if (isLoggedIn && (isLoggingIn || isSigningUp)) {
+      // 로그인된 상태에서 로그인 페이지 접근 시 홈으로 리다이렉트
+      if (isLoggedIn && isLoggingIn) {
         return '/home';
       }
 
@@ -111,14 +110,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/signup',
-        name: 'signup',
-        builder: (context, state) {
-          final isSocialLogin = state.uri.queryParameters['social'] == 'true';
-          return SignupScreen(isSocialLogin: isSocialLogin);
-        },
       ),
       GoRoute(
         path: '/loading',
@@ -173,7 +164,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               }
 
               // 광고주 인증 여부에 따라 적절한 페이지로 리다이렉트
-              if (user.isAdvertiserVerified) {
+              if (user.companyId != null) {
                 return '/mypage/advertiser';
               } else {
                 return '/mypage/reviewer';
@@ -277,6 +268,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/settings/notifications',
             name: 'notification-settings',
             builder: (context, state) => const NotificationSettingsScreen(),
+          ),
+
+          // 계정 삭제 관련 라우트
+          GoRoute(
+            path: '/account-deletion',
+            name: 'account-deletion',
+            builder: (context, state) => const AccountDeletionScreen(),
           ),
         ],
       ),

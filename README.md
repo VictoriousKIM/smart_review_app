@@ -77,8 +77,7 @@ lib/
 │   └── campaign_provider.dart
 ├── screens/          # 화면
 │   ├── auth/
-│   │   ├── login_screen.dart
-│   │   └── signup_screen.dart
+│   │   └── login_screen.dart
 │   ├── home/
 │   │   └── home_screen.dart
 │   ├── campaign/

@@ -317,8 +317,13 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+[edge_runtime.secrets]
+# Cloudflare R2 설정
+R2_ACCOUNT_ID = "7b72031b240604b8e9f88904de2f127c"
+R2_ACCESS_KEY_ID = "e4db9133661a4317e540091157c49da7"
+R2_SECRET_ACCESS_KEY = "f8db6f7d4723f36252a12941f87e0df6110229a59afee113228b76b3f2aa2d1e"
+R2_BUCKET_NAME = "smart-review-files"
+R2_PUBLIC_URL = "https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com"
 
 [analytics]
 enabled = true

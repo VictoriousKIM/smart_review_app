@@ -6,7 +6,6 @@ class User {
   final String? displayName;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final int points;
   final int level;
   final int reviewCount;
   final UserType userType;
@@ -20,7 +19,6 @@ class User {
     this.displayName,
     required this.createdAt,
     required this.updatedAt,
-    this.points = 0,
     this.level = 1,
     this.reviewCount = 0,
     this.userType = UserType.user,
@@ -29,8 +27,11 @@ class User {
     this.snsConnections,
   });
 
-  // company_id가 있으면 광고주로 판단
-  bool get isAdvertiserVerified => companyId != null;
+  // company_users 테이블을 통해 회사 정보 확인
+  Future<bool> get isAdvertiserVerified async {
+    // 이 메서드는 비동기이므로 실제 사용 시에는 서비스에서 처리해야 함
+    return companyId != null;
+  }
 
   factory User.fromSupabaseUser(supabase.User user) {
     final metadata = user.userMetadata ?? {};
@@ -41,7 +42,7 @@ class User {
       createdAt: DateTime.parse(user.createdAt),
       updatedAt: DateTime.parse(user.updatedAt ?? user.createdAt),
       userType: UserType.values.firstWhere(
-        (e) => e.name == metadata['user_type'],
+        (e) => e.name == metadata['user_type']?.toLowerCase(),
         orElse: () => UserType.user,
       ),
       companyId: metadata['company_id'],
@@ -52,7 +53,6 @@ class User {
             )
           : null,
       // 아래 필드들은 Supabase User 객체에 없으므로 기본값 또는 별도 로직 필요
-      points: 0,
       level: 1,
       reviewCount: 0,
       snsConnections: null,
@@ -70,11 +70,10 @@ class User {
       displayName: profileData['display_name'],
       createdAt: DateTime.parse(profileData['created_at']),
       updatedAt: DateTime.parse(profileData['updated_at']),
-      points: profileData['points'] ?? 0,
       level: profileData['level'] ?? 1,
       reviewCount: profileData['review_count'] ?? 0,
       userType: UserType.values.firstWhere(
-        (e) => e.name == profileData['user_type'],
+        (e) => e.name == (profileData['user_type'] as String?)?.toLowerCase(),
         orElse: () => UserType.user,
       ),
       companyId: profileData['company_id'],
@@ -97,11 +96,10 @@ class User {
       displayName: json['display_name'] ?? json['displayName'],
       createdAt: DateTime.parse(json['created_at'] ?? json['createdAt']),
       updatedAt: DateTime.parse(json['updated_at'] ?? json['updatedAt']),
-      points: json['points'] ?? 0,
       level: json['level'] ?? 1,
       reviewCount: json['review_count'] ?? json['reviewCount'] ?? 0,
       userType: UserType.values.firstWhere(
-        (e) => e.name == (json['user_type'] ?? json['userType']),
+        (e) => e.name == ((json['user_type'] ?? json['userType']) as String?)?.toLowerCase(),
         orElse: () => UserType.user,
       ),
       companyId: json['company_id'],
@@ -124,10 +122,9 @@ class User {
       'display_name': displayName,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
-      'points': points,
       'level': level,
       'review_count': reviewCount,
-      'user_type': userType.name,
+      'user_type': userType.name.toLowerCase(),
       'company_id': companyId,
       'company_role': companyRole?.name,
       'sns_connections': snsConnections?.toJson(),
@@ -140,7 +137,6 @@ class User {
     String? displayName,
     DateTime? createdAt,
     DateTime? updatedAt,
-    int? points,
     int? level,
     int? reviewCount,
     UserType? userType,
@@ -154,7 +150,6 @@ class User {
       displayName: displayName ?? this.displayName,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      points: points ?? this.points,
       level: level ?? this.level,
       reviewCount: reviewCount ?? this.reviewCount,
       userType: userType ?? this.userType,
@@ -166,8 +161,8 @@ class User {
 }
 
 enum UserType {
-  user, // 일반 사용자 (리뷰어)
-  admin, // 관리자
+  user, // 일반 사용자 (리뷰어 또는 광고주, company_users로 구분)
+  admin, // 시스템 관리자 (전역 권한)
 }
 
 enum CompanyRole {

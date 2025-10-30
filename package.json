@@ -1,5 +1,8 @@
 {
   "devDependencies": {
-    "supabase": "^2.45.5"
+    "supabase": "^2.51.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.917.0"
   }
 }

@@ -130,7 +130,7 @@ final class CampaignsProvider
   }
 }
 
-String _$campaignsHash() => r'e7921e46f68061540f25bc58e23bdba3a21e0a56';
+String _$campaignsHash() => r'd412c5e2f07dc5bf12d77d18520fa9c24753adb2';
 
 final class CampaignsFamily extends $Family
     with
@@ -465,7 +465,7 @@ final class SearchCampaignsProvider
   }
 }
 
-String _$searchCampaignsHash() => r'982a6cdff229d37d2c66d828a921bcdaa068f942';
+String _$searchCampaignsHash() => r'85fec12a36ddcc2e332e1ad05559364b5f37d3f1';
 
 final class SearchCampaignsFamily extends $Family
     with
@@ -502,16 +502,16 @@ const userCampaignsProvider = UserCampaignsFamily._();
 final class UserCampaignsProvider
     extends
         $FunctionalProvider<
-          AsyncValue<ApiResponse<List<Campaign>>>,
-          ApiResponse<List<Campaign>>,
-          FutureOr<ApiResponse<List<Campaign>>>
+          AsyncValue<ApiResponse<Map<String, dynamic>>>,
+          ApiResponse<Map<String, dynamic>>,
+          FutureOr<ApiResponse<Map<String, dynamic>>>
         >
     with
-        $FutureModifier<ApiResponse<List<Campaign>>>,
-        $FutureProvider<ApiResponse<List<Campaign>>> {
+        $FutureModifier<ApiResponse<Map<String, dynamic>>>,
+        $FutureProvider<ApiResponse<Map<String, dynamic>>> {
   const UserCampaignsProvider._({
     required UserCampaignsFamily super.from,
-    required ({int page, int limit}) super.argument,
+    required ({int page, int limit, String? status}) super.argument,
   }) : super(
          retry: null,
          name: r'userCampaignsProvider',
@@ -532,14 +532,19 @@ final class UserCampaignsProvider
 
   @$internal
   @override
-  $FutureProviderElement<ApiResponse<List<Campaign>>> $createElement(
+  $FutureProviderElement<ApiResponse<Map<String, dynamic>>> $createElement(
     $ProviderPointer pointer,
   ) => $FutureProviderElement(pointer);
 
   @override
-  FutureOr<ApiResponse<List<Campaign>>> create(Ref ref) {
-    final argument = this.argument as ({int page, int limit});
-    return userCampaigns(ref, page: argument.page, limit: argument.limit);
+  FutureOr<ApiResponse<Map<String, dynamic>>> create(Ref ref) {
+    final argument = this.argument as ({int page, int limit, String? status});
+    return userCampaigns(
+      ref,
+      page: argument.page,
+      limit: argument.limit,
+      status: argument.status,
+    );
   }
 
   @override
@@ -553,13 +558,13 @@ final class UserCampaignsProvider
   }
 }
 
-String _$userCampaignsHash() => r'7a3efd2a7da54572587b7335b55712712a9a3d7c';
+String _$userCampaignsHash() => r'5741e94f5e2cf9a2301ec317c94e30d587b393b2';
 
 final class UserCampaignsFamily extends $Family
     with
         $FunctionalFamilyOverride<
-          FutureOr<ApiResponse<List<Campaign>>>,
-          ({int page, int limit})
+          FutureOr<ApiResponse<Map<String, dynamic>>>,
+          ({int page, int limit, String? status})
         > {
   const UserCampaignsFamily._()
     : super(
@@ -570,11 +575,111 @@ final class UserCampaignsFamily extends $Family
         isAutoDispose: true,
       );
 
-  UserCampaignsProvider call({required int page, int limit = 10}) =>
-      UserCampaignsProvider._(argument: (page: page, limit: limit), from: this);
+  UserCampaignsProvider call({
+    required int page,
+    int limit = 10,
+    String? status,
+  }) => UserCampaignsProvider._(
+    argument: (page: page, limit: limit, status: status),
+    from: this,
+  );
 
   @override
   String toString() => r'userCampaignsProvider';
+}
+
+@ProviderFor(userParticipatedCampaigns)
+const userParticipatedCampaignsProvider = UserParticipatedCampaignsFamily._();
+
+final class UserParticipatedCampaignsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<ApiResponse<Map<String, dynamic>>>,
+          ApiResponse<Map<String, dynamic>>,
+          FutureOr<ApiResponse<Map<String, dynamic>>>
+        >
+    with
+        $FutureModifier<ApiResponse<Map<String, dynamic>>>,
+        $FutureProvider<ApiResponse<Map<String, dynamic>>> {
+  const UserParticipatedCampaignsProvider._({
+    required UserParticipatedCampaignsFamily super.from,
+    required ({int page, int limit, String? status}) super.argument,
+  }) : super(
+         retry: null,
+         name: r'userParticipatedCampaignsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$userParticipatedCampaignsHash();
+
+  @override
+  String toString() {
+    return r'userParticipatedCampaignsProvider'
+        ''
+        '$argument';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<ApiResponse<Map<String, dynamic>>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<ApiResponse<Map<String, dynamic>>> create(Ref ref) {
+    final argument = this.argument as ({int page, int limit, String? status});
+    return userParticipatedCampaigns(
+      ref,
+      page: argument.page,
+      limit: argument.limit,
+      status: argument.status,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is UserParticipatedCampaignsProvider &&
+        other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$userParticipatedCampaignsHash() =>
+    r'd49e42da3049c2e7c6308a33489eeae4d8246e39';
+
+final class UserParticipatedCampaignsFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<ApiResponse<Map<String, dynamic>>>,
+          ({int page, int limit, String? status})
+        > {
+  const UserParticipatedCampaignsFamily._()
+    : super(
+        retry: null,
+        name: r'userParticipatedCampaignsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  UserParticipatedCampaignsProvider call({
+    required int page,
+    int limit = 10,
+    String? status,
+  }) => UserParticipatedCampaignsProvider._(
+    argument: (page: page, limit: limit, status: status),
+    from: this,
+  );
+
+  @override
+  String toString() => r'userParticipatedCampaignsProvider';
 }
 
 @ProviderFor(CampaignNotifier)
@@ -601,7 +706,7 @@ final class CampaignNotifierProvider
   CampaignNotifier create() => CampaignNotifier();
 }
 
-String _$campaignNotifierHash() => r'9a1b024118e2aeb9d82f8d4a29f9f3b95bab6f79';
+String _$campaignNotifierHash() => r'825d54fa01fb072b3c85b10f1eeae3af147ae923';
 
 abstract class _$CampaignNotifier extends $AsyncNotifier<List<Campaign>> {
   FutureOr<List<Campaign>> build();
@@ -646,7 +751,7 @@ final class SearchNotifierProvider
   SearchNotifier create() => SearchNotifier();
 }
 
-String _$searchNotifierHash() => r'102cef11af35532d0f6436f048bea16d6d0bd447';
+String _$searchNotifierHash() => r'17e62a7d6ac3cff3a11099ba8b510f52d704847f';
 
 abstract class _$SearchNotifier extends $AsyncNotifier<List<Campaign>> {
   FutureOr<List<Campaign>> build();

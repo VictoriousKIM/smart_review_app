@@ -249,12 +249,12 @@ class ReviewService {
       // 리뷰 정보 조회
       final review = await _supabase
           .from('campaign_logs')
-          .select('campaign_id, campaigns!inner(created_by)')
+          .select('campaign_id, campaigns!inner(user_id)')
           .eq('id', reviewId)
           .single();
 
       // 권한 확인
-      if (review['campaigns']['created_by'] != user.id) {
+      if (review['campaigns']['user_id'] != user.id) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '권한이 없습니다.',

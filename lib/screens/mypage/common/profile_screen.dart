@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/point_service.dart';
 import '../../../models/user.dart' as app_user;
+import 'business_registration_form.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -12,26 +14,40 @@ class ProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen>
+    with TickerProviderStateMixin {
   bool _isLoading = true;
   bool _isEditing = false;
   bool _isSaving = false;
   app_user.User? _user;
+  int _currentPoints = 0;
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
   final _emailController = TextEditingController();
   final AuthService _authService = AuthService();
 
+  late TabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadUserProfile();
+
+    // URL 파라미터로 사업자 탭을 요청한 경우 자동으로 사업자 탭으로 이동
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uri = Uri.parse(GoRouterState.of(context).uri.toString());
+      if (uri.queryParameters['tab'] == 'business') {
+        _tabController.animateTo(1);
+      }
+    });
   }
 
   @override
   void dispose() {
     _displayNameController.dispose();
     _emailController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -49,8 +65,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _user = user;
           _displayNameController.text = user.displayName ?? '';
           _emailController.text = user.email;
-          _isLoading = false;
         });
+
+        // 포인트 정보 로드
+        try {
+          final wallets = await PointService.getUserWallets(user.uid);
+          final personalWallet = wallets.isNotEmpty
+              ? wallets.firstWhere(
+                  (w) => w.walletType == 'PERSONAL',
+                  orElse: () => wallets.first,
+                )
+              : null;
+
+          setState(() {
+            _currentPoints = personalWallet?.points ?? 0;
+            _isLoading = false;
+          });
+        } catch (e) {
+          setState(() {
+            _currentPoints = 0;
+            _isLoading = false;
+          });
+        }
       } else {
         setState(() {
           _isLoading = false;
@@ -115,8 +151,45 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _buildProfileContent(),
+          : _buildTabbedContent(),
     );
+  }
+
+  Widget _buildTabbedContent() {
+    // 사용자가 리뷰어인 경우에만 탭 표시
+    if (_user?.userType == app_user.UserType.user) {
+      return Column(
+        children: [
+          // 탭 바
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _tabController,
+              labelColor: const Color(0xFF137fec),
+              unselectedLabelColor: Colors.grey[600],
+              indicatorColor: const Color(0xFF137fec),
+              tabs: const [
+                Tab(text: '리뷰어'),
+                Tab(text: '사업자'),
+              ],
+            ),
+          ),
+          // 탭 내용
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildProfileContent(), // 리뷰어 탭
+                _buildBusinessTab(), // 사업자 탭
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      // 광고주인 경우 탭 없이 기본 프로필만 표시
+      return _buildProfileContent();
+    }
   }
 
   Widget _buildProfileContent() {
@@ -262,8 +335,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 8),
 
             // 광고주 인증 상태
-            if (_user?.isAdvertiserVerified == true)
-              _buildInfoRow('광고주 인증', '인증 완료'),
+            if (_user?.companyId != null) _buildInfoRow('광고주 인증', '인증 완료'),
           ],
         ),
       ),
@@ -416,7 +488,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Expanded(
                 child: _buildStatCard(
                   '보유 포인트',
-                  '${(_user?.points ?? 0).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
+                  '${_currentPoints.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
                   Icons.account_balance_wallet,
                   Colors.green,
                 ),
@@ -479,7 +551,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   String _getUserTypeText() {
-    if (_user?.isAdvertiserVerified == true) {
+    if (_user?.companyId != null) {
       return '광고주';
     } else {
       return '리뷰어';
@@ -537,7 +609,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('계정 삭제'),
-        content: const Text('정말로 계정을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
+        content: const Text('계정 삭제 페이지로 이동하시겠습니까?\n\n계정 삭제는 신중하게 결정해주세요.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -546,14 +618,44 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('계정 삭제 기능은 준비 중입니다')),
-              );
+              context.go('/account-deletion');
             },
-            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+            child: Text('이동', style: TextStyle(color: Colors.red.shade700)),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBusinessTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          const SizedBox(height: 24),
+          // 사업자등록폼 통합
+          _buildBusinessRegistrationForm(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBusinessRegistrationForm() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: const BusinessRegistrationForm(),
     );
   }
 }

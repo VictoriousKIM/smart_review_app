@@ -141,7 +141,7 @@ class ReviewerDrawer extends ConsumerWidget {
                 ),
 
                 // 광고주 전환 버튼 (광고주 인증된 사용자만)
-                if (user.isAdvertiserVerified) ...[
+                if (user.companyId != null) ...[
                   const Divider(),
                   _buildMenuItem(
                     context: context,
@@ -225,7 +225,7 @@ class ReviewerDrawer extends ConsumerWidget {
                   ),
                 ),
               ),
-              if (user.isAdvertiserVerified) ...[
+              if (user.companyId != null) ...[
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(

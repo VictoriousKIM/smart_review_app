@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart' as kakao;
 import '../models/user.dart' as app_user;
 import '../config/supabase_config.dart';
+import '../utils/error_handler.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -14,48 +15,98 @@ class AuthService {
   // GoogleSignIn 인스턴스 생성 방식 변경 (v7 API)
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
-  // 현재 사용자 가져오기 (데이터베이스에서 실제 프로필 정보 조회)
+  // 현재 사용자 가져오기 (RPC 사용 - 보안 강화)
   Future<app_user.User?> get currentUser async {
     final session = _supabase.auth.currentSession;
     if (session?.user != null) {
       try {
-        // 데이터베이스에서 사용자 프로필 조회
-        final profileResponse = await _supabase
-            .from('users')
-            .select()
-            .eq('id', session!.user.id)
-            .single();
+        // RPC 함수 호출로 안전한 프로필 조회
+        final profileResponse = await _supabase.rpc(
+          'get_user_profile_safe',
+          params: {'p_user_id': session!.user.id},
+        );
 
         // 데이터베이스 프로필 정보로 User 객체 생성
         return app_user.User.fromDatabaseProfile(profileResponse, session.user);
       } catch (e) {
-        // 프로필이 없으면 Supabase User 정보만으로 생성
+        // 프로필이 없으면 자동으로 프로필 생성 시도
         debugPrint('사용자 프로필 조회 실패: $e');
-        return app_user.User.fromSupabaseUser(session!.user);
+
+        // 프로필이 없을 때 자동 생성
+        try {
+          final displayName =
+              session!.user.userMetadata?['display_name'] ??
+              session.user.email?.split('@').first ??
+              'User';
+
+          await _ensureUserProfile(
+            session.user,
+            displayName,
+            app_user.UserType.user, // 기본값
+          );
+
+          // 프로필 생성 후 다시 조회
+          final profileResponse = await _supabase.rpc(
+            'get_user_profile_safe',
+            params: {'p_user_id': session.user.id},
+          );
+
+          return app_user.User.fromDatabaseProfile(
+            profileResponse,
+            session.user,
+          );
+        } catch (createError) {
+          debugPrint('프로필 자동 생성 실패: $createError');
+          // 프로필 생성도 실패하면 Supabase User 정보만으로 생성
+          return app_user.User.fromSupabaseUser(session!.user);
+        }
       }
     }
     return null;
   }
 
-  // 인증 상태 스트림
+  // 인증 상태 스트림 (RPC 사용 - 보안 강화)
   Stream<app_user.User?> get authStateChanges {
     return _supabase.auth.onAuthStateChange.asyncMap((authState) async {
       final user = authState.session?.user;
       if (user != null) {
         try {
-          // 데이터베이스에서 사용자 프로필 조회
-          final profileResponse = await _supabase
-              .from('users')
-              .select()
-              .eq('id', user.id)
-              .single();
+          // RPC 함수 호출로 안전한 프로필 조회
+          final profileResponse = await _supabase.rpc(
+            'get_user_profile_safe',
+            params: {'p_user_id': user.id},
+          );
 
           // 데이터베이스 프로필 정보로 User 객체 생성
           return app_user.User.fromDatabaseProfile(profileResponse, user);
         } catch (e) {
-          // 프로필이 없으면 Supabase User 정보만으로 생성
+          // 프로필이 없으면 자동으로 프로필 생성 시도
           debugPrint('사용자 프로필 조회 실패: $e');
-          return app_user.User.fromSupabaseUser(user);
+
+          try {
+            final displayName =
+                user.userMetadata?['display_name'] ??
+                user.email?.split('@').first ??
+                'User';
+
+            await _ensureUserProfile(
+              user,
+              displayName,
+              app_user.UserType.user, // 기본값
+            );
+
+            // 프로필 생성 후 다시 조회
+            final profileResponse = await _supabase.rpc(
+              'get_user_profile_safe',
+              params: {'p_user_id': user.id},
+            );
+
+            return app_user.User.fromDatabaseProfile(profileResponse, user);
+          } catch (createError) {
+            debugPrint('프로필 자동 생성 실패: $createError');
+            // 프로필 생성도 실패하면 Supabase User 정보만으로 생성
+            return app_user.User.fromSupabaseUser(user);
+          }
         }
       }
       return null;
@@ -81,10 +132,10 @@ class AuthService {
 
       final user = await currentUser;
       if (user != null) {
-        // 소셜 로그인인 경우 빈 display_name으로 프로필 생성 (SignupScreen으로 리디렉션)
+        // 소셜 로그인인 경우 기본 프로필로 생성
         await _ensureUserProfile(
           _supabase.auth.currentUser!,
-          '', // 빈 display_name으로 설정하여 SignupScreen으로 리디렉션
+          '', // 기본 display_name으로 설정
           user.userType,
         );
       }
@@ -124,23 +175,32 @@ class AuthService {
     String displayName,
   ) async {
     try {
+      debugPrint('회원가입 시작: $email, displayName: $displayName');
+
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
         data: {'display_name': displayName},
       );
 
+      debugPrint('Supabase 회원가입 응답: ${response.user?.id}');
+
       if (response.user != null) {
+        debugPrint('회원가입 성공, 프로필 생성 시도: ${response.user!.id}');
+
         // 회원가입 후 프로필 생성
         await _ensureUserProfile(
           response.user!,
           displayName,
           app_user.UserType.user, // 기본값 설정
         );
+
+        debugPrint('프로필 생성 완료: ${response.user!.id}');
         return app_user.User.fromSupabaseUser(response.user!);
       }
       return null;
     } catch (e) {
+      debugPrint('이메일 회원가입 실패: $e');
       throw Exception('이메일 회원가입 실패: $e');
     }
   }
@@ -157,10 +217,10 @@ class AuthService {
 
         final user = await currentUser;
         if (user != null) {
-          // 소셜 로그인인 경우 빈 display_name으로 프로필 생성 (SignupScreen으로 리디렉션)
+          // 소셜 로그인인 경우 기본 프로필로 생성
           await _ensureUserProfile(
             _supabase.auth.currentUser!,
-            '', // 빈 display_name으로 설정하여 SignupScreen으로 리디렉션
+            '', // 기본 display_name으로 설정
             app_user.UserType.user, // 기본값 설정
           );
         }
@@ -178,10 +238,10 @@ class AuthService {
         );
 
         if (response.user != null) {
-          // 소셜 로그인인 경우 빈 display_name으로 프로필 생성 (SignupScreen으로 리디렉션)
+          // 소셜 로그인인 경우 기본 프로필로 생성
           await _ensureUserProfile(
             response.user!,
-            '', // 빈 display_name으로 설정하여 SignupScreen으로 리디렉션
+            '', // 기본 display_name으로 설정
             app_user.UserType.user, // 기본값 설정
           );
           return app_user.User.fromSupabaseUser(response.user!);
@@ -219,25 +279,59 @@ class AuthService {
     }
   }
 
-  // 사용자 프로필 생성
+  // 사용자 프로필 생성 (RPC 사용 - 보안 강화)
   Future<void> _createUserProfile(
     User user,
     String displayName,
     app_user.UserType userType,
   ) async {
     try {
-      await _supabase.from('users').insert({
-        'id': user.id,
-        'email': user.email,
-        'display_name': displayName,
-        'user_type': userType.name,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'sns_connections': {},
-      });
+      debugPrint(
+        '_createUserProfile 시작: ${user.id}, displayName: $displayName, userType: ${userType.name}',
+      );
+
+      // 회원가입 시 기본적으로 user 타입으로 생성 (admin은 관리자만 생성 가능)
+      final actualUserType = userType == app_user.UserType.user
+          ? app_user.UserType.user
+          : userType;
+
+      debugPrint('실제 사용자 타입: ${actualUserType.name} (원본: ${userType.name})');
+
+      // RPC 함수 호출로 안전한 사용자 프로필 생성
+      final response = await _supabase.rpc(
+        'create_user_profile_safe',
+        params: {
+          'p_user_id': user.id,
+          'p_display_name': displayName,
+          'p_user_type': actualUserType.name,
+        },
+      );
+
+      debugPrint('사용자 프로필 및 포인트 지갑 생성 성공: ${user.id}');
+      debugPrint('생성된 프로필: $response');
     } catch (e) {
-      // 사용자 프로필 생성 실패 - 로그만 남기고 계속 진행
-      debugPrint('사용자 프로필 생성 실패: $e');
+      ErrorHandler.handleDatabaseError(
+        e,
+        context: {
+          'user_id': user.id,
+          'display_name': displayName,
+          'user_type': userType.name,
+          'operation': 'create_user_profile',
+        },
+      );
+
+      // auth.users에서도 롤백 (Supabase Auth 사용자 삭제)
+      try {
+        await _supabase.auth.admin.deleteUser(user.id);
+        debugPrint('auth.users에서 사용자 롤백 완료: ${user.id}');
+      } catch (rollbackError) {
+        ErrorHandler.handleSystemError(
+          rollbackError,
+          context: {'user_id': user.id, 'operation': 'rollback_auth_user'},
+        );
+      }
+
+      rethrow; // 에러를 상위로 전파하여 로그인 실패 처리
     }
   }
 
@@ -248,8 +342,14 @@ class AuthService {
     app_user.UserType userType,
   ) async {
     try {
+      debugPrint(
+        '_ensureUserProfile 시작: ${user.id}, displayName: $displayName',
+      );
+
       // 프로필이 존재하는지 확인
       await _supabase.from('users').select().eq('id', user.id).single();
+
+      debugPrint('사용자 프로필이 이미 존재함: ${user.id}');
 
       // 프로필이 존재하면 업데이트 (필요 시)
       await _supabase
@@ -259,42 +359,83 @@ class AuthService {
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', user.id);
+
+      debugPrint('사용자 프로필 업데이트 완료: ${user.id}');
     } catch (e) {
+      debugPrint('사용자 프로필이 없음, 생성 시도: ${user.id}, 에러: $e');
+
       // 프로필이 없으면 생성
-      // 소셜 로그인인 경우 displayName이 비어있으면 SignupScreen으로 리디렉션되도록 함
       await _createUserProfile(user, displayName, userType);
     }
   }
 
-  // 사용자 프로필 업데이트
+  // 사용자 프로필 업데이트 (RPC 사용 - 보안 강화)
   Future<void> updateUserProfile(Map<String, dynamic> updates) async {
     try {
       final user = await currentUser;
       if (user == null) throw Exception('로그인이 필요합니다.');
 
-      await _supabase
-          .from('users')
-          .update({...updates, 'updated_at': DateTime.now().toIso8601String()})
-          .eq('id', user.uid);
+      // RPC 함수 호출로 안전한 프로필 업데이트
+      final response = await _supabase.rpc(
+        'update_user_profile_safe',
+        params: {
+          'p_user_id': user.uid,
+          'p_display_name': updates['display_name'],
+          'p_company_id': updates['company_id'],
+        },
+      );
+
+      debugPrint('프로필 업데이트 성공: ${user.uid}');
+      debugPrint('업데이트된 프로필: $response');
     } catch (e) {
+      debugPrint('프로필 업데이트 실패: $e');
       throw Exception('프로필 업데이트 실패: $e');
     }
   }
 
-  // 사용자 프로필 가져오기
+  // 사용자 프로필 가져오기 (RPC 사용 - 보안 강화)
   Future<app_user.User?> getUserProfile(String userId) async {
     try {
-      final response = await _supabase
-          .from('users')
-          .select()
-          .eq('id', userId)
-          .single();
+      // RPC 함수 호출로 안전한 프로필 조회
+      final response = await _supabase.rpc(
+        'get_user_profile_safe',
+        params: {'p_user_id': userId},
+      );
 
       return app_user.User.fromJson(response);
     } catch (e) {
-      // 사용자 프로필 가져오기 실패 - 로그만 남기고 null 반환
       debugPrint('사용자 프로필 가져오기 실패: $e');
       return null;
+    }
+  }
+
+  // 관리자 전용 사용자 권한 변경 (RPC 사용 - 보안 강화)
+  Future<void> adminChangeUserRole(String userId, String newRole) async {
+    try {
+      await _supabase.rpc(
+        'admin_change_user_role',
+        params: {'p_target_user_id': userId, 'p_new_role': newRole},
+      );
+
+      debugPrint('사용자 권한 변경 성공: $userId -> $newRole');
+    } catch (e) {
+      debugPrint('사용자 권한 변경 실패: $e');
+      throw Exception('사용자 권한 변경 실패: $e');
+    }
+  }
+
+  // 사용자 존재 확인 (RPC 사용)
+  Future<bool> checkUserExists(String userId) async {
+    try {
+      final response = await _supabase.rpc(
+        'check_user_exists',
+        params: {'p_user_id': userId},
+      );
+
+      return response as bool;
+    } catch (e) {
+      debugPrint('사용자 존재 확인 실패: $e');
+      return false;
     }
   }
 }

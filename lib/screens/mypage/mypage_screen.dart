@@ -18,8 +18,8 @@ class MyPageScreen extends ConsumerWidget {
       return const Center(child: Text('사용자 정보를 불러올 수 없습니다'));
     }
 
-    // 광고주 인증 여부에 따라 적절한 화면으로 리다이렉트
-    if (user.isAdvertiserVerified) {
+    // companyId가 있으면 광고주로 판단 (company_users 테이블 사용 전까지 임시)
+    if (user.companyId != null) {
       return AdvertiserMyPageScreen(user: user);
     } else {
       return ReviewerMyPageScreen(user: user);

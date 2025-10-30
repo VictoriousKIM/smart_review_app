@@ -173,11 +173,11 @@ class CampaignApplicationService {
       // 캠페인 소유자 확인
       final campaign = await _supabase
           .from('campaigns')
-          .select('created_by')
+          .select('user_id')
           .eq('id', campaignId)
           .single();
 
-      if (campaign['created_by'] != user.id) {
+      if (campaign['user_id'] != user.id) {
         return ApiResponse<List<Map<String, dynamic>>>(
           success: false,
           error: '권한이 없습니다.',
@@ -259,12 +259,12 @@ class CampaignApplicationService {
       // 신청 정보 조회
       final application = await _supabase
           .from('campaign_logs')
-          .select('campaign_id, campaigns!inner(created_by)')
+          .select('campaign_id, campaigns!inner(user_id)')
           .eq('id', applicationId)
           .single();
 
       // 권한 확인
-      if (application['campaigns']['created_by'] != user.id) {
+      if (application['campaigns']['user_id'] != user.id) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '권한이 없습니다.',

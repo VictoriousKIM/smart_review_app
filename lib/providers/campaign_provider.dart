@@ -74,15 +74,36 @@ Future<ApiResponse<List<Campaign>>> searchCampaigns(
   );
 }
 
-// 사용자 캠페인 목록 Provider
+// 사용자 캠페인 목록 Provider (생성한 캠페인)
 @riverpod
-Future<ApiResponse<List<Campaign>>> userCampaigns(
+Future<ApiResponse<Map<String, dynamic>>> userCampaigns(
   Ref ref, {
   required int page,
   int limit = 10,
+  String? status,
 }) {
   final campaignService = ref.watch(campaignServiceProvider);
-  return campaignService.getUserCampaigns(page: page, limit: limit);
+  return campaignService.getUserCampaigns(
+    page: page,
+    limit: limit,
+    status: status,
+  );
+}
+
+// 사용자가 참여한 캠페인 목록 Provider
+@riverpod
+Future<ApiResponse<Map<String, dynamic>>> userParticipatedCampaigns(
+  Ref ref, {
+  required int page,
+  int limit = 10,
+  String? status,
+}) {
+  final campaignService = ref.watch(campaignServiceProvider);
+  return campaignService.getUserParticipatedCampaigns(
+    page: page,
+    limit: limit,
+    status: status,
+  );
 }
 
 // 캠페인 상태 관리 Notifier
