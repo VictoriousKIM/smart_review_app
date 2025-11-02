@@ -23,12 +23,20 @@ await page.evaluate(() => {
 - 이메일: `dev@example.com`
 - 비밀번호: `dev@example.com`
 - 역할: 관리자 사용자
-- 참고: `test@example.com`
+<!-- - 참고: `test@example.com` -->
+<!-- - 참고: `reviewer@example.com` -->
+<!-- - 참고: `company_owner@example.com` -->
+<!-- - 참고: `company_manger@example.com` -->
 로컬 Supabase 스택 시작
 
 ```bash
 # 로컬 Supabase 환경 시작
 npx supabase start
+```
+
+```bash
+로컬 db 덤프방법
+npx supabase db dump --local --data-only -f supabase/seed.sql
 ```
 
 ###  환경 확인

@@ -6,15 +6,136 @@ import '../../../providers/auth_provider.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../widgets/mypage_common_widgets.dart';
 import '../../../widgets/drawer/advertiser_drawer.dart';
+import '../../../services/campaign_service.dart';
+import '../../../config/supabase_config.dart';
+import '../../../models/campaign.dart';
 
-class AdvertiserMyPageScreen extends ConsumerWidget {
+class AdvertiserMyPageScreen extends ConsumerStatefulWidget {
   final app_user.User? user;
 
   const AdvertiserMyPageScreen({super.key, this.user});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = this.user ?? ref.watch(currentUserProvider).value;
+  ConsumerState<AdvertiserMyPageScreen> createState() =>
+      _AdvertiserMyPageScreenState();
+}
+
+class _AdvertiserMyPageScreenState extends ConsumerState<AdvertiserMyPageScreen> {
+  final CampaignService _campaignService = CampaignService();
+  int _pendingCount = 0;
+  int _recruitingCount = 0;
+  int _selectedCount = 0;
+  int _registeredCount = 0;
+  int _completedCount = 0;
+  bool _isLoadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCampaignStats();
+  }
+
+  Future<void> _loadCampaignStats() async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _isLoadingStats = false;
+          });
+        }
+        return;
+      }
+
+      // 모든 캠페인 가져오기
+      final result = await _campaignService.getUserCampaigns(
+        page: 1,
+        limit: 100,
+      );
+
+      if (!mounted) return;
+
+      if (result.success && result.data != null) {
+        final campaignsData = result.data!;
+        final campaignsList = campaignsData['campaigns'] as List?;
+        
+        List<Campaign> allCampaigns = [];
+        
+        if (campaignsList != null) {
+          allCampaigns = campaignsList
+              .map((item) {
+                final campaignData = item['campaign'] as Map<String, dynamic>?;
+                if (campaignData != null) {
+                  return Campaign.fromJson(campaignData);
+                }
+                return null;
+              })
+              .whereType<Campaign>()
+              .toList();
+        } else {
+          // RPC 응답이 다른 형식일 수 있으므로 직접 조회
+          final directResult = await SupabaseConfig.client
+              .from('campaigns')
+              .select()
+              .eq('user_id', user.id)
+              .order('created_at', ascending: false);
+          
+          allCampaigns = (directResult as List)
+              .map((json) => Campaign.fromJson(json))
+              .toList();
+        }
+
+        // 상태별 카운트 계산
+        final now = DateTime.now();
+        
+        _pendingCount = allCampaigns.where((campaign) {
+          return campaign.status == CampaignStatus.upcoming ||
+              (campaign.startDate != null && campaign.startDate!.isAfter(now));
+        }).length;
+
+        final recruitingCampaigns = allCampaigns.where((campaign) {
+          return campaign.status == CampaignStatus.active &&
+              (campaign.startDate == null || campaign.startDate!.isBefore(now)) &&
+              (campaign.endDate == null || campaign.endDate!.isAfter(now));
+        }).toList();
+        
+        _recruitingCount = recruitingCampaigns.length;
+
+        _selectedCount = recruitingCampaigns.where((campaign) {
+          return campaign.currentParticipants >= (campaign.maxParticipants ?? 0);
+        }).length;
+
+        _registeredCount = allCampaigns.where((campaign) {
+          return campaign.status == CampaignStatus.active &&
+              campaign.currentParticipants > 0 &&
+              (campaign.maxParticipants == null ||
+                  campaign.currentParticipants < campaign.maxParticipants!);
+        }).length;
+
+        _completedCount = allCampaigns.where((campaign) {
+          return campaign.status == CampaignStatus.completed ||
+              (campaign.endDate != null && campaign.endDate!.isBefore(now));
+        }).length;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
+      }
+    } catch (e) {
+      print('❌ 캠페인 통계 로드 실패: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.user ?? ref.watch(currentUserProvider).value;
 
     if (user == null) {
       return const Center(child: Text('사용자 정보를 불러올 수 없습니다'));
@@ -62,15 +183,38 @@ class AdvertiserMyPageScreen extends ConsumerWidget {
             // 캠페인 상태 섹션
             MyPageCommonWidgets.buildCampaignStatusSection(
               statusItems: [
-                {'label': '대기중', 'count': '0'},
-                {'label': '모집중', 'count': '0'},
-                {'label': '선정완료', 'count': '0'},
-                {'label': '등록기간', 'count': '0'},
-                {'label': '종료', 'count': '0'},
+                {
+                  'label': '대기중',
+                  'count': _isLoadingStats ? '-' : '$_pendingCount',
+                  'tab': 'pending',
+                },
+                {
+                  'label': '모집중',
+                  'count': _isLoadingStats ? '-' : '$_recruitingCount',
+                  'tab': 'recruiting',
+                },
+                {
+                  'label': '선정완료',
+                  'count': _isLoadingStats ? '-' : '$_selectedCount',
+                  'tab': 'selected',
+                },
+                {
+                  'label': '등록기간',
+                  'count': _isLoadingStats ? '-' : '$_registeredCount',
+                  'tab': 'registered',
+                },
+                {
+                  'label': '종료',
+                  'count': _isLoadingStats ? '-' : '$_completedCount',
+                  'tab': 'completed',
+                },
               ],
               actionButtonText: '캠페인 등록 >',
               onActionPressed: () {
-                context.push('/campaigns/create');
+                context.push('/mypage/advertiser/my-campaigns/create');
+              },
+              onStatusTap: (tab) {
+                context.go('/mypage/advertiser/my-campaigns?tab=$tab');
               },
             ),
 

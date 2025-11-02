@@ -12,12 +12,12 @@ import '../screens/mypage/advertiser/advertiser_mypage_screen.dart';
 import '../screens/campaign/campaign_detail_screen.dart';
 import '../screens/campaign/campaigns_screen.dart';
 import '../screens/campaign/campaign_creation_screen.dart';
-import '../screens/mypage/reviewer/reviewer_applications_screen.dart';
 import '../screens/mypage/reviewer/reviewer_reviews_screen.dart';
+import '../screens/mypage/reviewer/my_campaigns_screen.dart';
 import '../screens/mypage/common/points_screen.dart';
 import '../screens/mypage/common/profile_screen.dart';
 import '../screens/mypage/reviewer/sns_connection_screen.dart';
-import '../screens/mypage/advertiser/advertiser_campaigns_screen.dart';
+import '../screens/mypage/advertiser/advertiser_my_campaigns_screen.dart';
 import '../screens/common/notices_screen.dart';
 import '../screens/common/events_screen.dart';
 import '../screens/common/inquiry_screen.dart';
@@ -76,8 +76,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // 루트 경로 접근 시 인증 상태에 따라 적절한 페이지로 리다이렉트
-      // 단, state.uri.path가 '/'가 아니면 (다른 URL로 직접 접근한 경우) 스킵
-      if (isRoot && state.uri.path == '/') {
+      if (isRoot) {
         return isLoggedIn ? '/home' : '/login';
       }
 
@@ -94,14 +93,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null; // 리다이렉트 없음
     },
     routes: [
-      // 루트 경로 - 인증 상태에 따라 적절한 페이지로 리다이렉트
+      // 루트 경로 - builder 없이 redirect만 처리 (전역 redirect에서 처리)
       GoRoute(
         path: '/',
         name: 'root',
-        redirect: (context, state) {
-          // 인증 상태에 따라 적절한 페이지로 리다이렉트
-          // 이 로직은 redirect 함수에서 처리됨
-          return '/login'; // 기본적으로 로그인 페이지로 리다이렉트
+        builder: (context, state) {
+          // 이 빌더는 실행되지 않지만 GoRoute 구조 유지를 위해 필요
+          // 실제 리다이렉트는 전역 redirect 함수에서 처리됨
+          return const SizedBox.shrink();
         },
       ),
 
@@ -184,9 +183,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
           // 리뷰어 관련 라우트
           GoRoute(
-            path: '/mypage/reviewer/applications',
-            name: 'reviewer-applications',
-            builder: (context, state) => const ReviewerApplicationsScreen(),
+            path: '/mypage/reviewer/my-campaigns',
+            name: 'reviewer-my-campaigns',
+            builder: (context, state) {
+              final initialTab = state.uri.queryParameters['tab'];
+              return MyCampaignsScreen(initialTab: initialTab);
+            },
           ),
           GoRoute(
             path: '/mypage/reviewer/reviews',
@@ -207,9 +209,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
           // 광고주 관련 라우트
           GoRoute(
-            path: '/mypage/advertiser/campaigns',
-            name: 'advertiser-campaigns',
-            builder: (context, state) => const AdvertiserCampaignsScreen(),
+            path: '/mypage/advertiser/my-campaigns',
+            name: 'advertiser-my-campaigns',
+            builder: (context, state) {
+              final initialTab = state.uri.queryParameters['tab'];
+              return AdvertiserMyCampaignsScreen(initialTab: initialTab);
+            },
+            routes: [
+              GoRoute(
+                path: 'create',
+                name: 'advertiser-my-campaigns-create',
+                builder: (context, state) => const CampaignCreationScreen(),
+              ),
+            ],
           ),
           GoRoute(
             path: '/mypage/advertiser/analytics',

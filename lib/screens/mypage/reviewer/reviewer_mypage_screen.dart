@@ -7,15 +7,95 @@ import '../../../widgets/custom_button.dart';
 import '../../../widgets/mypage_common_widgets.dart';
 import '../../../widgets/drawer/reviewer_drawer.dart';
 import '../../../services/company_user_service.dart';
+import '../../../services/campaign_log_service.dart';
+import '../../../config/supabase_config.dart';
 
-class ReviewerMyPageScreen extends ConsumerWidget {
+class ReviewerMyPageScreen extends ConsumerStatefulWidget {
   final app_user.User? user;
 
   const ReviewerMyPageScreen({super.key, this.user});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = this.user ?? ref.watch(currentUserProvider).value;
+  ConsumerState<ReviewerMyPageScreen> createState() =>
+      _ReviewerMyPageScreenState();
+}
+
+class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
+  final CampaignLogService _campaignLogService =
+      CampaignLogService(SupabaseConfig.client);
+  int _appliedCount = 0;
+  int _approvedCount = 0;
+  int _registeredCount = 0;
+  int _completedCount = 0;
+  bool _isLoadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCampaignStats();
+  }
+
+  Future<void> _loadCampaignStats() async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _isLoadingStats = false;
+          });
+        }
+        return;
+      }
+
+      // 모든 로그 가져오기
+      final result = await _campaignLogService.getUserCampaignLogs(
+        userId: user.id,
+      );
+
+      if (!mounted) return;
+
+      if (result.success && result.data != null) {
+        final logs = result.data!;
+        
+        // 신청: status = 'applied'
+        _appliedCount = logs.where((log) => log.status == 'applied').length;
+        
+        // 선정: status = 'approved'
+        _approvedCount = logs.where((log) => log.status == 'approved').length;
+        
+        // 등록: 진행 중 상태들
+        _registeredCount = logs.where((log) => [
+          'purchased',
+          'review_submitted',
+          'visit_completed',
+          'article_submitted',
+          'review_approved',
+          'visit_verified',
+          'article_approved',
+        ].contains(log.status)).length;
+        
+        // 완료: status = 'payment_completed'
+        _completedCount = logs.where((log) => log.status == 'payment_completed').length;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
+      }
+    } catch (e) {
+      print('❌ 캠페인 통계 로드 실패: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.user ?? ref.watch(currentUserProvider).value;
 
     if (user == null) {
       return const Center(child: Text('사용자 정보를 불러올 수 없습니다'));
@@ -73,11 +153,30 @@ class ReviewerMyPageScreen extends ConsumerWidget {
                 // 캠페인 상태 섹션
                 MyPageCommonWidgets.buildCampaignStatusSection(
                   statusItems: [
-                    {'label': '신청', 'count': '0'},
-                    {'label': '선정', 'count': '0'},
-                    {'label': '등록', 'count': '0'},
-                    {'label': '완료', 'count': '0'},
+                    {
+                      'label': '신청',
+                      'count': _isLoadingStats ? '-' : '$_appliedCount',
+                      'tab': 'applied',
+                    },
+                    {
+                      'label': '선정',
+                      'count': _isLoadingStats ? '-' : '$_approvedCount',
+                      'tab': 'approved',
+                    },
+                    {
+                      'label': '등록',
+                      'count': _isLoadingStats ? '-' : '$_registeredCount',
+                      'tab': 'registered',
+                    },
+                    {
+                      'label': '완료',
+                      'count': _isLoadingStats ? '-' : '$_completedCount',
+                      'tab': 'completed',
+                    },
                   ],
+                  onStatusTap: (tab) {
+                    context.go('/mypage/reviewer/my-campaigns?tab=$tab');
+                  },
                 ),
 
                 const SizedBox(height: 16),
@@ -88,7 +187,7 @@ class ReviewerMyPageScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
 
                 // SNS 연결 섹션 (리뷰어만)
-                MyPageCommonWidgets.buildSNSConnectionSection(),
+                MyPageCommonWidgets.buildSNSConnectionSection(context),
 
                 const SizedBox(height: 32),
 

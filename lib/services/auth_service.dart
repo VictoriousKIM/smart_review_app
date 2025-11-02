@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:postgrest/postgrest.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart' as kakao;
 import '../models/user.dart' as app_user;
@@ -188,11 +189,12 @@ class AuthService {
       if (response.user != null) {
         debugPrint('회원가입 성공, 프로필 생성 시도: ${response.user!.id}');
 
-        // 회원가입 후 프로필 생성
+        // 회원가입 후 프로필 생성 (isSignUp=true로 표시)
         await _ensureUserProfile(
           response.user!,
           displayName,
           app_user.UserType.user, // 기본값 설정
+          isSignUp: true, // 회원가입 중임을 표시
         );
 
         debugPrint('프로필 생성 완료: ${response.user!.id}');
@@ -280,14 +282,17 @@ class AuthService {
   }
 
   // 사용자 프로필 생성 (RPC 사용 - 보안 강화)
+  // [isSignUp] true인 경우 회원가입 중이므로 프로필 생성 실패 시 에러만 throw
+  // false인 경우 로그인 중이므로 프로필 생성 실패해도 에러를 숨김 (이미 로그인된 사용자이므로)
   Future<void> _createUserProfile(
     User user,
     String displayName,
-    app_user.UserType userType,
-  ) async {
+    app_user.UserType userType, {
+    bool isSignUp = false,
+  }) async {
     try {
       debugPrint(
-        '_createUserProfile 시작: ${user.id}, displayName: $displayName, userType: ${userType.name}',
+        '_createUserProfile 시작: ${user.id}, displayName: $displayName, userType: ${userType.name}, isSignUp: $isSignUp',
       );
 
       // 회원가입 시 기본적으로 user 타입으로 생성 (admin은 관리자만 생성 가능)
@@ -317,21 +322,33 @@ class AuthService {
           'display_name': displayName,
           'user_type': userType.name,
           'operation': 'create_user_profile',
+          'is_sign_up': isSignUp.toString(),
         },
       );
 
-      // auth.users에서도 롤백 (Supabase Auth 사용자 삭제)
-      try {
-        await _supabase.auth.admin.deleteUser(user.id);
-        debugPrint('auth.users에서 사용자 롤백 완료: ${user.id}');
-      } catch (rollbackError) {
-        ErrorHandler.handleSystemError(
-          rollbackError,
-          context: {'user_id': user.id, 'operation': 'rollback_auth_user'},
+      // 중요: 클라이언트에서는 auth.admin.deleteUser를 호출할 수 없음 (관리자 권한 필요)
+      // 회원가입 실패 시에도 orphaned user를 생성하지 않도록 에러만 throw
+      // 실제 롤백은 서버 사이드(Edge Function)에서 처리하거나, 
+      // 데이터베이스 트랜잭션으로 처리해야 함
+      
+      if (isSignUp) {
+        debugPrint(
+          '⚠️ 회원가입 중 프로필 생성 실패: ${user.id}. '
+          'auth.users에는 사용자가 생성되었지만 public.users에는 프로필이 없을 수 있습니다. '
+          '서버 사이드에서 정리 작업이 필요할 수 있습니다.',
+        );
+      } else {
+        debugPrint(
+          '⚠️ 로그인 중 프로필 생성 실패: ${user.id}. '
+          '프로필이 없어도 로그인은 유지됩니다.',
         );
       }
 
-      rethrow; // 에러를 상위로 전파하여 로그인 실패 처리
+      // 회원가입 중일 때만 에러를 throw (로그인 중일 때는 에러를 숨김)
+      if (isSignUp) {
+        rethrow; // 에러를 상위로 전파하여 회원가입 실패 처리
+      }
+      // 로그인 중일 때는 에러를 숨김 (이미 로그인된 사용자이므로)
     }
   }
 
@@ -339,11 +356,12 @@ class AuthService {
   Future<void> _ensureUserProfile(
     User user,
     String displayName,
-    app_user.UserType userType,
-  ) async {
+    app_user.UserType userType, {
+    bool isSignUp = false,
+  }) async {
     try {
       debugPrint(
-        '_ensureUserProfile 시작: ${user.id}, displayName: $displayName',
+        '_ensureUserProfile 시작: ${user.id}, displayName: $displayName, isSignUp: $isSignUp',
       );
 
       // 프로필이 존재하는지 확인
@@ -362,10 +380,23 @@ class AuthService {
 
       debugPrint('사용자 프로필 업데이트 완료: ${user.id}');
     } catch (e) {
-      debugPrint('사용자 프로필이 없음, 생성 시도: ${user.id}, 에러: $e');
-
-      // 프로필이 없으면 생성
-      await _createUserProfile(user, displayName, userType);
+      // 정확한 에러 타입 확인: 프로필이 없는 경우에만 생성 시도
+      // PGRST116: no rows returned (프로필이 없음)
+      final isProfileNotFound = e is PostgrestException && 
+          (e.code == 'PGRST116' || e.message.contains('No rows returned'));
+      
+      if (isProfileNotFound) {
+        debugPrint('사용자 프로필이 없음, 생성 시도: ${user.id}');
+        // 프로필이 없으면 생성
+        await _createUserProfile(user, displayName, userType, isSignUp: isSignUp);
+      } else {
+        // 다른 에러(네트워크, 권한 등)는 재throw
+        debugPrint('프로필 조회 중 예상치 못한 에러 발생: ${user.id}, 에러: $e');
+        if (isSignUp) {
+          rethrow; // 회원가입 중일 때는 에러를 throw
+        }
+        // 로그인 중일 때는 에러를 숨김 (프로필이 없어도 로그인은 유지)
+      }
     }
   }
 

@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict 6mSl72ZBFVfzoZX7EXcFHun6cHip09DfIS1hhUSEumN4YlvJc7W8OUiujqgFH60
+-- \restrict sT2YukyzFqDvIevcD6yUz4sR9lAub7IpXPBDdBmy8zPcorxoqyfjpzfYmCWHiRt
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -195,6 +195,7 @@ INSERT INTO "auth"."audit_log_entries" ("instance_id", "id", "payload", "created
 	('00000000-0000-0000-0000-000000000000', 'b1e7bdb3-076a-4ab1-8425-85a7e33dce05', '{"action":"login","actor_id":"57061130-ac8c-4189-804a-5cd11f493608","actor_name":"dave kim","actor_username":"nightkille@gmail.com","actor_via_sso":false,"log_type":"account","traits":{"provider_type":"google"}}', '2025-09-27 15:08:03.064569+00', ''),
 	('00000000-0000-0000-0000-000000000000', '22ca8129-c3e3-4ebf-8522-d023aa7dd20d', '{"action":"logout","actor_id":"57061130-ac8c-4189-804a-5cd11f493608","actor_name":"dave kim","actor_username":"nightkille@gmail.com","actor_via_sso":false,"log_type":"account"}', '2025-09-27 15:13:29.574409+00', ''),
 	('00000000-0000-0000-0000-000000000000', '49311269-1bfd-4fac-b896-7c7b056c843c', '{"action":"login","actor_id":"57061130-ac8c-4189-804a-5cd11f493608","actor_name":"dave kim","actor_username":"nightkille@gmail.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"google"}}', '2025-09-27 15:26:14.908288+00', ''),
+	('00000000-0000-0000-0000-000000000000', '2b4d9424-5169-4e80-9a64-522fd6b950d0', '{"action":"logout","actor_id":"00464045-9627-489e-a9c8-b8f5c9529d73","actor_username":"company_owner@example.com","actor_via_sso":false,"log_type":"account"}', '2025-10-31 02:02:03.886605+00', ''),
 	('00000000-0000-0000-0000-000000000000', 'ff7c5e56-55d2-46f4-a65f-f5fc2d3af2e9', '{"action":"login","actor_id":"57061130-ac8c-4189-804a-5cd11f493608","actor_name":"dave kim","actor_username":"nightkille@gmail.com","actor_via_sso":false,"log_type":"account","traits":{"provider_type":"google"}}', '2025-09-27 15:26:17.112566+00', ''),
 	('00000000-0000-0000-0000-000000000000', 'e29dddd0-de21-46cb-9282-f383bc181704', '{"action":"token_refreshed","actor_id":"57061130-ac8c-4189-804a-5cd11f493608","actor_name":"dave kim","actor_username":"nightkille@gmail.com","actor_via_sso":false,"log_type":"token"}', '2025-09-27 15:34:42.256594+00', ''),
 	('00000000-0000-0000-0000-000000000000', 'e8cb97c1-86da-44ae-802a-ff0749bf3aa6', '{"action":"token_revoked","actor_id":"57061130-ac8c-4189-804a-5cd11f493608","actor_name":"dave kim","actor_username":"nightkille@gmail.com","actor_via_sso":false,"log_type":"token"}', '2025-09-27 15:34:42.26433+00', ''),
@@ -209,7 +210,24 @@ INSERT INTO "auth"."audit_log_entries" ("instance_id", "id", "payload", "created
 	('00000000-0000-0000-0000-000000000000', 'd6cc7354-b286-44fd-a24c-c1fc83b1994d', '{"action":"login","actor_id":"8ae1e736-7fc1-4717-a4ee-057d89013894","actor_name":"동익","actor_username":"nightkille@naver.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"kakao"}}', '2025-09-28 08:22:03.617582+00', ''),
 	('00000000-0000-0000-0000-000000000000', '8ce9c67f-b3d2-44a2-98a0-d47da4372733', '{"action":"login","actor_id":"8ae1e736-7fc1-4717-a4ee-057d89013894","actor_name":"동익","actor_username":"nightkille@naver.com","actor_via_sso":false,"log_type":"account","traits":{"provider_type":"kakao"}}', '2025-09-28 08:22:05.053662+00', ''),
 	('00000000-0000-0000-0000-000000000000', 'c3ed4943-4e92-4994-86c0-472ae3196e51', '{"action":"token_refreshed","actor_id":"8ae1e736-7fc1-4717-a4ee-057d89013894","actor_name":"동익","actor_username":"nightkille@naver.com","actor_via_sso":false,"log_type":"token"}', '2025-09-28 09:22:15.939907+00', ''),
-	('00000000-0000-0000-0000-000000000000', '6a2675a9-d5f2-4596-83cb-857b2047b9d0', '{"action":"token_revoked","actor_id":"8ae1e736-7fc1-4717-a4ee-057d89013894","actor_name":"동익","actor_username":"nightkille@naver.com","actor_via_sso":false,"log_type":"token"}', '2025-09-28 09:22:15.958201+00', '');
+	('00000000-0000-0000-0000-000000000000', '6a2675a9-d5f2-4596-83cb-857b2047b9d0', '{"action":"token_revoked","actor_id":"8ae1e736-7fc1-4717-a4ee-057d89013894","actor_name":"동익","actor_username":"nightkille@naver.com","actor_via_sso":false,"log_type":"token"}', '2025-09-28 09:22:15.958201+00', ''),
+	('00000000-0000-0000-0000-000000000000', '9c26c4f4-c272-4efb-a09f-f134ca76d928', '{"action":"user_deleted","actor_id":"00000000-0000-0000-0000-000000000000","actor_username":"service_role","actor_via_sso":false,"log_type":"team","traits":{"user_email":"nightkille@naver.com","user_id":"8ae1e736-7fc1-4717-a4ee-057d89013894","user_phone":""}}', '2025-10-31 01:59:14.189548+00', ''),
+	('00000000-0000-0000-0000-000000000000', '2de425ee-726a-4311-b841-a0b10d83ca0c', '{"action":"user_deleted","actor_id":"00000000-0000-0000-0000-000000000000","actor_username":"service_role","actor_via_sso":false,"log_type":"team","traits":{"user_email":"effectivesun@gmail.com","user_id":"f9fbdfee-1ff4-49fc-a0ce-ab9819e5fe33","user_phone":""}}', '2025-10-31 01:59:14.189625+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'f1481449-4650-41f8-9a1f-f2b16b6443f0', '{"action":"user_deleted","actor_id":"00000000-0000-0000-0000-000000000000","actor_username":"service_role","actor_via_sso":false,"log_type":"team","traits":{"user_email":"nightkille@gmail.com","user_id":"57061130-ac8c-4189-804a-5cd11f493608","user_phone":""}}', '2025-10-31 01:59:14.194584+00', ''),
+	('00000000-0000-0000-0000-000000000000', '3d4d5797-7a17-4eec-acc3-e4c082bd8015', '{"action":"user_signedup","actor_id":"a05db6f3-12d2-4b22-a9de-0fd636cbdb22","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"team","traits":{"provider":"email"}}', '2025-10-31 02:00:09.303167+00', ''),
+	('00000000-0000-0000-0000-000000000000', '78c1fff8-26c2-4e11-9aae-c4c9a29d0059', '{"action":"login","actor_id":"a05db6f3-12d2-4b22-a9de-0fd636cbdb22","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-10-31 02:00:09.306863+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'c54f2428-a3b4-49df-b5c0-09b53332d212', '{"action":"logout","actor_id":"a05db6f3-12d2-4b22-a9de-0fd636cbdb22","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account"}', '2025-10-31 02:00:24.187171+00', ''),
+	('00000000-0000-0000-0000-000000000000', '3e9cca75-9fe1-43f1-b2c4-9333e5deaabb', '{"action":"user_signedup","actor_id":"407c6527-5afd-4a16-96fa-266f10f2606f","actor_username":"test@example.com","actor_via_sso":false,"log_type":"team","traits":{"provider":"email"}}', '2025-10-31 02:00:44.151697+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'bc6fd844-ccb9-47b1-b1df-da0aafbf7cf0', '{"action":"login","actor_id":"407c6527-5afd-4a16-96fa-266f10f2606f","actor_username":"test@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-10-31 02:00:44.154741+00', ''),
+	('00000000-0000-0000-0000-000000000000', '0071e1dc-dd12-493e-bd91-6d27592dff2e', '{"action":"logout","actor_id":"407c6527-5afd-4a16-96fa-266f10f2606f","actor_username":"test@example.com","actor_via_sso":false,"log_type":"account"}', '2025-10-31 02:00:54.242198+00', ''),
+	('00000000-0000-0000-0000-000000000000', '8cd2776b-fff1-4157-b91f-51a66be7d282', '{"action":"user_signedup","actor_id":"44527cf5-363a-4f99-b17a-dbe28221f5d6","actor_username":"reviewer@example.com","actor_via_sso":false,"log_type":"team","traits":{"provider":"email"}}', '2025-10-31 02:01:44.203506+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'bd14e6d9-b813-479d-b2de-11f611fd9493', '{"action":"login","actor_id":"44527cf5-363a-4f99-b17a-dbe28221f5d6","actor_username":"reviewer@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-10-31 02:01:44.207028+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'f402426c-c99c-4460-b39b-d0cc1f6b8ad4', '{"action":"logout","actor_id":"44527cf5-363a-4f99-b17a-dbe28221f5d6","actor_username":"reviewer@example.com","actor_via_sso":false,"log_type":"account"}', '2025-10-31 02:01:48.043933+00', ''),
+	('00000000-0000-0000-0000-000000000000', '0b833063-1d96-4f0f-9bae-934e6c98a1f1', '{"action":"user_signedup","actor_id":"00464045-9627-489e-a9c8-b8f5c9529d73","actor_username":"company_owner@example.com","actor_via_sso":false,"log_type":"team","traits":{"provider":"email"}}', '2025-10-31 02:01:59.675821+00', ''),
+	('00000000-0000-0000-0000-000000000000', '6e7e20dc-2137-4ebc-8599-825fcdb450b9', '{"action":"login","actor_id":"00464045-9627-489e-a9c8-b8f5c9529d73","actor_username":"company_owner@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-10-31 02:01:59.678865+00', ''),
+	('00000000-0000-0000-0000-000000000000', '130283e0-328d-47ed-b664-aec897667bb0', '{"action":"user_signedup","actor_id":"d60c7575-e928-4899-a536-0729e96fd34a","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"team","traits":{"provider":"email"}}', '2025-10-31 02:02:19.471387+00', ''),
+	('00000000-0000-0000-0000-000000000000', '720a1b75-7d8a-45a7-a73a-6ef16bf8d339', '{"action":"login","actor_id":"d60c7575-e928-4899-a536-0729e96fd34a","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-10-31 02:02:19.47522+00', ''),
+	('00000000-0000-0000-0000-000000000000', '4a5d074f-f263-4242-b565-edfc159e7f19', '{"action":"logout","actor_id":"d60c7575-e928-4899-a536-0729e96fd34a","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"account"}', '2025-10-31 02:02:24.71274+00', '');
 
 
 --
@@ -250,9 +268,11 @@ INSERT INTO "auth"."flow_state" ("id", "user_id", "auth_code", "code_challenge_m
 --
 
 INSERT INTO "auth"."users" ("instance_id", "id", "aud", "role", "email", "encrypted_password", "email_confirmed_at", "invited_at", "confirmation_token", "confirmation_sent_at", "recovery_token", "recovery_sent_at", "email_change_token_new", "email_change", "email_change_sent_at", "last_sign_in_at", "raw_app_meta_data", "raw_user_meta_data", "is_super_admin", "created_at", "updated_at", "phone", "phone_confirmed_at", "phone_change", "phone_change_token", "phone_change_sent_at", "email_change_token_current", "email_change_confirm_status", "banned_until", "reauthentication_token", "reauthentication_sent_at", "is_sso_user", "deleted_at", "is_anonymous") VALUES
-	('00000000-0000-0000-0000-000000000000', 'f9fbdfee-1ff4-49fc-a0ce-ab9819e5fe33', 'authenticated', 'authenticated', 'effectivesun@gmail.com', NULL, '2025-09-27 01:54:16.207763+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-09-27 14:13:01.401256+00', '{"provider": "google", "providers": ["google"]}', '{"iss": "https://accounts.google.com", "sub": "111314459849046140552", "name": "치즈두번먹기", "email": "effectivesun@gmail.com", "picture": "https://lh3.googleusercontent.com/a/ACg8ocLtZVUJyvOfCLRyGBGNEFirzI7ocrwuDprIQ-1j2W1IVOwr9ouM=s96-c", "full_name": "치즈두번먹기", "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocLtZVUJyvOfCLRyGBGNEFirzI7ocrwuDprIQ-1j2W1IVOwr9ouM=s96-c", "provider_id": "111314459849046140552", "email_verified": true, "phone_verified": false}', NULL, '2025-09-27 01:54:16.185977+00', '2025-09-27 14:13:01.411143+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
-	('00000000-0000-0000-0000-000000000000', '8ae1e736-7fc1-4717-a4ee-057d89013894', 'authenticated', 'authenticated', 'nightkille@naver.com', NULL, '2025-09-27 14:50:35.781843+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-09-28 08:22:05.054384+00', '{"provider": "kakao", "providers": ["kakao"]}', '{"iss": "https://kapi.kakao.com", "sub": "4343386874", "name": "동익", "email": "nightkille@naver.com", "full_name": "동익", "user_name": "동익", "avatar_url": "http://k.kakaocdn.net/dn/tXX0r/btsMQFgpbcF/4Hx7MxqjO0DebHY2wDck90/img_640x640.jpg", "provider_id": "4343386874", "email_verified": true, "phone_verified": false, "preferred_username": "동익"}', NULL, '2025-09-27 14:50:35.758338+00', '2025-09-28 09:22:15.98247+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
-	('00000000-0000-0000-0000-000000000000', '57061130-ac8c-4189-804a-5cd11f493608', 'authenticated', 'authenticated', 'nightkille@gmail.com', NULL, '2025-09-26 05:09:25.605174+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-09-27 15:35:14.48636+00', '{"provider": "google", "providers": ["google"]}', '{"iss": "https://accounts.google.com", "sub": "106758790713685457736", "name": "dave kim", "email": "nightkille@gmail.com", "picture": "https://lh3.googleusercontent.com/a/ACg8ocK2b-yarBqxFxfgnzMRr1q_J6mJqjyMzXZNCsgQe3vwn3zY7g=s96-c", "full_name": "dave kim", "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocK2b-yarBqxFxfgnzMRr1q_J6mJqjyMzXZNCsgQe3vwn3zY7g=s96-c", "provider_id": "106758790713685457736", "email_verified": true, "phone_verified": false}', NULL, '2025-09-26 05:09:25.592439+00', '2025-09-28 08:21:42.923227+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+	('00000000-0000-0000-0000-000000000000', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', 'authenticated', 'authenticated', 'dev@example.com', '$2a$10$koLPWg.2X7VI1t6cCm5Tj.cxaW0c4xtPO74/CqkhXufnDgvFyqpuS', '2025-10-31 02:00:09.303513+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:00:09.307152+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "a05db6f3-12d2-4b22-a9de-0fd636cbdb22", "email": "dev@example.com", "display_name": "dev", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:00:09.299936+00', '2025-10-31 02:00:09.308198+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
+	('00000000-0000-0000-0000-000000000000', 'd60c7575-e928-4899-a536-0729e96fd34a', 'authenticated', 'authenticated', 'company_manger@example.com', '$2a$10$/0Jd.tFxRkyfd2aXSDpSPOowUhVa3K1hKrYfRSUz0jLzGol/Z1WNO', '2025-10-31 02:02:19.471844+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:02:19.47567+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "d60c7575-e928-4899-a536-0729e96fd34a", "email": "company_manger@example.com", "display_name": "company_manger", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:02:19.468886+00', '2025-10-31 02:02:19.476568+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
+	('00000000-0000-0000-0000-000000000000', '44527cf5-363a-4f99-b17a-dbe28221f5d6', 'authenticated', 'authenticated', 'reviewer@example.com', '$2a$10$RjlBKUXuqN/EvW/SPCyBK.QqZkjfxiL1lXHyvFhbdx/qrcO2HK0Sq', '2025-10-31 02:01:44.203867+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:01:44.207417+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "44527cf5-363a-4f99-b17a-dbe28221f5d6", "email": "reviewer@example.com", "display_name": "reviewer", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:01:44.200791+00', '2025-10-31 02:01:44.208286+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
+	('00000000-0000-0000-0000-000000000000', '407c6527-5afd-4a16-96fa-266f10f2606f', 'authenticated', 'authenticated', 'test@example.com', '$2a$10$X7oViFtcjAUt.wITQEaoVOyDucOAV.zGaeCa7phr4Mpa2RM8yEu9.', '2025-10-31 02:00:44.152003+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:00:44.15504+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "407c6527-5afd-4a16-96fa-266f10f2606f", "email": "test@example.com", "display_name": "test", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:00:44.14947+00', '2025-10-31 02:00:44.155812+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
+	('00000000-0000-0000-0000-000000000000', '00464045-9627-489e-a9c8-b8f5c9529d73', 'authenticated', 'authenticated', 'company_owner@example.com', '$2a$10$KV8mnxaOmD2FESqjGZAG8uwe1fMhcp1Gc9w8vmI0eaAKLPavyeDbi', '2025-10-31 02:01:59.676105+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:01:59.679217+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "00464045-9627-489e-a9c8-b8f5c9529d73", "email": "company_owner@example.com", "display_name": "company_owner", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:01:59.673276+00', '2025-10-31 02:01:59.68003+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 
 
 --
@@ -260,9 +280,11 @@ INSERT INTO "auth"."users" ("instance_id", "id", "aud", "role", "email", "encryp
 --
 
 INSERT INTO "auth"."identities" ("provider_id", "user_id", "identity_data", "provider", "last_sign_in_at", "created_at", "updated_at", "id") VALUES
-	('111314459849046140552', 'f9fbdfee-1ff4-49fc-a0ce-ab9819e5fe33', '{"iss": "https://accounts.google.com", "sub": "111314459849046140552", "name": "치즈두번먹기", "email": "effectivesun@gmail.com", "picture": "https://lh3.googleusercontent.com/a/ACg8ocLtZVUJyvOfCLRyGBGNEFirzI7ocrwuDprIQ-1j2W1IVOwr9ouM=s96-c", "full_name": "치즈두번먹기", "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocLtZVUJyvOfCLRyGBGNEFirzI7ocrwuDprIQ-1j2W1IVOwr9ouM=s96-c", "provider_id": "111314459849046140552", "email_verified": true, "phone_verified": false}', 'google', '2025-09-27 01:54:16.200587+00', '2025-09-27 01:54:16.200642+00', '2025-09-27 14:13:00.061297+00', 'c15febd2-8380-437a-a042-7727ee285824'),
-	('106758790713685457736', '57061130-ac8c-4189-804a-5cd11f493608', '{"iss": "https://accounts.google.com", "sub": "106758790713685457736", "name": "dave kim", "email": "nightkille@gmail.com", "picture": "https://lh3.googleusercontent.com/a/ACg8ocK2b-yarBqxFxfgnzMRr1q_J6mJqjyMzXZNCsgQe3vwn3zY7g=s96-c", "full_name": "dave kim", "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocK2b-yarBqxFxfgnzMRr1q_J6mJqjyMzXZNCsgQe3vwn3zY7g=s96-c", "provider_id": "106758790713685457736", "email_verified": true, "phone_verified": false}', 'google', '2025-09-26 05:09:25.599834+00', '2025-09-26 05:09:25.59988+00', '2025-09-27 15:35:13.130833+00', '474508a0-fa0f-46c3-8a23-6ec6a43e958f'),
-	('4343386874', '8ae1e736-7fc1-4717-a4ee-057d89013894', '{"iss": "https://kapi.kakao.com", "sub": "4343386874", "name": "동익", "email": "nightkille@naver.com", "full_name": "동익", "user_name": "동익", "avatar_url": "http://k.kakaocdn.net/dn/tXX0r/btsMQFgpbcF/4Hx7MxqjO0DebHY2wDck90/img_640x640.jpg", "provider_id": "4343386874", "email_verified": true, "phone_verified": false, "preferred_username": "동익"}', 'kakao', '2025-09-27 14:50:35.772012+00', '2025-09-27 14:50:35.772069+00', '2025-09-28 08:22:03.613151+00', 'ab91a616-9d8d-4a95-ba82-8fc8031dfbb9');
+	('a05db6f3-12d2-4b22-a9de-0fd636cbdb22', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', '{"sub": "a05db6f3-12d2-4b22-a9de-0fd636cbdb22", "email": "dev@example.com", "display_name": "dev", "email_verified": false, "phone_verified": false}', 'email', '2025-10-31 02:00:09.301795+00', '2025-10-31 02:00:09.30182+00', '2025-10-31 02:00:09.30182+00', '34b2c86a-e60c-4943-a3e8-eddb8bc73066'),
+	('407c6527-5afd-4a16-96fa-266f10f2606f', '407c6527-5afd-4a16-96fa-266f10f2606f', '{"sub": "407c6527-5afd-4a16-96fa-266f10f2606f", "email": "test@example.com", "display_name": "test", "email_verified": false, "phone_verified": false}', 'email', '2025-10-31 02:00:44.150687+00', '2025-10-31 02:00:44.150704+00', '2025-10-31 02:00:44.150704+00', 'dc119e4a-64d1-4171-8709-3fa4c0bb4210'),
+	('44527cf5-363a-4f99-b17a-dbe28221f5d6', '44527cf5-363a-4f99-b17a-dbe28221f5d6', '{"sub": "44527cf5-363a-4f99-b17a-dbe28221f5d6", "email": "reviewer@example.com", "display_name": "reviewer", "email_verified": false, "phone_verified": false}', 'email', '2025-10-31 02:01:44.202225+00', '2025-10-31 02:01:44.202243+00', '2025-10-31 02:01:44.202243+00', 'f6d79c07-601e-4354-9379-880209211770'),
+	('00464045-9627-489e-a9c8-b8f5c9529d73', '00464045-9627-489e-a9c8-b8f5c9529d73', '{"sub": "00464045-9627-489e-a9c8-b8f5c9529d73", "email": "company_owner@example.com", "display_name": "company_owner", "email_verified": false, "phone_verified": false}', 'email', '2025-10-31 02:01:59.674789+00', '2025-10-31 02:01:59.674811+00', '2025-10-31 02:01:59.674811+00', '0c7b487f-a3fb-44aa-88c6-43fb2f66c40a'),
+	('d60c7575-e928-4899-a536-0729e96fd34a', 'd60c7575-e928-4899-a536-0729e96fd34a', '{"sub": "d60c7575-e928-4899-a536-0729e96fd34a", "email": "company_manger@example.com", "display_name": "company_manger", "email_verified": false, "phone_verified": false}', 'email', '2025-10-31 02:02:19.470289+00', '2025-10-31 02:02:19.470308+00', '2025-10-31 02:02:19.470308+00', 'c3490653-1660-426b-8d96-7be811b60477');
 
 
 --
@@ -272,31 +294,15 @@ INSERT INTO "auth"."identities" ("provider_id", "user_id", "identity_data", "pro
 
 
 --
--- Data for Name: oauth_clients; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
---
-
-
-
---
 -- Data for Name: sessions; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
-INSERT INTO "auth"."sessions" ("id", "user_id", "created_at", "updated_at", "factor_id", "aal", "not_after", "refreshed_at", "user_agent", "ip", "tag", "oauth_client_id") VALUES
-	('2b3cd17e-5d04-4cf3-8886-6df773dd6735', '57061130-ac8c-4189-804a-5cd11f493608', '2025-09-27 15:26:17.116266+00', '2025-09-27 15:26:17.116266+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '220.123.221.244', NULL, NULL),
-	('7de8203a-646d-4028-91a0-6861f00af1e3', '8ae1e736-7fc1-4717-a4ee-057d89013894', '2025-09-28 08:22:05.054456+00', '2025-09-28 09:22:15.989064+00', NULL, 'aal1', NULL, '2025-09-28 09:22:15.988981', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '220.123.221.244', NULL, NULL),
-	('68766aaa-ecbf-4259-a2e2-08bcb48a4469', '57061130-ac8c-4189-804a-5cd11f493608', '2025-09-26 05:16:36.577224+00', '2025-09-26 05:16:36.577224+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0', '220.123.221.244', NULL, NULL),
-	('670e305e-0f06-4c92-8081-1105fbd55bae', '57061130-ac8c-4189-804a-5cd11f493608', '2025-09-27 01:58:11.564122+00', '2025-09-27 04:56:38.993607+00', NULL, 'aal1', NULL, '2025-09-27 04:56:38.993526', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '220.123.221.244', NULL, NULL);
 
 
 --
 -- Data for Name: mfa_amr_claims; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
-INSERT INTO "auth"."mfa_amr_claims" ("session_id", "created_at", "updated_at", "authentication_method", "id") VALUES
-	('68766aaa-ecbf-4259-a2e2-08bcb48a4469', '2025-09-26 05:16:36.580102+00', '2025-09-26 05:16:36.580102+00', 'oauth', '8188cf5f-28b6-4782-a2a8-70e3d87fd3bb'),
-	('670e305e-0f06-4c92-8081-1105fbd55bae', '2025-09-27 01:58:11.56901+00', '2025-09-27 01:58:11.56901+00', 'oauth', 'cf31fa37-8b39-4f61-964f-49792c1e485b'),
-	('2b3cd17e-5d04-4cf3-8886-6df773dd6735', '2025-09-27 15:26:17.140905+00', '2025-09-27 15:26:17.140905+00', 'oauth', '1a935949-17f9-4393-ae3c-e7b98c169ef5'),
-	('7de8203a-646d-4028-91a0-6861f00af1e3', '2025-09-28 08:22:05.062974+00', '2025-09-28 08:22:05.062974+00', 'oauth', '92473fdb-5b29-429a-a0c0-82af7d5bf8ed');
 
 
 --
@@ -312,13 +318,7 @@ INSERT INTO "auth"."mfa_amr_claims" ("session_id", "created_at", "updated_at", "
 
 
 --
--- Data for Name: oauth_authorizations; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
---
-
-
-
---
--- Data for Name: oauth_consents; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
+-- Data for Name: oauth_clients; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
 
@@ -333,15 +333,6 @@ INSERT INTO "auth"."mfa_amr_claims" ("session_id", "created_at", "updated_at", "
 -- Data for Name: refresh_tokens; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
-INSERT INTO "auth"."refresh_tokens" ("instance_id", "id", "token", "user_id", "revoked", "created_at", "updated_at", "parent", "session_id") VALUES
-	('00000000-0000-0000-0000-000000000000', 58, 'y4dw7zmsy2ya', '57061130-ac8c-4189-804a-5cd11f493608', false, '2025-09-27 15:26:17.126006+00', '2025-09-27 15:26:17.126006+00', NULL, '2b3cd17e-5d04-4cf3-8886-6df773dd6735'),
-	('00000000-0000-0000-0000-000000000000', 63, '6qtpazenyfkv', '8ae1e736-7fc1-4717-a4ee-057d89013894', true, '2025-09-28 08:22:05.061729+00', '2025-09-28 09:22:15.958939+00', NULL, '7de8203a-646d-4028-91a0-6861f00af1e3'),
-	('00000000-0000-0000-0000-000000000000', 64, 'qtv5yoa7nlvo', '8ae1e736-7fc1-4717-a4ee-057d89013894', false, '2025-09-28 09:22:15.975961+00', '2025-09-28 09:22:15.975961+00', '6qtpazenyfkv', '7de8203a-646d-4028-91a0-6861f00af1e3'),
-	('00000000-0000-0000-0000-000000000000', 19, 'db4nywt3iwwb', '57061130-ac8c-4189-804a-5cd11f493608', false, '2025-09-26 05:16:36.578275+00', '2025-09-26 05:16:36.578275+00', NULL, '68766aaa-ecbf-4259-a2e2-08bcb48a4469'),
-	('00000000-0000-0000-0000-000000000000', 39, 'feypqsi2qfbk', '57061130-ac8c-4189-804a-5cd11f493608', true, '2025-09-27 01:58:11.565908+00', '2025-09-27 02:57:38.787857+00', NULL, '670e305e-0f06-4c92-8081-1105fbd55bae'),
-	('00000000-0000-0000-0000-000000000000', 42, 'hikwrskekalg', '57061130-ac8c-4189-804a-5cd11f493608', true, '2025-09-27 02:57:38.805235+00', '2025-09-27 03:57:08.842044+00', 'feypqsi2qfbk', '670e305e-0f06-4c92-8081-1105fbd55bae'),
-	('00000000-0000-0000-0000-000000000000', 44, 'nkygbjqykf67', '57061130-ac8c-4189-804a-5cd11f493608', true, '2025-09-27 03:57:08.851778+00', '2025-09-27 04:56:38.973297+00', 'hikwrskekalg', '670e305e-0f06-4c92-8081-1105fbd55bae'),
-	('00000000-0000-0000-0000-000000000000', 46, 'smazx5lur7bc', '57061130-ac8c-4189-804a-5cd11f493608', false, '2025-09-27 04:56:38.981022+00', '2025-09-27 04:56:38.981022+00', 'nkygbjqykf67', '670e305e-0f06-4c92-8081-1105fbd55bae');
 
 
 --
@@ -372,16 +363,76 @@ INSERT INTO "auth"."refresh_tokens" ("instance_id", "id", "token", "user_id", "r
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO "public"."users" ("id", "created_at", "updated_at", "display_name", "user_type") VALUES
+	('a05db6f3-12d2-4b22-a9de-0fd636cbdb22', '2025-10-31 02:00:09.336657+00', '2025-10-31 02:00:09.345754+00', 'dev', 'user'),
+	('407c6527-5afd-4a16-96fa-266f10f2606f', '2025-10-31 02:00:44.185451+00', '2025-10-31 02:00:44.185447+00', 'test', 'user'),
+	('44527cf5-363a-4f99-b17a-dbe28221f5d6', '2025-10-31 02:01:44.244418+00', '2025-10-31 02:01:44.246559+00', 'reviewer', 'user'),
+	('00464045-9627-489e-a9c8-b8f5c9529d73', '2025-10-31 02:01:59.697153+00', '2025-10-31 02:01:59.697153+00', 'company_owner', 'user'),
+	('d60c7575-e928-4899-a536-0729e96fd34a', '2025-10-31 02:02:19.499361+00', '2025-10-31 02:02:19.501242+00', 'company_manger', 'user');
+
+
+--
+-- Data for Name: companies; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: campaigns; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: campaign_logs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: company_users; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: deleted_users; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: notifications; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: point_wallets; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO "public"."point_wallets" ("id", "wallet_type", "user_id", "current_points", "created_at", "updated_at") VALUES
+	('3f114006-aeb6-483f-9443-9e37d0e00dd9', 'reviewer', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', 0, '2025-10-31 02:00:09.336657+00', '2025-10-31 02:00:09.336657+00'),
+	('78e02ce6-d9a5-47d4-ba7f-3394819b4f31', 'reviewer', '407c6527-5afd-4a16-96fa-266f10f2606f', 0, '2025-10-31 02:00:44.185451+00', '2025-10-31 02:00:44.185451+00'),
+	('97b26a76-c396-47ce-aa42-2820e9007aab', 'reviewer', '44527cf5-363a-4f99-b17a-dbe28221f5d6', 0, '2025-10-31 02:01:44.244418+00', '2025-10-31 02:01:44.244418+00'),
+	('f9bb9a3a-64c0-45f9-9b9f-596e60b51f1c', 'reviewer', '00464045-9627-489e-a9c8-b8f5c9529d73', 0, '2025-10-31 02:01:59.697153+00', '2025-10-31 02:01:59.697153+00'),
+	('f2fac920-90c2-479b-89b5-6d26571bb94f', 'reviewer', 'd60c7575-e928-4899-a536-0729e96fd34a', 0, '2025-10-31 02:02:19.499361+00', '2025-10-31 02:02:19.499361+00');
+
+
+--
+-- Data for Name: point_logs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: sns_connections; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
 
 
 --
 -- Data for Name: buckets; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
---
-
-
-
---
--- Data for Name: buckets_analytics; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
 --
 
 
@@ -393,19 +444,7 @@ INSERT INTO "auth"."refresh_tokens" ("instance_id", "id", "token", "user_id", "r
 
 
 --
--- Data for Name: prefixes; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
---
-
-
-
---
--- Data for Name: s3_multipart_uploads; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
---
-
-
-
---
--- Data for Name: s3_multipart_uploads_parts; Type: TABLE DATA; Schema: storage; Owner: supabase_storage_admin
+-- Data for Name: hooks; Type: TABLE DATA; Schema: supabase_functions; Owner: supabase_functions_admin
 --
 
 
@@ -414,20 +453,20 @@ INSERT INTO "auth"."refresh_tokens" ("instance_id", "id", "token", "user_id", "r
 -- Name: refresh_tokens_id_seq; Type: SEQUENCE SET; Schema: auth; Owner: supabase_auth_admin
 --
 
-SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 64, true);
+SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 69, true);
 
 
 --
--- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: hooks_id_seq; Type: SEQUENCE SET; Schema: supabase_functions; Owner: supabase_functions_admin
 --
 
-SELECT pg_catalog.setval('"public"."users_id_seq"', 1, false);
+SELECT pg_catalog.setval('"supabase_functions"."hooks_id_seq"', 1, false);
 
 
 --
 -- PostgreSQL database dump complete
 --
 
--- \unrestrict 6mSl72ZBFVfzoZX7EXcFHun6cHip09DfIS1hhUSEumN4YlvJc7W8OUiujqgFH60
+-- \unrestrict sT2YukyzFqDvIevcD6yUz4sR9lAub7IpXPBDdBmy8zPcorxoqyfjpzfYmCWHiRt
 
 RESET ALL;

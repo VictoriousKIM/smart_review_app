@@ -12,6 +12,15 @@
 .swiftpm/
 migrate_working_dir/
 
+# API 키 및 설정 파일 (민감 정보)
+api_config_info.md
+*.key
+*.pem
+.env
+.env.local
+.env.production
+.dev.vars
+
 # IntelliJ related
 *.iml
 *.ipr

@@ -1,0 +1,16 @@
+{
+  "name": "smart-review-api",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers API for Smart Review App",
+  "main": "workers/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy --env development",
+    "deploy:prod": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "tail:dev": "wrangler tail --env development",
+    "tail:prod": "wrangler tail --env production"
+  }
+}
+

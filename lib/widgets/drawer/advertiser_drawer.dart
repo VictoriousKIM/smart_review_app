@@ -33,24 +33,24 @@ class AdvertiserDrawer extends ConsumerWidget {
                   context: context,
                   icon: Icons.business_outlined,
                   title: '나의 캠페인',
-                  routePath: '/mypage/advertiser/campaigns',
+                  routePath: '/mypage/advertiser/my-campaigns',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/mypage/advertiser/campaigns');
+                    context.go('/mypage/advertiser/my-campaigns');
                   },
                 ),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.add_circle_outline,
                   title: '캠페인 등록',
-                  routePath: '/campaigns/create',
+                  routePath: '/mypage/advertiser/my-campaigns/create',
                   onTap: () {
                     Navigator.pop(context);
                     // Flutter 웹에서 URL 업데이트 문제 해결
                     if (kIsWeb) {
-                      context.go('/campaigns/create');
+                      context.go('/mypage/advertiser/my-campaigns/create');
                     } else {
-                      context.go('/campaigns/create');
+                      context.go('/mypage/advertiser/my-campaigns/create');
                     }
                   },
                 ),

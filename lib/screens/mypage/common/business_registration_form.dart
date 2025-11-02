@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../services/company_service.dart';
 import '../../../services/r2_upload_service.dart';
 import '../../../config/supabase_config.dart';
@@ -133,7 +135,7 @@ class _BusinessRegistrationFormState
                 // 이미지 미리보기
                 Container(
                   width: double.infinity,
-                  height: 200,
+                  height: 400,
                   decoration: BoxDecoration(
                     color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
@@ -175,6 +177,8 @@ class _BusinessRegistrationFormState
                                 fontWeight: FontWeight.w500,
                                 color: Colors.grey[800],
                               ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                             Text(
                               '${(_selectedFileBytes!.length / 1024 / 1024).toStringAsFixed(1)} MB',
@@ -186,9 +190,12 @@ class _BusinessRegistrationFormState
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
                       IconButton(
                         onPressed: _removeFile,
                         icon: Icon(Icons.close, color: Colors.grey[600]),
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(8),
                       ),
                     ],
                   ),
@@ -230,9 +237,15 @@ class _BusinessRegistrationFormState
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        'AI가 정보를 추출하고 검증 중입니다...',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      Expanded(
+                        child: Text(
+                          'AI가 정보를 추출하고 검증 중입니다...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
@@ -246,7 +259,7 @@ class _BusinessRegistrationFormState
               children: [
                 Container(
                   width: double.infinity,
-                  height: 200,
+                  height: 400,
                   decoration: BoxDecoration(
                     color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
@@ -292,10 +305,21 @@ class _BusinessRegistrationFormState
                           );
                         }
 
-                        return Image.network(
-                          snapshot.data!,
+                        return CachedNetworkImage(
+                          imageUrl: snapshot.data!,
+                          cacheKey: _existingImageUrl, // 원본 URL을 캐시 키로 사용
                           fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
+                          maxWidthDiskCache: 1000, // 디스크 캐시 최대 너비
+                          maxHeightDiskCache: 1000, // 디스크 캐시 최대 높이
+                          placeholder: (context, url) => Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.green[600]!,
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) {
                             print('❌ 이미지 로드 오류: $error');
                             return Center(
                               child: Column(
@@ -347,6 +371,8 @@ class _BusinessRegistrationFormState
                                 fontWeight: FontWeight.w500,
                                 color: Colors.grey[800],
                               ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                             Text(
                               '이미 업로드된 이미지입니다',
@@ -358,10 +384,13 @@ class _BusinessRegistrationFormState
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
                       IconButton(
                         onPressed: _selectFile,
                         icon: Icon(Icons.edit, color: Colors.blue[600]),
                         tooltip: '새 이미지로 교체',
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(8),
                       ),
                     ],
                   ),
@@ -789,29 +818,37 @@ class _BusinessRegistrationFormState
     });
 
     try {
-      // 통합 Edge Function 호출 (AI 추출 + 검증 + 등록)
+      // 통합 Workers API 호출 (AI 추출 + 검증 + 등록)
       print('🔄 통합 검증 및 등록 프로세스 시작');
 
       // 이미지를 base64로 인코딩
       final base64Image = base64Encode(_selectedFileBytes!);
 
-      // Edge Function 호출
-      final supabase = Supabase.instance.client;
-      final response = await supabase.functions.invoke(
-        'verify-and-register',
-        body: {
+      // 사용자 ID 가져오기
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
+      // Workers API 호출
+      final workersApiUrl = SupabaseConfig.workersApiUrl;
+      final response = await http.post(
+        Uri.parse('$workersApiUrl/api/verify-and-register'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
           'image': base64Image,
           'fileName': _selectedFileName ?? 'business_registration.png',
-        },
+          'userId': userId,
+        }),
       );
 
-      if (response.status != 200) {
-        final errorData = response.data as Map<String, dynamic>?;
+      if (response.statusCode != 200) {
+        final errorData = json.decode(response.body) as Map<String, dynamic>?;
         final errorMessage = errorData?['error'] ?? '처리 실패';
         throw Exception(errorMessage);
       }
 
-      final responseData = response.data as Map<String, dynamic>;
+      final responseData = json.decode(response.body) as Map<String, dynamic>;
 
       // AI 추출 데이터 설정
       final extractedData =
@@ -837,24 +874,112 @@ class _BusinessRegistrationFormState
 
       // 성공 여부 확인
       if (responseData['success'] == true) {
-        // 성공: 회사 등록 완료
-        setState(() {
-          _isDataSaved = true;
-          _isProcessing = false;
-          _isValidatingBusinessNumber = false;
-        });
+        // Workers에서 검증과 Presigned URL 생성 성공
+        final presignedUrl = responseData['presignedUrl'] as String?;
+        final filePath = responseData['filePath'] as String?;
+        final publicUrl = responseData['publicUrl'] as String?;
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('인증되었습니다'),
-              backgroundColor: Colors.green,
-            ),
-          );
+        if (extractedData != null &&
+            validationResult != null &&
+            presignedUrl != null &&
+            filePath != null &&
+            publicUrl != null) {
+          try {
+            // 1단계: DB 저장 먼저 시도 (중복 체크 포함)
+            print('💾 DB 저장 시작 (파일 업로드 전)');
+            String? savedCompanyId;
+
+            try {
+              savedCompanyId = await _saveCompanyToDatabase(
+                extractedData: extractedData,
+                validationResult: validationResult,
+                fileUrl: publicUrl,
+              );
+              print('✅ DB 저장 완료: $savedCompanyId');
+            } catch (dbError) {
+              // DB 저장 실패 시 파일 업로드하지 않음
+              throw Exception('DB 저장 실패: $dbError');
+            }
+
+            // 2단계: DB 저장 성공 후 파일 업로드
+            print('📤 Presigned URL로 파일 업로드 시작');
+            final uploadResponse = await http.put(
+              Uri.parse(presignedUrl),
+              headers: {
+                'Content-Type':
+                    _selectedFileName?.toLowerCase().endsWith('.pdf') == true
+                    ? 'application/pdf'
+                    : 'image/png',
+              },
+              body: _selectedFileBytes!,
+            );
+
+            if (uploadResponse.statusCode != 200) {
+              // 파일 업로드 실패 → DB 롤백
+              print('❌ 파일 업로드 실패, DB 롤백 시작');
+              try {
+                await _deleteCompanyFromDatabase(savedCompanyId);
+                print('✅ DB 롤백 완료');
+              } catch (rollbackError) {
+                print('⚠️ DB 롤백 실패: $rollbackError');
+              }
+              throw Exception('파일 업로드 실패: ${uploadResponse.statusCode}');
+            }
+
+            print('✅ 파일 업로드 완료: $publicUrl');
+
+            // 성공: 회사 등록 완료
+            setState(() {
+              _isDataSaved = true;
+              _isProcessing = false;
+              _isValidatingBusinessNumber = false;
+            });
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('인증되었습니다'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+
+            // 기존 회사 데이터 다시 로드
+            await _loadExistingCompanyData();
+          } catch (error) {
+            // 에러 발생 시 처리
+            print('❌ 처리 실패: $error');
+
+            setState(() {
+              _isProcessing = false;
+              _isValidatingBusinessNumber = false;
+            });
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('처리 실패: $error'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        } else {
+          // 필수 데이터 누락
+          setState(() {
+            _isProcessing = false;
+            _isValidatingBusinessNumber = false;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('데이터가 누락되었습니다. 다시 시도해주세요.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
-
-        // 기존 회사 데이터 다시 로드
-        await _loadExistingCompanyData();
       } else {
         // 검증 실패 또는 중복 등록 (정상 응답이지만 처리 실패)
         setState(() {
@@ -862,15 +987,22 @@ class _BusinessRegistrationFormState
           _isValidatingBusinessNumber = false;
         });
 
-        // 중복 등록인 경우 특별 처리
+        // 중복 등록 또는 이미지 검증 실패인 경우 특별 처리
         final errorMessage = responseData['error'] ?? '처리 실패';
         final step = responseData['step'] as String?;
 
         if (mounted) {
+          Color backgroundColor = Colors.red;
+          if (step == 'duplicate') {
+            backgroundColor = Colors.orange;
+          } else if (step == 'image_verification') {
+            backgroundColor = Colors.orange; // 이미지 검증 실패는 주황색으로 표시
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(errorMessage),
-              backgroundColor: step == 'duplicate' ? Colors.orange : Colors.red,
+              backgroundColor: backgroundColor,
               duration: const Duration(seconds: 5),
             ),
           );
@@ -891,6 +1023,66 @@ class _BusinessRegistrationFormState
           SnackBar(content: Text('처리 실패: $e'), backgroundColor: Colors.red),
         );
       }
+    }
+  }
+
+  /// Workers에서 받은 데이터를 Supabase에 저장 (RPC 사용)
+  Future<String> _saveCompanyToDatabase({
+    required Map<String, dynamic> extractedData,
+    required Map<String, dynamic> validationResult,
+    required String fileUrl,
+  }) async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      throw Exception('로그인이 필요합니다.');
+    }
+
+    // RPC 함수 호출 (중복 체크 및 트랜잭션 포함)
+    final result = await supabase.rpc(
+      'register_company',
+      params: {
+        'p_user_id': user.id,
+        'p_business_name': extractedData['business_name'] ?? '',
+        'p_business_number': extractedData['business_number'] ?? '',
+        'p_address': extractedData['business_address'] ?? '',
+        'p_representative_name': extractedData['representative_name'] ?? '',
+        'p_business_type': extractedData['business_type'] ?? '',
+        'p_registration_file_url': fileUrl,
+      },
+    );
+
+    if (result == null) {
+      throw Exception('회사 등록 실패: 응답이 없습니다.');
+    }
+
+    final companyId = result['company_id'] as String?;
+    if (companyId == null) {
+      throw Exception('회사 등록 실패: company_id가 없습니다.');
+    }
+
+    print('✅ 회사 정보 저장 완료: $companyId');
+    return companyId;
+  }
+
+  /// 회사 정보 삭제 (롤백용, RPC 사용)
+  Future<void> _deleteCompanyFromDatabase(String companyId) async {
+    final supabase = Supabase.instance.client;
+
+    try {
+      final result = await supabase.rpc(
+        'delete_company',
+        params: {'p_company_id': companyId},
+      );
+
+      if (result == null || result['success'] != true) {
+        throw Exception('회사 삭제 실패');
+      }
+
+      print('✅ 회사 정보 삭제 완료: $companyId');
+    } catch (e) {
+      print('❌ 회사 삭제 중 오류: $e');
+      rethrow;
     }
   }
 }

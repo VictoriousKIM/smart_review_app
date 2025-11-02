@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/sns_platform_connection_service.dart';
 
 class MyPageCommonWidgets {
   // 상단 파란색 카드
@@ -105,6 +106,7 @@ class MyPageCommonWidgets {
     required List<Map<String, String>> statusItems,
     String? actionButtonText,
     VoidCallback? onActionPressed,
+    Function(String)? onStatusTap,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -169,7 +171,7 @@ class MyPageCommonWidgets {
               color: Colors.grey[50],
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Row(children: _buildStatusRow(statusItems)),
+            child: Row(children: _buildStatusRow(statusItems, onStatusTap)),
           ),
         ],
       ),
@@ -177,11 +179,19 @@ class MyPageCommonWidgets {
   }
 
   // 상태 아이템들 생성
-  static List<Widget> _buildStatusRow(List<Map<String, String>> statusItems) {
+  static List<Widget> _buildStatusRow(
+    List<Map<String, String>> statusItems,
+    Function(String)? onStatusTap,
+  ) {
     List<Widget> widgets = [];
     for (int i = 0; i < statusItems.length; i++) {
       widgets.add(
-        _buildStatusItem(statusItems[i]['label']!, statusItems[i]['count']!),
+        _buildStatusItem(
+          statusItems[i]['label']!,
+          statusItems[i]['count']!,
+          statusItems[i]['tab'] ?? '',
+          onStatusTap,
+        ),
       );
       if (i < statusItems.length - 1) {
         widgets.add(_buildStatusDivider());
@@ -190,8 +200,13 @@ class MyPageCommonWidgets {
     return widgets;
   }
 
-  static Widget _buildStatusItem(String label, String count) {
-    return Expanded(
+  static Widget _buildStatusItem(
+    String label,
+    String count,
+    String tab,
+    Function(String)? onStatusTap,
+  ) {
+    final content = Expanded(
       child: Column(
         children: [
           Text(
@@ -213,6 +228,37 @@ class MyPageCommonWidgets {
         ],
       ),
     );
+
+    if (onStatusTap != null && tab.isNotEmpty) {
+      return Expanded(
+        child: InkWell(
+          onTap: () => onStatusTap(tab),
+          borderRadius: BorderRadius.circular(8),
+          child: Column(
+            children: [
+              Text(
+                count,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return content;
   }
 
   static Widget _buildStatusDivider() {
@@ -260,78 +306,770 @@ class MyPageCommonWidgets {
   }
 
   // SNS 연결 섹션
-  static Widget buildSNSConnectionSection() {
+  static Widget buildSNSConnectionSection(BuildContext context) {
+    return SNSConnectionSection(key: ValueKey('sns_connection_section'));
+  }
+}
+
+// SNS 연결 섹션 위젯 (확장 가능)
+class SNSConnectionSection extends StatefulWidget {
+  const SNSConnectionSection({super.key});
+
+  @override
+  State<SNSConnectionSection> createState() => _SNSConnectionSectionState();
+}
+
+class _SNSConnectionSectionState extends State<SNSConnectionSection> {
+  List<Map<String, dynamic>> _connections = [];
+  bool _isLoading = false;
+  // 각 플랫폼별 확장 상태 관리
+  final Map<String, bool> _expandedPlatforms = {};
+
+  // 플랫폼 정보
+  final List<Map<String, dynamic>> _platforms = [
+    {
+      'id': 'coupang',
+      'name': '쿠팡',
+      'icon': Icons.shopping_cart,
+      'color': const Color(0xFFFF6B00),
+    },
+    {
+      'id': 'smartstore',
+      'name': '스마트스토어',
+      'icon': Icons.store,
+      'color': const Color(0xFF137fec),
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConnections();
+  }
+
+  Future<void> _loadConnections() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final connections = await SNSPlatformConnectionService.getConnections();
+      setState(() {
+        _connections = connections;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '연결 정보를 불러오는데 실패했습니다: ${SNSPlatformConnectionService.getErrorMessage(e)}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  int _getConnectionCount(String platform) {
+    return _connections.where((conn) => conn['platform'] == platform).length;
+  }
+
+  List<Map<String, dynamic>> _getConnectionsByPlatform(String platform) {
+    return _connections.where((conn) => conn['platform'] == platform).toList();
+  }
+
+  void _showAddDialog(String platform, String platformName) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => PlatformConnectionDialog(
+        platform: platform,
+        platformName: platformName,
+      ),
+    );
+
+    if (result == true && mounted) {
+      // 연결이 성공적으로 추가되었으므로 목록 새로고침
+      await _loadConnections();
+      // 해당 플랫폼 확장 상태로 변경
+      setState(() {
+        _expandedPlatforms[platform] = true;
+      });
+    }
+  }
+
+  bool _isPlatformExpanded(String platformId) {
+    return _expandedPlatforms[platformId] ?? false;
+  }
+
+  void _togglePlatform(String platformId) {
+    setState(() {
+      _expandedPlatforms[platformId] = !_isPlatformExpanded(platformId);
+    });
+  }
+
+  Future<void> _deleteConnection(String id) async {
+    try {
+      await SNSPlatformConnectionService.deleteConnection(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('연결이 삭제되었습니다'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _loadConnections();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '삭제 실패: ${SNSPlatformConnectionService.getErrorMessage(e)}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalConnections = _connections.length;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.link, color: Colors.black, size: 20),
-              const SizedBox(width: 12),
-              const Text(
-                'SNS 연결',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
+          // 헤더 (항상 표시)
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.link, color: Colors.black, size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  'SNS 연결',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (totalConnections > 0)
                   Container(
-                    width: 24,
-                    height: 24,
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    child: const Center(
-                      child: Text(
-                        'b',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF137fec),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$totalConnections개 연결됨',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'SNS를 연결해주세요.',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                  ),
-                ],
+              ],
+            ),
+          ),
+          // 플랫폼 목록
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: _platforms.map((platform) {
+                  final platformId = platform['id'] as String;
+                  final platformName = platform['name'] as String;
+                  final platformIcon = platform['icon'] as IconData;
+                  final platformColor = platform['color'] as Color;
+                  final connectionCount = _getConnectionCount(platformId);
+                  final connections = _getConnectionsByPlatform(platformId);
+                  final isExpanded = _isPlatformExpanded(platformId);
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 플랫폼 헤더 (탭 가능)
+                      InkWell(
+                        onTap: () => _togglePlatform(platformId),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: platformColor,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      platformIcon,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    platformName,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF333333),
+                                    ),
+                                  ),
+                                  if (connectionCount > 0) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '$connectionCount개',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[700],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  ElevatedButton(
+                                    onPressed: () => _showAddDialog(
+                                      platformId,
+                                      platformName,
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: platformColor,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                    child: const Text('추가'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    isExpanded
+                                        ? Icons.keyboard_arrow_up
+                                        : Icons.keyboard_arrow_down,
+                                    color: Colors.grey[600],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // 플랫폼별 확장된 연결 정보
+                      if (isExpanded)
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 12),
+                              if (connections.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Text(
+                                    '연결된 계정이 없습니다.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...connections.map((connection) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[50],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.grey[200]!,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    connection['platform_account_name'] ??
+                                                        '알 수 없음',
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    '계정 ID: ${connection['platform_account_id'] ?? ''}',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                  if (connection['phone'] !=
+                                                      null) ...[
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      '전화번호: ${connection['phone']}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey[600],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                  if (connection['address'] !=
+                                                      null) ...[
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      '주소: ${connection['address']}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey[600],
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                  if (connection['return_address'] !=
+                                                      null) ...[
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      '회수 주소: ${connection['return_address']}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey[600],
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(
+                                                    Icons.edit_outlined,
+                                                    color: Colors.blue,
+                                                    size: 20,
+                                                  ),
+                                                  onPressed: () {
+                                                    _showEditDialog(
+                                                      context,
+                                                      connection,
+                                                      platformName,
+                                                    );
+                                                  },
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(
+                                                    Icons.delete_outline,
+                                                    color: Colors.red,
+                                                    size: 20,
+                                                  ),
+                                                  onPressed: () {
+                                                    _showDeleteConfirmDialog(
+                                                      context,
+                                                      connection['id'] as String,
+                                                    );
+                                                  },
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                            ],
+                          ),
+                        ),
+                      if (_platforms.indexOf(platform) < _platforms.length - 1)
+                        const SizedBox(height: 12),
+                    ],
+                  );
+                }).toList(),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  // SNS 연결 기능 구현
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF137fec),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                ),
-                child: const Text('연결'),
-              ),
-            ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDialog(
+    BuildContext context,
+    Map<String, dynamic> connection,
+    String platformName,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => PlatformConnectionDialog(
+        platform: connection['platform'] as String,
+        platformName: platformName,
+        connectionId: connection['id'] as String,
+        initialData: connection,
+        isEditMode: true,
+      ),
+    );
+
+    if (result == true && mounted) {
+      // 연결이 성공적으로 수정되었으므로 목록 새로고침
+      await _loadConnections();
+    }
+  }
+
+  void _showDeleteConfirmDialog(BuildContext context, String connectionId) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('연결 삭제'),
+        content: const Text('이 연결을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _deleteConnection(connectionId);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('삭제'),
           ),
         ],
       ),
+    );
+  }
+}
+
+// 플랫폼 연결 다이얼로그 위젯
+class PlatformConnectionDialog extends StatefulWidget {
+  final String platform;
+  final String platformName;
+  final String? connectionId;
+  final Map<String, dynamic>? initialData;
+  final bool isEditMode;
+
+  const PlatformConnectionDialog({
+    super.key,
+    required this.platform,
+    required this.platformName,
+    this.connectionId,
+    this.initialData,
+    this.isEditMode = false,
+  });
+
+  @override
+  State<PlatformConnectionDialog> createState() =>
+      _PlatformConnectionDialogState();
+}
+
+class _PlatformConnectionDialogState extends State<PlatformConnectionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _accountIdController = TextEditingController();
+  final _accountNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _returnAddressController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 수정 모드일 때 기존 데이터로 초기화
+    if (widget.isEditMode && widget.initialData != null) {
+      _accountIdController.text = widget.initialData!['platform_account_id'] ?? '';
+      _accountNameController.text = widget.initialData!['platform_account_name'] ?? '';
+      _phoneController.text = widget.initialData!['phone'] ?? '';
+      _addressController.text = widget.initialData!['address'] ?? '';
+      _returnAddressController.text = widget.initialData!['return_address'] ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _accountIdController.dispose();
+    _accountNameController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _returnAddressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveConnection() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      if (widget.isEditMode && widget.connectionId != null) {
+        // 수정 모드: updateConnection 호출
+        await SNSPlatformConnectionService.updateConnection(
+          id: widget.connectionId!,
+          platformAccountName: _accountNameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          address: _addressController.text.trim().isEmpty
+              ? null
+              : _addressController.text.trim(),
+          returnAddress: _returnAddressController.text.trim().isEmpty
+              ? null
+              : _returnAddressController.text.trim(),
+        );
+
+        if (mounted) {
+          Navigator.of(context).pop(true); // 성공 시 true 반환
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${widget.platformName} 연결이 수정되었습니다'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        // 생성 모드: createConnection 호출
+        await SNSPlatformConnectionService.createConnection(
+          platform: widget.platform,
+          platformAccountId: _accountIdController.text.trim(),
+          platformAccountName: _accountNameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          address: _addressController.text.trim().isEmpty
+              ? null
+              : _addressController.text.trim(),
+          returnAddress: _returnAddressController.text.trim().isEmpty
+              ? null
+              : _returnAddressController.text.trim(),
+        );
+
+        if (mounted) {
+          Navigator.of(context).pop(true); // 성공 시 true 반환
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${widget.platformName} 연결이 완료되었습니다'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(SNSPlatformConnectionService.getErrorMessage(e)),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            Icons.link,
+            color: Theme.of(context).colorScheme.primary,
+            size: 24,
+          ),
+          const SizedBox(width: 8),
+          Text(widget.isEditMode 
+              ? '${widget.platformName} 연결 수정' 
+              : '${widget.platformName} 연결'),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _accountIdController,
+                  enabled: !widget.isEditMode, // 수정 모드에서는 읽기 전용
+                  decoration: const InputDecoration(
+                    labelText: '계정 ID',
+                    hintText: '플랫폼 계정 ID를 입력하세요',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (!widget.isEditMode && (value == null || value.trim().isEmpty)) {
+                      return '계정 ID를 입력해주세요';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _accountNameController,
+                  decoration: const InputDecoration(
+                    labelText: '계정 이름',
+                    hintText: '플랫폼에 표시되는 이름',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return '계정 이름을 입력해주세요';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _phoneController,
+                  decoration: const InputDecoration(
+                    labelText: '전화번호',
+                    hintText: '010-1234-5678',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return '전화번호를 입력해주세요';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _addressController,
+                  decoration: const InputDecoration(
+                    labelText: '주소',
+                    hintText: '배송지 주소를 입력하세요',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                  validator: (value) {
+                    // 스토어 플랫폼인 경우에만 필수 검증
+                    final isStorePlatform =
+                        SNSPlatformConnectionService.isStorePlatform(
+                          widget.platform,
+                        );
+                    if (isStorePlatform &&
+                        (value == null || value.trim().isEmpty)) {
+                      return '주소를 입력해주세요 (스토어 플랫폼 필수)';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _returnAddressController,
+                  decoration: const InputDecoration(
+                    labelText: '회수 주소 (선택)',
+                    hintText: '회수 주소를 입력하세요',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _saveConnection,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+          ),
+          child: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Text('저장'),
+        ),
+      ],
     );
   }
 }

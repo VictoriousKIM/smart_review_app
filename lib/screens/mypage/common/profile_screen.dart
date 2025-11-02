@@ -122,31 +122,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           onPressed: () => context.go('/mypage'),
         ),
         actions: [
-          if (!_isEditing)
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _isEditing = true;
-                });
-              },
-              child: const Text('편집'),
-            )
-          else
-            Row(
-              children: [
-                TextButton(onPressed: _cancelEdit, child: const Text('취소')),
-                TextButton(
-                  onPressed: _isSaving ? null : _saveProfile,
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('저장'),
-                ),
-              ],
-            ),
+          // 리뷰어인 경우 편집 버튼은 기본정보 박스로 이동했으므로 AppBar에는 표시하지 않음
+          // 광고주인 경우에만 AppBar에 편집 버튼 표시
+          if (_user?.userType != app_user.UserType.user)
+            if (!_isEditing)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isEditing = true;
+                  });
+                },
+                child: const Text('편집'),
+              )
+            else
+              Row(
+                children: [
+                  TextButton(onPressed: _cancelEdit, child: const Text('취소')),
+                  TextButton(
+                    onPressed: _isSaving ? null : _saveProfile,
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('저장'),
+                  ),
+                ],
+              ),
         ],
       ),
       body: _isLoading
@@ -294,13 +297,72 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '기본 정보',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF333333),
-              ),
+            // 기본 정보 타이틀과 편집 버튼을 한 줄에 배치
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Text(
+                  '기본 정보',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+                // 편집 모드에 따라 버튼 표시
+                if (!_isEditing)
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _isEditing = true;
+                      });
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('편집'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                    ),
+                  )
+                else
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed: _cancelEdit,
+                        child: const Text('취소'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton(
+                        onPressed: _isSaving ? null : _saveProfile,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('저장'),
+                      ),
+                    ],
+                  ),
+              ],
             ),
             const SizedBox(height: 16),
 

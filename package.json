@@ -1,8 +1,17 @@
 {
   "devDependencies": {
-    "supabase": "^2.51.0"
+    "@aws-sdk/client-s3": "^3.921.0",
+    "@aws-sdk/s3-request-presigner": "^3.921.0",
+    "supabase": "^2.51.0",
+    "wrangler": "^4.45.3"
   },
-  "dependencies": {
-    "@aws-sdk/client-s3": "^3.917.0"
+  "scripts": {
+    "workers:dev": "wrangler dev",
+    "workers:deploy": "wrangler deploy",
+    "workers:deploy:dev": "wrangler deploy --env development",
+    "workers:deploy:prod": "wrangler deploy --env production",
+    "workers:tail": "wrangler tail",
+    "workers:tail:dev": "wrangler tail --env development",
+    "workers:tail:prod": "wrangler tail --env production"
   }
 }

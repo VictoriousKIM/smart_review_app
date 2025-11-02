@@ -1,0 +1,26 @@
+name = "smart-review-api"
+main = "workers/index.ts"
+compatibility_date = "2024-01-01"
+
+# 개발 환경 설정 (로컬 개발용)
+[env.development]
+name = "smart-review-api-dev"
+
+# 프로덕션 환경 설정 (기본값이 프로덕션)
+[env.production]
+name = "smart-review-api"
+
+# R2 버킷 바인딩 (프로덕션 버킷 사용)
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "smart-review-files"
+
+# 환경 변수 (프로덕션 환경)
+[vars]
+ENVIRONMENT = "production"
+
+# 로컬 개발 설정 (로컬 개발 시에만 사용)
+[dev]
+port = 8787
+ip = "127.0.0.1"
+

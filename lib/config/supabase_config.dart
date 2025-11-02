@@ -11,6 +11,11 @@ class SupabaseConfig {
       ? 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' // 로컬 개발 키
       : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0aG1uaGFkZXlmdXNtZmhjZ2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMDU4MDQsImV4cCI6MjA3MzU4MTgwNH0.BzTELGjnSewXprm_3mjJnOXusvp5Sw5jagpmKUYEM50'; // 프로덕션 키
 
+  // Cloudflare Workers API URL
+  // 프로덕션 환경만 사용 (로컬 개발도 프로덕션 Workers 사용)
+  static const String workersApiUrl =
+      'https://smart-review-api.nightkille.workers.dev';
+
   static SupabaseClient get client => Supabase.instance.client;
 
   static Future<void> initialize() async {

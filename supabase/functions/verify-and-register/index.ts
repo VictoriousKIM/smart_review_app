@@ -43,11 +43,15 @@ interface VerifyAndRegisterResponse {
   step?: string  // 에러 발생 단계
 }
 
-// R2 설정
+// R2 설정 (Workers API 사용)
+const WORKERS_API_URL = Deno.env.get('WORKERS_API_URL') || 'https://smart-review-api.nightkille.workers.dev'
+const R2_PUBLIC_URL = Deno.env.get('R2_PUBLIC_URL') || 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files'
+
+// R2 직접 접근 (사용 안 함 - Workers API 사용)
 const R2_ACCOUNT_ID = Deno.env.get('R2_ACCOUNT_ID')
 const R2_ACCESS_KEY_ID = Deno.env.get('R2_ACCESS_KEY_ID')
 const R2_SECRET_ACCESS_KEY = Deno.env.get('R2_SECRET_ACCESS_KEY')
-const R2_BUCKET_NAME = Deno.env.get('R2_BUCKET_NAME')
+const R2_BUCKET_NAME = Deno.env.get('R2_BUCKET_NAME') || 'smart-review-files'
 
 // Gemini API 키
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || 'AIzaSyCNqb8uWU_-RPm-sY-8xrl8FtbSa8TrNpk'
@@ -63,18 +67,9 @@ const NTS_API_URL = 'https://api.odcloud.kr/api/nts-businessman/v1/status'
 async function callGeminiAPI(
   apiKey: string,
   model: string,
-  image: string
+  image: string,
+  prompt: string
 ): Promise<Response> {
-  const prompt = `이 한국 사업자등록증 이미지를 분석하여 다음 정보를 JSON 형태로 추출해주세요:
-- business_name: 상호명
-- business_number: 사업자등록번호 (000-00-00000 형식)
-- representative_name: 대표자명
-- business_address: 사업장 주소
-- business_type: 업태
-- business_item: 종목
-
-읽을 수 없는 정보는 null로 설정하고, 반드시 유효한 JSON만 반환해주세요.`
-
   return await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -107,7 +102,95 @@ async function callGeminiAPI(
   )
 }
 
+// 이미지가 사업자등록증인지 확인
+async function verifyBusinessRegistrationImage(image: string): Promise<boolean> {
+  const verificationPrompt = `이 이미지가 한국의 사업자등록증인지 확인해주세요.
+
+다음과 같은 요소가 있는지 확인하세요:
+- "사업자등록증" 또는 "사업자등록증명원" 텍스트
+- 사업자등록번호 (000-00-00000 형식)
+- 상호명, 대표자명, 사업장소재지 등의 정보
+- 정부 기관 인증 마크나 도장
+
+응답은 다음 형식의 JSON만 반환해주세요:
+{
+  "is_business_registration": true 또는 false,
+  "confidence": "high" 또는 "medium" 또는 "low",
+  "reason": "확인 이유"
+}
+
+사업자등록증이 아니거나 확인이 불가능한 경우 "is_business_registration": false로 설정하고 reason에 이유를 설명해주세요.`
+
+  try {
+    const geminiResponse = await callGeminiAPI(
+      GEMINI_API_KEY,
+      'gemini-2.5-flash',
+      image,
+      verificationPrompt
+    )
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text()
+      console.error('❌ 이미지 검증 실패:', geminiResponse.status, errorText)
+      return false
+    }
+
+    const geminiData = await geminiResponse.json()
+    const extractedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
+
+    if (!extractedText) {
+      console.error('❌ 이미지 검증 응답이 없습니다')
+      return false
+    }
+
+    // JSON 파싱
+    try {
+      const jsonMatch = extractedText.match(/```json\s*([\s\S]*?)\s*```/) ||
+                       extractedText.match(/```\s*([\s\S]*?)\s*```/) ||
+                       [null, extractedText]
+      
+      const result = JSON.parse(jsonMatch[1] || extractedText)
+      const isBusinessRegistration = result.is_business_registration === true
+      const confidence = result.confidence || 'low'
+      
+      console.log(`📋 이미지 검증 결과:`, {
+        isBusinessRegistration,
+        confidence,
+        reason: result.reason
+      })
+
+      // confidence가 low인 경우도 허용하되, false인 경우만 거부
+      if (!isBusinessRegistration) {
+        throw new Error(`사업자등록증이 아닙니다: ${result.reason || '이미지가 사업자등록증이 아닌 것으로 확인되었습니다'}`)
+      }
+
+      return true
+    } catch (parseError) {
+      console.error('❌ 이미지 검증 결과 파싱 실패:', parseError)
+      // 파싱 실패 시 텍스트에서 "사업자등록증" 키워드 확인
+      if (extractedText.toLowerCase().includes('사업자등록증') || 
+          extractedText.toLowerCase().includes('business registration')) {
+        return true
+      }
+      return false
+    }
+  } catch (error) {
+    console.error('❌ 이미지 검증 중 오류:', error)
+    throw error
+  }
+}
+
 async function extractBusinessInfo(image: string): Promise<any> {
+  const extractionPrompt = `이 한국 사업자등록증 이미지를 분석하여 다음 정보를 JSON 형태로 추출해주세요:
+- business_name: 상호명
+- business_number: 사업자등록번호 (000-00-00000 형식)
+- representative_name: 대표자명
+- business_address: 사업장 주소
+- business_type: 업태
+- business_item: 종목
+
+읽을 수 없는 정보는 null로 설정하고, 반드시 유효한 JSON만 반환해주세요.`
+
   const models = ['gemini-2.5-flash-lite', 'gemini-2.5-flash']
   let extractedText: string | null = null
   
@@ -117,7 +200,7 @@ async function extractBusinessInfo(image: string): Promise<any> {
     
     try {
       console.log(`🔄 ${model} 모델로 시도 중...`)
-      const geminiResponse = await callGeminiAPI(GEMINI_API_KEY, model, image)
+      const geminiResponse = await callGeminiAPI(GEMINI_API_KEY, model, image, extractionPrompt)
       
       if (!geminiResponse.ok) {
         const errorText = await geminiResponse.text()
@@ -305,141 +388,35 @@ async function hmacSha256Binary(key: string | Uint8Array, data: string): Promise
 async function uploadToR2(
   fileBytes: Uint8Array,
   filePath: string,
-  contentType: string
+  contentType: string,
+  userId: string
 ): Promise<string> {
-  const url = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${filePath}`
+  // Workers API를 통해 파일 업로드
+  const formData = new FormData()
+  const blob = new Blob([fileBytes], { type: contentType })
+  const fileName = filePath.split('/').pop() || 'file'
+  formData.append('file', blob, fileName)
+  formData.append('userId', userId)
+  formData.append('fileType', 'business_registration')
   
-  const region = 'auto'
-  const service = 's3'
-  const algorithm = 'AWS4-HMAC-SHA256'
-  
-  const date = new Date()
-  const dateStamp = date.toISOString().slice(0, 10).replace(/-/g, '')
-  const amzDate = date.toISOString().replace(/[:\-]|\.\d{3}/g, '')
-  
-  const headers: Record<string, string> = {
-    'Content-Type': contentType,
-    'x-amz-date': amzDate,
-  }
-  
-  const canonicalHeaders = Object.keys(headers)
-    .sort()
-    .map(key => `${key.toLowerCase()}:${headers[key]}\n`)
-    .join('')
-  const signedHeaders = Object.keys(headers)
-    .sort()
-    .map(key => key.toLowerCase())
-    .join(';')
-  
-  const payloadHash = await sha256(fileBytes)
-  const canonicalRequest = [
-    'PUT',
-    `/${R2_BUCKET_NAME}/${filePath}`,
-    '',
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash
-  ].join('\n')
-  
-  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`
-  const hashedCanonicalRequest = await sha256(canonicalRequest)
-  const stringToSign = [
-    algorithm,
-    amzDate,
-    credentialScope,
-    hashedCanonicalRequest
-  ].join('\n')
-  
-  const kSecret = `AWS4${R2_SECRET_ACCESS_KEY}`
-  const kDate = await hmacSha256Binary(kSecret, dateStamp)
-  const kRegion = await hmacSha256Binary(kDate, region)
-  const kService = await hmacSha256Binary(kRegion, service)
-  const kSigning = await hmacSha256Binary(kService, 'aws4_request')
-  
-  const signatureBuffer = await hmacSha256Binary(kSigning, stringToSign)
-  const signature = Array.from(signatureBuffer)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-  
-  const authorization = `${algorithm} Credential=${R2_ACCESS_KEY_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
-  
-  const uploadResponse = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': contentType,
-      'x-amz-date': amzDate,
-      'Authorization': authorization,
-      'x-amz-content-sha256': payloadHash,
-    },
-    body: fileBytes,
+  const uploadResponse = await fetch(`${WORKERS_API_URL}/api/upload`, {
+    method: 'POST',
+    body: formData,
   })
   
   if (!uploadResponse.ok) {
     const errorText = await uploadResponse.text()
-    throw new Error(`R2 업로드 실패: ${uploadResponse.status} - ${errorText}`)
+    throw new Error(`Workers API 업로드 실패: ${uploadResponse.status} - ${errorText}`)
   }
   
-  return `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${filePath}`
+  const result = await uploadResponse.json()
+  return result.url || `${R2_PUBLIC_URL}/${filePath}`
 }
 
 async function deleteFromR2(filePath: string): Promise<void> {
-  const url = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${filePath}`
-  
-  const region = 'auto'
-  const service = 's3'
-  const algorithm = 'AWS4-HMAC-SHA256'
-  
-  const date = new Date()
-  const dateStamp = date.toISOString().slice(0, 10).replace(/-/g, '')
-  const amzDate = date.toISOString().replace(/[:\-]|\.\d{3}/g, '')
-  
-  const canonicalHeaders = `host:${R2_ACCOUNT_ID}.r2.cloudflarestorage.com\n`
-  const signedHeaders = 'host'
-  const payloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-  
-  const canonicalRequest = [
-    'DELETE',
-    `/${R2_BUCKET_NAME}/${filePath}`,
-    '',
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash
-  ].join('\n')
-  
-  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`
-  const hashedCanonicalRequest = await sha256(canonicalRequest)
-  const stringToSign = [
-    algorithm,
-    amzDate,
-    credentialScope,
-    hashedCanonicalRequest
-  ].join('\n')
-  
-  const kSecret = `AWS4${R2_SECRET_ACCESS_KEY}`
-  const kDate = await hmacSha256Binary(kSecret, dateStamp)
-  const kRegion = await hmacSha256Binary(kDate, region)
-  const kService = await hmacSha256Binary(kRegion, service)
-  const kSigning = await hmacSha256Binary(kService, 'aws4_request')
-  
-  const signatureBuffer = await hmacSha256Binary(kSigning, stringToSign)
-  const signature = Array.from(signatureBuffer)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-  
-  const authorization = `${algorithm} Credential=${R2_ACCESS_KEY_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
-  
-  const deleteResponse = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      'x-amz-date': amzDate,
-      'Authorization': authorization,
-      'x-amz-content-sha256': payloadHash,
-    },
-  })
-  
-  if (!deleteResponse.ok && deleteResponse.status !== 404) {
-    console.warn(`R2 파일 삭제 실패 (무시): ${deleteResponse.status}`)
-  }
+  // Workers API를 통해 파일 삭제 (필요한 경우)
+  // 현재는 삭제 기능이 Workers API에 없으므로 무시
+  console.log(`파일 삭제 스킵: ${filePath} (Workers API에서 삭제 기능 지원 필요)`)
 }
 
 // ============================================
@@ -494,6 +471,29 @@ serve(async (req) => {
     let companyId: string | null = null
 
     try {
+      // 0단계: 이미지 검증 (사업자등록증인지 확인)
+      console.log('🔍 0단계: 이미지 검증 시작 (사업자등록증 확인)')
+      try {
+        const isBusinessRegistration = await verifyBusinessRegistrationImage(image)
+        if (!isBusinessRegistration) {
+          throw new Error('업로드된 이미지가 사업자등록증이 아닙니다. 정확한 사업자등록증 이미지를 업로드해주세요.')
+        }
+        console.log('✅ 이미지 검증 완료: 사업자등록증 확인됨')
+      } catch (verificationError) {
+        const errorResponse: VerifyAndRegisterResponse = {
+          success: false,
+          error: verificationError instanceof Error ? verificationError.message : '이미지 검증 실패',
+          step: 'image_verification',
+        }
+        return new Response(
+          JSON.stringify(errorResponse),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200, // 검증 실패는 정상 응답 (200)
+          }
+        )
+      }
+
       // 1단계: AI 추출
       console.log('🤖 1단계: AI 추출 시작')
       extractedData = await extractBusinessInfo(image)
@@ -531,7 +531,7 @@ serve(async (req) => {
       const contentType = fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/png'
       const filePath = generateFilePath(user.id, fileName)
       
-      uploadedFileUrl = await uploadToR2(fileBytes, filePath, contentType)
+      uploadedFileUrl = await uploadToR2(fileBytes, filePath, contentType, user.id)
       console.log('✅ 파일 업로드 완료:', uploadedFileUrl)
 
       // 4단계: DB 저장
@@ -648,11 +648,9 @@ serve(async (req) => {
       // 롤백: 업로드된 파일 삭제
       if (uploadedFileUrl) {
         try {
-          const filePath = uploadedFileUrl.split(`${R2_BUCKET_NAME}/`)[1]
-          if (filePath) {
-            await deleteFromR2(filePath)
-            console.log('🗑️ 롤백: 파일 삭제 완료')
-          }
+          // Workers API를 통해 업로드된 파일이므로 삭제는 스킵
+          // (필요시 Workers API에 DELETE 엔드포인트 추가 필요)
+          console.log('🗑️ 롤백: 파일 삭제 스킵 (Workers API 삭제 기능 필요)')
         } catch (deleteError) {
           console.error('⚠️ 롤백: 파일 삭제 실패:', deleteError)
         }
@@ -674,6 +672,11 @@ serve(async (req) => {
         validationResult: validationResult || undefined,
         error: error instanceof Error ? error.message : String(error),
         step: uploadedFileUrl ? 'database' : validationResult ? 'upload' : extractedData ? 'validation' : 'extraction',
+      }
+
+      // 이미지 검증 단계에서 실패한 경우 특별 처리
+      if (error instanceof Error && error.message.includes('사업자등록증이 아닙니다')) {
+        errorResponse.step = 'image_verification'
       }
 
       return new Response(

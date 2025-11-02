@@ -31,11 +31,11 @@ class ReviewerDrawer extends ConsumerWidget {
                 _buildMenuItem(
                   context: context,
                   icon: Icons.campaign_outlined,
-                  title: '캠페인 신청내역',
-                  routePath: '/mypage/reviewer/applications',
+                  title: '나의 캠페인',
+                  routePath: '/mypage/reviewer/my-campaigns',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/mypage/reviewer/applications');
+                    context.go('/mypage/reviewer/my-campaigns');
                   },
                 ),
                 _buildMenuItem(
