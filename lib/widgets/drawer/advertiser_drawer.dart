@@ -74,6 +74,18 @@ class AdvertiserDrawer extends ConsumerWidget {
                     context.go('/mypage/advertiser/participants');
                   },
                 ),
+                // 매니저 관리 (owner만 표시)
+                if (user.companyRole?.name == 'owner')
+                  _buildMenuItem(
+                    context: context,
+                    icon: Icons.manage_accounts_outlined,
+                    title: '매니저 관리',
+                    routePath: '/mypage/advertiser/managers',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/mypage/advertiser/managers');
+                    },
+                  ),
 
                 const Divider(),
 

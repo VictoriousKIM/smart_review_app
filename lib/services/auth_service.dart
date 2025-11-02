@@ -328,9 +328,9 @@ class AuthService {
 
       // 중요: 클라이언트에서는 auth.admin.deleteUser를 호출할 수 없음 (관리자 권한 필요)
       // 회원가입 실패 시에도 orphaned user를 생성하지 않도록 에러만 throw
-      // 실제 롤백은 서버 사이드(Edge Function)에서 처리하거나, 
+      // 실제 롤백은 서버 사이드(Edge Function)에서 처리하거나,
       // 데이터베이스 트랜잭션으로 처리해야 함
-      
+
       if (isSignUp) {
         debugPrint(
           '⚠️ 회원가입 중 프로필 생성 실패: ${user.id}. '
@@ -382,13 +382,19 @@ class AuthService {
     } catch (e) {
       // 정확한 에러 타입 확인: 프로필이 없는 경우에만 생성 시도
       // PGRST116: no rows returned (프로필이 없음)
-      final isProfileNotFound = e is PostgrestException && 
+      final isProfileNotFound =
+          e is PostgrestException &&
           (e.code == 'PGRST116' || e.message.contains('No rows returned'));
-      
+
       if (isProfileNotFound) {
         debugPrint('사용자 프로필이 없음, 생성 시도: ${user.id}');
         // 프로필이 없으면 생성
-        await _createUserProfile(user, displayName, userType, isSignUp: isSignUp);
+        await _createUserProfile(
+          user,
+          displayName,
+          userType,
+          isSignUp: isSignUp,
+        );
       } else {
         // 다른 에러(네트워크, 권한 등)는 재throw
         debugPrint('프로필 조회 중 예상치 못한 에러 발생: ${user.id}, 에러: $e');
@@ -412,7 +418,6 @@ class AuthService {
         params: {
           'p_user_id': user.uid,
           'p_display_name': updates['display_name'],
-          'p_company_id': updates['company_id'],
         },
       );
 

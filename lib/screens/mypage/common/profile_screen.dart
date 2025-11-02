@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/point_service.dart';
+import '../../../services/company_service.dart';
 import '../../../models/user.dart' as app_user;
 import 'business_registration_form.dart';
 
@@ -25,6 +26,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   final _displayNameController = TextEditingController();
   final _emailController = TextEditingController();
   final AuthService _authService = AuthService();
+  Map<String, dynamic>? _existingCompanyData;
+  bool _isLoadingCompanyData = false;
+  Map<String, dynamic>? _pendingManagerRequest;
+  bool _isLoadingPendingRequest = false;
 
   late TabController _tabController;
 
@@ -33,6 +38,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadUserProfile();
+    _loadCompanyData();
+    _loadPendingManagerRequest();
 
     // URL 파라미터로 사업자 탭을 요청한 경우 자동으로 사업자 탭으로 이동
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -695,8 +702,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       child: Column(
         children: [
           const SizedBox(height: 24),
-          // 사업자등록폼 통합
+          // 사업자등록폼 통합 (제일 위)
           _buildBusinessRegistrationForm(),
+          // 사업자 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
+          if (_existingCompanyData == null && !_isLoadingCompanyData) ...[
+            const SizedBox(height: 24),
+            _buildManagerRequestButton(),
+          ],
         ],
       ),
     );
@@ -717,7 +729,516 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
         ],
       ),
-      child: const BusinessRegistrationForm(),
+      child: BusinessRegistrationForm(
+        hasPendingManagerRequest: _pendingManagerRequest != null,
+      ),
+    );
+  }
+
+  /// 회사 데이터 로드
+  Future<void> _loadCompanyData() async {
+    try {
+      setState(() {
+        _isLoadingCompanyData = true;
+      });
+
+      final user = await _authService.currentUser;
+      if (user == null) {
+        return;
+      }
+
+      final companyData = await CompanyService.getCompanyByUserId(user.uid);
+      setState(() {
+        _existingCompanyData = companyData;
+        _isLoadingCompanyData = false;
+      });
+    } catch (e) {
+      print('❌ 회사 데이터 로드 실패: $e');
+      setState(() {
+        _isLoadingCompanyData = false;
+      });
+    }
+  }
+
+  /// 매니저 등록 요청 버튼
+  Widget _buildManagerRequestButton() {
+    // pending 또는 rejected 요청이 있으면 상태 표시
+    if (_pendingManagerRequest != null && !_isLoadingPendingRequest) {
+      final status = _pendingManagerRequest!['status'] ?? 'pending';
+      final isRejected = status == 'rejected';
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withValues(alpha: 0.1),
+              spreadRadius: 1,
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  '매니저 등록',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isRejected ? Colors.red[100] : Colors.orange[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isRejected ? '거절됨' : '신청 중',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isRejected ? Colors.red[700] : Colors.orange[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.business, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '사업자명',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _pendingManagerRequest!['business_name'] ?? '',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.numbers, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '사업자등록번호',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _pendingManagerRequest!['business_number'] ?? '',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_pendingManagerRequest!['requested_at'] != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '신청일시',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                        Text(
+                          _formatRequestDate(
+                            _pendingManagerRequest!['requested_at'],
+                          ),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isRejected
+                  ? '매니저 등록 요청이 거절되었습니다.'
+                  : '승인 대기 중입니다. 승인 완료 시 회사 매니저로 등록됩니다.',
+              style: TextStyle(
+                fontSize: 13,
+                color: isRejected ? Colors.red[600] : Colors.grey[600],
+                fontStyle: isRejected ? FontStyle.normal : FontStyle.italic,
+                fontWeight: isRejected ? FontWeight.w500 : FontWeight.normal,
+              ),
+            ),
+            if (!isRejected) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showCancelManagerRequestDialog(),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text(
+                    '신청 취소',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red[600],
+                    side: BorderSide(color: Colors.red[300]!),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // pending 요청이 없으면 새로 신청하는 버튼
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '매니저 등록',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '사업자 등록이 완료된 회사의 매니저로 등록을 요청할 수 있습니다.',
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showManagerRequestDialog(),
+              icon: const Icon(Icons.person_add, size: 20),
+              label: const Text(
+                '매니저 등록 요청',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 신청일시 포맷팅
+  String _formatRequestDate(dynamic dateValue) {
+    try {
+      if (dateValue == null) return '';
+
+      DateTime date;
+      if (dateValue is String) {
+        date = DateTime.parse(dateValue);
+      } else if (dateValue is DateTime) {
+        date = dateValue;
+      } else {
+        return '';
+      }
+
+      return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// 매니저 등록 요청 취소 다이얼로그
+  void _showCancelManagerRequestDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('신청 취소'),
+        content: const Text('매니저 등록 요청을 취소하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('아니오'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _cancelManagerRequest();
+            },
+            child: Text('예', style: TextStyle(color: Colors.red[600])),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 매니저 등록 요청 취소
+  Future<void> _cancelManagerRequest() async {
+    try {
+      final user = await _authService.currentUser;
+      if (user == null) {
+        return;
+      }
+
+      await CompanyService.cancelManagerRequest(user.uid);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('매니저 등록 요청이 취소되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      // 상태 새로고침
+      await _loadPendingManagerRequest();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('요청 취소 실패: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  /// pending 매니저 요청 로드
+  Future<void> _loadPendingManagerRequest() async {
+    try {
+      setState(() {
+        _isLoadingPendingRequest = true;
+      });
+
+      final user = await _authService.currentUser;
+      if (user == null) {
+        return;
+      }
+
+      final pendingRequest = await CompanyService.getPendingManagerRequest(
+        user.uid,
+      );
+      setState(() {
+        _pendingManagerRequest = pendingRequest;
+        _isLoadingPendingRequest = false;
+      });
+    } catch (e) {
+      print('❌ pending 매니저 요청 로드 실패: $e');
+      setState(() {
+        _isLoadingPendingRequest = false;
+      });
+    }
+  }
+
+  /// 매니저 등록 요청 다이얼로그
+  void _showManagerRequestDialog() {
+    final businessNameController = TextEditingController();
+    final businessNumberController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('매니저 등록 요청'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: businessNameController,
+                    decoration: const InputDecoration(
+                      labelText: '사업자명',
+                      hintText: '등록된 사업자명을 입력하세요',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return '사업자명을 입력해주세요';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: businessNumberController,
+                    decoration: const InputDecoration(
+                      labelText: '사업자등록번호',
+                      hintText: '123-45-67890',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return '사업자등록번호를 입력해주세요';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (isSubmitting) ...[
+                    const SizedBox(height: 16),
+                    const Center(child: CircularProgressIndicator()),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () {
+                      Navigator.pop(dialogContext);
+                    },
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (formKey.currentState!.validate()) {
+                        setDialogState(() {
+                          isSubmitting = true;
+                        });
+
+                        try {
+                          await CompanyService.requestManagerRole(
+                            businessName: businessNameController.text.trim(),
+                            businessNumber: businessNumberController.text
+                                .trim(),
+                          );
+
+                          if (context.mounted) {
+                            Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  '매니저 등록 요청이 완료되었습니다. 승인 대기 중입니다.',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            // 회사 데이터 및 pending 요청 다시 로드
+                            await _loadCompanyData();
+                            await _loadPendingManagerRequest();
+                          }
+                        } catch (e) {
+                          setDialogState(() {
+                            isSubmitting = false;
+                          });
+
+                          String errorMessage = '등록 요청 실패: $e';
+                          if (e.toString().contains('1분 후에 다시 시도')) {
+                            errorMessage = '3번 틀리셨습니다. 1분 후에 다시 시도해주세요.';
+                          } else if (e.toString().contains('등록된 사업자정보가 없습니다')) {
+                            final match = RegExp(
+                              r'\((\d+)/3\)',
+                            ).firstMatch(e.toString());
+                            if (match != null) {
+                              final count = match.group(1);
+                              errorMessage = '등록된 사업자정보가 없습니다. ($count/3)';
+                            }
+                          }
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(errorMessage),
+                                backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('요청하기'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -52,3 +52,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+.package-lock.json
+
+# Workers 관련
+.wrangler/
+workers/node_modules/
+workers/.dev.vars

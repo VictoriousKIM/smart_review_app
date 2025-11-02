@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict sT2YukyzFqDvIevcD6yUz4sR9lAub7IpXPBDdBmy8zPcorxoqyfjpzfYmCWHiRt
+-- \restrict 1RvMhVJKmNIlDjbeZqIci1NNNwocXPpwcDPn0nVtFE6gQ55rhvHlq8hmjZKmB31
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -227,7 +227,8 @@ INSERT INTO "auth"."audit_log_entries" ("instance_id", "id", "payload", "created
 	('00000000-0000-0000-0000-000000000000', '6e7e20dc-2137-4ebc-8599-825fcdb450b9', '{"action":"login","actor_id":"00464045-9627-489e-a9c8-b8f5c9529d73","actor_username":"company_owner@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-10-31 02:01:59.678865+00', ''),
 	('00000000-0000-0000-0000-000000000000', '130283e0-328d-47ed-b664-aec897667bb0', '{"action":"user_signedup","actor_id":"d60c7575-e928-4899-a536-0729e96fd34a","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"team","traits":{"provider":"email"}}', '2025-10-31 02:02:19.471387+00', ''),
 	('00000000-0000-0000-0000-000000000000', '720a1b75-7d8a-45a7-a73a-6ef16bf8d339', '{"action":"login","actor_id":"d60c7575-e928-4899-a536-0729e96fd34a","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-10-31 02:02:19.47522+00', ''),
-	('00000000-0000-0000-0000-000000000000', '4a5d074f-f263-4242-b565-edfc159e7f19', '{"action":"logout","actor_id":"d60c7575-e928-4899-a536-0729e96fd34a","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"account"}', '2025-10-31 02:02:24.71274+00', '');
+	('00000000-0000-0000-0000-000000000000', '4a5d074f-f263-4242-b565-edfc159e7f19', '{"action":"logout","actor_id":"d60c7575-e928-4899-a536-0729e96fd34a","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"account"}', '2025-10-31 02:02:24.71274+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'e6853118-7f24-4fe1-a1f1-4e6fdfbc2005', '{"action":"login","actor_id":"a05db6f3-12d2-4b22-a9de-0fd636cbdb22","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-02 12:22:41.375248+00', '');
 
 
 --
@@ -268,11 +269,11 @@ INSERT INTO "auth"."flow_state" ("id", "user_id", "auth_code", "code_challenge_m
 --
 
 INSERT INTO "auth"."users" ("instance_id", "id", "aud", "role", "email", "encrypted_password", "email_confirmed_at", "invited_at", "confirmation_token", "confirmation_sent_at", "recovery_token", "recovery_sent_at", "email_change_token_new", "email_change", "email_change_sent_at", "last_sign_in_at", "raw_app_meta_data", "raw_user_meta_data", "is_super_admin", "created_at", "updated_at", "phone", "phone_confirmed_at", "phone_change", "phone_change_token", "phone_change_sent_at", "email_change_token_current", "email_change_confirm_status", "banned_until", "reauthentication_token", "reauthentication_sent_at", "is_sso_user", "deleted_at", "is_anonymous") VALUES
-	('00000000-0000-0000-0000-000000000000', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', 'authenticated', 'authenticated', 'dev@example.com', '$2a$10$koLPWg.2X7VI1t6cCm5Tj.cxaW0c4xtPO74/CqkhXufnDgvFyqpuS', '2025-10-31 02:00:09.303513+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:00:09.307152+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "a05db6f3-12d2-4b22-a9de-0fd636cbdb22", "email": "dev@example.com", "display_name": "dev", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:00:09.299936+00', '2025-10-31 02:00:09.308198+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
 	('00000000-0000-0000-0000-000000000000', 'd60c7575-e928-4899-a536-0729e96fd34a', 'authenticated', 'authenticated', 'company_manger@example.com', '$2a$10$/0Jd.tFxRkyfd2aXSDpSPOowUhVa3K1hKrYfRSUz0jLzGol/Z1WNO', '2025-10-31 02:02:19.471844+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:02:19.47567+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "d60c7575-e928-4899-a536-0729e96fd34a", "email": "company_manger@example.com", "display_name": "company_manger", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:02:19.468886+00', '2025-10-31 02:02:19.476568+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
 	('00000000-0000-0000-0000-000000000000', '44527cf5-363a-4f99-b17a-dbe28221f5d6', 'authenticated', 'authenticated', 'reviewer@example.com', '$2a$10$RjlBKUXuqN/EvW/SPCyBK.QqZkjfxiL1lXHyvFhbdx/qrcO2HK0Sq', '2025-10-31 02:01:44.203867+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:01:44.207417+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "44527cf5-363a-4f99-b17a-dbe28221f5d6", "email": "reviewer@example.com", "display_name": "reviewer", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:01:44.200791+00', '2025-10-31 02:01:44.208286+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
 	('00000000-0000-0000-0000-000000000000', '407c6527-5afd-4a16-96fa-266f10f2606f', 'authenticated', 'authenticated', 'test@example.com', '$2a$10$X7oViFtcjAUt.wITQEaoVOyDucOAV.zGaeCa7phr4Mpa2RM8yEu9.', '2025-10-31 02:00:44.152003+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:00:44.15504+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "407c6527-5afd-4a16-96fa-266f10f2606f", "email": "test@example.com", "display_name": "test", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:00:44.14947+00', '2025-10-31 02:00:44.155812+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
-	('00000000-0000-0000-0000-000000000000', '00464045-9627-489e-a9c8-b8f5c9529d73', 'authenticated', 'authenticated', 'company_owner@example.com', '$2a$10$KV8mnxaOmD2FESqjGZAG8uwe1fMhcp1Gc9w8vmI0eaAKLPavyeDbi', '2025-10-31 02:01:59.676105+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:01:59.679217+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "00464045-9627-489e-a9c8-b8f5c9529d73", "email": "company_owner@example.com", "display_name": "company_owner", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:01:59.673276+00', '2025-10-31 02:01:59.68003+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+	('00000000-0000-0000-0000-000000000000', '00464045-9627-489e-a9c8-b8f5c9529d73', 'authenticated', 'authenticated', 'company_owner@example.com', '$2a$10$KV8mnxaOmD2FESqjGZAG8uwe1fMhcp1Gc9w8vmI0eaAKLPavyeDbi', '2025-10-31 02:01:59.676105+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-10-31 02:01:59.679217+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "00464045-9627-489e-a9c8-b8f5c9529d73", "email": "company_owner@example.com", "display_name": "company_owner", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:01:59.673276+00', '2025-10-31 02:01:59.68003+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
+	('00000000-0000-0000-0000-000000000000', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', 'authenticated', 'authenticated', 'dev@example.com', '$2a$10$koLPWg.2X7VI1t6cCm5Tj.cxaW0c4xtPO74/CqkhXufnDgvFyqpuS', '2025-10-31 02:00:09.303513+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-02 12:22:41.376676+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "a05db6f3-12d2-4b22-a9de-0fd636cbdb22", "email": "dev@example.com", "display_name": "dev", "email_verified": true, "phone_verified": false}', NULL, '2025-10-31 02:00:09.299936+00', '2025-11-02 12:22:41.388729+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 
 
 --
@@ -297,12 +298,16 @@ INSERT INTO "auth"."identities" ("provider_id", "user_id", "identity_data", "pro
 -- Data for Name: sessions; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
+INSERT INTO "auth"."sessions" ("id", "user_id", "created_at", "updated_at", "factor_id", "aal", "not_after", "refreshed_at", "user_agent", "ip", "tag") VALUES
+	('387ae7d9-c957-462a-9aeb-328b81cd9b76', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', '2025-11-02 12:22:41.379744+00', '2025-11-02 12:22:41.379744+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '172.18.0.1', NULL);
 
 
 --
 -- Data for Name: mfa_amr_claims; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
+INSERT INTO "auth"."mfa_amr_claims" ("session_id", "created_at", "updated_at", "authentication_method", "id") VALUES
+	('387ae7d9-c957-462a-9aeb-328b81cd9b76', '2025-11-02 12:22:41.390879+00', '2025-11-02 12:22:41.390879+00', 'password', '4d76b66a-b60f-4403-83bd-6d0f0af44130');
 
 
 --
@@ -333,6 +338,8 @@ INSERT INTO "auth"."identities" ("provider_id", "user_id", "identity_data", "pro
 -- Data for Name: refresh_tokens; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
+INSERT INTO "auth"."refresh_tokens" ("instance_id", "id", "token", "user_id", "revoked", "created_at", "updated_at", "parent", "session_id") VALUES
+	('00000000-0000-0000-0000-000000000000', 70, '2gyy6stvnhwf', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', false, '2025-11-02 12:22:41.38564+00', '2025-11-02 12:22:41.38564+00', NULL, '387ae7d9-c957-462a-9aeb-328b81cd9b76');
 
 
 --
@@ -364,17 +371,19 @@ INSERT INTO "auth"."identities" ("provider_id", "user_id", "identity_data", "pro
 --
 
 INSERT INTO "public"."users" ("id", "created_at", "updated_at", "display_name", "user_type") VALUES
-	('a05db6f3-12d2-4b22-a9de-0fd636cbdb22', '2025-10-31 02:00:09.336657+00', '2025-10-31 02:00:09.345754+00', 'dev', 'user'),
-	('407c6527-5afd-4a16-96fa-266f10f2606f', '2025-10-31 02:00:44.185451+00', '2025-10-31 02:00:44.185447+00', 'test', 'user'),
 	('44527cf5-363a-4f99-b17a-dbe28221f5d6', '2025-10-31 02:01:44.244418+00', '2025-10-31 02:01:44.246559+00', 'reviewer', 'user'),
 	('00464045-9627-489e-a9c8-b8f5c9529d73', '2025-10-31 02:01:59.697153+00', '2025-10-31 02:01:59.697153+00', 'company_owner', 'user'),
-	('d60c7575-e928-4899-a536-0729e96fd34a', '2025-10-31 02:02:19.499361+00', '2025-10-31 02:02:19.501242+00', 'company_manger', 'user');
+	('d60c7575-e928-4899-a536-0729e96fd34a', '2025-10-31 02:02:19.499361+00', '2025-10-31 02:02:19.501242+00', 'company_manger', 'user'),
+	('407c6527-5afd-4a16-96fa-266f10f2606f', '2025-10-31 02:00:44.185451+00', '2025-11-02 11:30:53.131248+00', 'test123', 'user'),
+	('a05db6f3-12d2-4b22-a9de-0fd636cbdb22', '2025-10-31 02:00:09.336657+00', '2025-11-02 12:22:41.459816+00', 'dev', 'user');
 
 
 --
 -- Data for Name: companies; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO "public"."companies" ("id", "business_name", "business_number", "contact_email", "contact_phone", "address", "representative_name", "business_type", "registration_file_url", "user_id", "created_at", "updated_at") VALUES
+	('9b930f18-e691-4b8a-a00a-912e687e82de', '포인터스', '8677000726', NULL, NULL, '충청남도 천안시 서북구 직산읍 부송상덕길 28', '김동익', '도매 및 소매업', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/business-registration/2025/11/02/a05db6f3-12d2-4b22-a9de-0fd636cbdb22_1762086183216.png', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', '2025-11-02 12:23:00.428404+00', '2025-11-02 12:23:00.428404+00');
 
 
 --
@@ -393,6 +402,8 @@ INSERT INTO "public"."users" ("id", "created_at", "updated_at", "display_name", 
 -- Data for Name: company_users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO "public"."company_users" ("id", "company_id", "user_id", "company_role", "created_at", "status") VALUES
+	('ac0d41d8-c757-45d4-9d3c-16d271c66331', '9b930f18-e691-4b8a-a00a-912e687e82de', 'a05db6f3-12d2-4b22-a9de-0fd636cbdb22', 'owner', '2025-11-02 12:23:00.428404+00', 'active');
 
 
 --
@@ -453,7 +464,7 @@ INSERT INTO "public"."point_wallets" ("id", "wallet_type", "user_id", "current_p
 -- Name: refresh_tokens_id_seq; Type: SEQUENCE SET; Schema: auth; Owner: supabase_auth_admin
 --
 
-SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 69, true);
+SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 70, true);
 
 
 --
@@ -467,6 +478,6 @@ SELECT pg_catalog.setval('"supabase_functions"."hooks_id_seq"', 1, false);
 -- PostgreSQL database dump complete
 --
 
--- \unrestrict sT2YukyzFqDvIevcD6yUz4sR9lAub7IpXPBDdBmy8zPcorxoqyfjpzfYmCWHiRt
+-- \unrestrict 1RvMhVJKmNIlDjbeZqIci1NNNwocXPpwcDPn0nVtFE6gQ55rhvHlq8hmjZKmB31
 
 RESET ALL;

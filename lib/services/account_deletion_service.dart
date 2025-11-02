@@ -44,11 +44,12 @@ class AccountDeletionService {
           .eq('id', user.id)
           .single();
 
-      // 사용자의 회사 정보 조회
+      // 사용자의 회사 정보 조회 (status='active'만)
       final companyResponse = await _supabase
           .from('company_users')
           .select('company_id')
           .eq('user_id', user.id)
+          .eq('status', 'active')
           .maybeSingle();
 
       final companyId = companyResponse?['company_id'];
@@ -78,12 +79,13 @@ class AccountDeletionService {
       if (companyId != null) {
         final deletedUserIds = await _getDeletedUserIds();
 
-        // company_users 테이블에서 해당 회사의 오너들 조회
+        // company_users 테이블에서 해당 회사의 오너들 조회 (status='active'만)
         final companyOwnersResponse = await _supabase
             .from('company_users')
             .select('user_id')
             .eq('company_id', companyId)
-            .eq('company_role', 'owner');
+            .eq('company_role', 'owner')
+            .eq('status', 'active');
 
         // users 테이블에서 다른 오너 정보 조회 (자신 제외)
         final ownerIds = companyOwnersResponse

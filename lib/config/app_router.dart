@@ -24,6 +24,7 @@ import '../screens/common/inquiry_screen.dart';
 import '../screens/common/advertisement_inquiry_screen.dart';
 import '../screens/mypage/advertiser/advertiser_analytics_screen.dart';
 import '../screens/mypage/advertiser/advertiser_participants_screen.dart';
+import '../screens/mypage/advertiser/advertiser_manager_screen.dart';
 import '../screens/mypage/advertiser/advertiser_company_screen.dart';
 import '../screens/mypage/advertiser/advertiser_penalties_screen.dart';
 import '../screens/settings/notification_settings_screen.dart';
@@ -232,6 +233,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/mypage/advertiser/participants',
             name: 'advertiser-participants',
             builder: (context, state) => const AdvertiserParticipantsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/advertiser/managers',
+            name: 'advertiser-managers',
+            builder: (context, state) => const AdvertiserManagerScreen(),
           ),
           GoRoute(
             path: '/mypage/advertiser/company',

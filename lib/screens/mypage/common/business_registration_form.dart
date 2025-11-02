@@ -7,11 +7,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../services/company_service.dart';
-import '../../../services/r2_upload_service.dart';
+import '../../../services/cloudflare_workers_service.dart';
 import '../../../config/supabase_config.dart';
 
 class BusinessRegistrationForm extends ConsumerStatefulWidget {
-  const BusinessRegistrationForm({super.key});
+  final bool hasPendingManagerRequest;
+
+  const BusinessRegistrationForm({
+    super.key,
+    this.hasPendingManagerRequest = false,
+  });
 
   @override
   ConsumerState<BusinessRegistrationForm> createState() =>
@@ -94,7 +99,48 @@ class _BusinessRegistrationFormState
             style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
           const SizedBox(height: 20),
-          if (_selectedFileBytes == null && _existingImageUrl == null) ...[
+          // 매니저 등록 신청 중일 때 업로드 차단
+          if (widget.hasPendingManagerRequest && _selectedFileBytes == null && _existingImageUrl == null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.orange[200]!,
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 32,
+                    color: Colors.orange[700],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '매니저 등록 신청 중',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange[700],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '매니저 등록 신청이 진행 중인 경우 사업자 등록을 할 수 없습니다.\n매니저 등록 신청이 완료되거나 취소된 후 다시 시도해주세요.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ] else if (_selectedFileBytes == null && _existingImageUrl == null && !widget.hasPendingManagerRequest) ...[
             GestureDetector(
               onTap: _selectFile,
               child: Container(
@@ -201,8 +247,8 @@ class _BusinessRegistrationFormState
                   ),
                 ),
                 const SizedBox(height: 16),
-                // 검증하기 버튼 (파일 선택되었고 아직 처리되지 않았을 때만 표시)
-                if (!_isProcessing && !_isDataSaved)
+                // 검증하기 버튼 (파일 선택되었고 아직 처리되지 않았을 때만 표시, 매니저 신청 중이 아닐 때만)
+                if (!_isProcessing && !_isDataSaved && !widget.hasPendingManagerRequest)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -268,7 +314,7 @@ class _BusinessRegistrationFormState
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: FutureBuilder<String>(
-                      future: R2UploadService.getPresignedUrlForViewing(
+                      future: CloudflareWorkersService.getPresignedUrlForViewing(
                         _existingImageUrl!,
                       ),
                       builder: (context, snapshot) {
@@ -672,6 +718,19 @@ class _BusinessRegistrationFormState
   }
 
   Future<void> _selectFile() async {
+    // 매니저 등록 신청 중일 때 파일 선택 차단
+    if (widget.hasPendingManagerRequest) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('매니저 등록 신청 중에는 사업자 등록을 할 수 없습니다.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       // 웹 환경에서 파일 선택이 제대로 작동하지 않는 경우를 위한 디버그 로그
       print('🔍 파일 선택 시작 - 플랫폼: ${Theme.of(context).platform}');
@@ -811,6 +870,19 @@ class _BusinessRegistrationFormState
 
   Future<void> _processWithAI() async {
     if (_selectedFileBytes == null) return;
+
+    // 매니저 등록 신청 중일 때 처리 차단
+    if (widget.hasPendingManagerRequest) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('매니저 등록 신청 중에는 사업자 등록을 할 수 없습니다.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() {
       _isProcessing = true;

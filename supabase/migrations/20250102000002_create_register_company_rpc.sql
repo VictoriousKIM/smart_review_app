@@ -70,11 +70,13 @@ BEGIN
       company_id,
       user_id,
       company_role,
+      status,
       created_at
     ) VALUES (
       v_company_id,
       p_user_id,
       'owner',
+      'active',
       NOW()
     );
   END IF;

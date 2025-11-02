@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Cloudflare Workers API for Smart Review App",
   "main": "workers/index.ts",
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
@@ -10,7 +11,15 @@
     "deploy:prod": "wrangler deploy --env production",
     "tail": "wrangler tail",
     "tail:dev": "wrangler tail --env development",
-    "tail:prod": "wrangler tail --env production"
+    "tail:prod": "wrangler tail --env production",
+    "cleanup:r2": "node -e \"require('fs').readFileSync('.dev.vars', 'utf-8').split('\\n').forEach(line => { const match = line.match(/^([^=]+)=(.*)$/); if (match) process.env[match[1]] = match[2]; });\" && node scripts/cleanup-r2.js",
+    "cleanup:r2:execute": "node -e \"require('fs').readFileSync('.dev.vars', 'utf-8').split('\\n').forEach(line => { const match = line.match(/^([^=]+)=(.*)$/); if (match) process.env[match[1]] = match[2]; });\" && node scripts/cleanup-r2.js --cleanup"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.922.0"
+  },
+  "devDependencies": {
+    "aws-sdk": "^2.1692.0",
+    "xml2js": "^0.6.2"
   }
 }
-

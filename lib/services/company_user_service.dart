@@ -8,11 +8,12 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
-      // company_users 테이블에서 사용자의 역할 확인
+      // company_users 테이블에서 사용자의 역할 확인 (status='active'만)
       final response = await supabase
           .from('company_users')
           .select('company_role')
           .eq('user_id', userId)
+          .eq('status', 'active')
           .or('company_role.eq.owner,company_role.eq.manager')
           .maybeSingle();
 
@@ -28,10 +29,12 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
+      // status='active'만 조회
       final response = await supabase
           .from('company_users')
           .select('company_role')
           .eq('user_id', userId)
+          .eq('status', 'active')
           .maybeSingle();
 
       return response?['company_role'] as String?;
@@ -46,10 +49,12 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
+      // status='active'만 조회
       final response = await supabase
           .from('company_users')
           .select('id')
           .eq('user_id', userId)
+          .eq('status', 'active')
           .maybeSingle();
 
       return response != null;
@@ -64,10 +69,12 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
+      // status='active'만 조회
       final response = await supabase
           .from('company_users')
           .select('company_id')
           .eq('user_id', userId)
+          .eq('status', 'active')
           .maybeSingle();
 
       return response?['company_id'] as String?;
