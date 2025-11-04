@@ -258,7 +258,7 @@ class CampaignApplicationService {
 
       // 신청 정보 조회
       final application = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('campaign_id, campaigns!inner(user_id)')
           .eq('id', applicationId)
           .single();
@@ -301,7 +301,7 @@ class CampaignApplicationService {
 
       // 업데이트된 로그 조회
       final updatedLog = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select()
           .eq('id', applicationId)
           .single();
@@ -325,7 +325,7 @@ class CampaignApplicationService {
 
       // 신청 정보 조회 및 권한 확인
       final application = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('user_id, status')
           .eq('id', applicationId)
           .single();
@@ -342,7 +342,7 @@ class CampaignApplicationService {
       }
 
       // 신청 삭제
-      await _supabase.from('campaign_logs').delete().eq('id', applicationId);
+      await _supabase.from('campaign_events').delete().eq('id', applicationId);
 
       return ApiResponse<void>(success: true);
     } catch (e) {

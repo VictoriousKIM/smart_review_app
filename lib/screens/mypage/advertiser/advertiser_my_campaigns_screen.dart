@@ -149,7 +149,7 @@ class _AdvertiserMyCampaignsScreenState
         }).toList();
 
         // 선정완료: active 상태이지만 참여자 선정이 완료된 경우
-        // (실제로는 campaign_logs의 approved 상태를 확인해야 하지만, 여기서는 간단히 처리)
+        // (실제로는 campaign_events의 approved 상태를 확인해야 하지만, 여기서는 간단히 처리)
         _selectedCampaigns = _recruitingCampaigns.where((campaign) {
           return campaign.currentParticipants >=
               (campaign.maxParticipants ?? 0);

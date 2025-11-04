@@ -177,7 +177,7 @@ class AccountDeletionService {
 
       // 캠페인 로그
       final campaignLogsData = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('*')
           .eq('user_id', user.id);
 

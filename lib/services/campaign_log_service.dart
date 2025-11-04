@@ -18,7 +18,7 @@ class CampaignLogService {
     try {
       // 이미 신청했는지 확인
       final existingLog = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('id')
           .eq('campaign_id', campaignId)
           .eq('user_id', userId)
@@ -30,7 +30,7 @@ class CampaignLogService {
 
       // 새 로그 생성
       final response = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .insert({
             'campaign_id': campaignId,
             'user_id': userId,
@@ -60,7 +60,7 @@ class CampaignLogService {
     try {
       // 현재 로그 조회
       final currentLog = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('data, campaign_id, campaigns!inner(campaign_type)')
           .eq('id', campaignLogId)
           .single();
@@ -85,7 +85,7 @@ class CampaignLogService {
 
       // 로그 업데이트
       await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .update({
             'status': status,
             'data': currentData,
@@ -178,7 +178,7 @@ class CampaignLogService {
   }) async {
     try {
       var queryBuilder = _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('''
             *,
             campaigns!inner(
@@ -221,7 +221,7 @@ class CampaignLogService {
   }) async {
     try {
       var queryBuilder = _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('''
             *,
             users!inner(
@@ -256,7 +256,7 @@ class CampaignLogService {
   }) async {
     try {
       final response = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('''
             *,
             campaigns!inner(
@@ -304,7 +304,7 @@ class CampaignLogService {
     try {
       // 현재 로그 조회
       final currentLog = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('data, status')
           .eq('id', campaignLogId)
           .single();
@@ -327,7 +327,7 @@ class CampaignLogService {
 
       // 상태를 review_submitted로 업데이트
       await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .update({
             'status': 'review_submitted',
             'data': currentData,
@@ -352,7 +352,7 @@ class CampaignLogService {
     try {
       // 현재 로그 조회
       final currentLog = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('data, status')
           .eq('id', campaignLogId)
           .single();
@@ -374,7 +374,7 @@ class CampaignLogService {
 
       // 상태를 visit_completed로 업데이트
       await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .update({
             'status': 'visit_completed',
             'data': currentData,
@@ -398,7 +398,7 @@ class CampaignLogService {
     try {
       // 현재 로그 조회
       final currentLog = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('data, status')
           .eq('id', campaignLogId)
           .single();
@@ -419,7 +419,7 @@ class CampaignLogService {
 
       // 상태를 article_submitted로 업데이트
       await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .update({
             'status': 'article_submitted',
             'data': currentData,
@@ -439,7 +439,7 @@ class CampaignLogService {
   }) async {
     try {
       final response = await _supabase
-          .from('campaign_logs')
+          .from('campaign_events')
           .select('status')
           .eq('user_id', userId);
 

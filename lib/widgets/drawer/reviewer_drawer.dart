@@ -140,13 +140,13 @@ class ReviewerDrawer extends ConsumerWidget {
                   },
                 ),
 
-                // 광고주 전환 버튼 (광고주 인증된 사용자만)
+                // 사업자 전환 버튼 (사업자 인증된 사용자만)
                 if (user.companyId != null) ...[
                   const Divider(),
                   _buildMenuItem(
                     context: context,
                     icon: Icons.business_outlined,
-                    title: '광고주 모드로 전환',
+                    title: '사업자 모드로 전환',
                     routePath: '/mypage/advertiser',
                     onTap: () {
                       Navigator.pop(context);
@@ -237,7 +237,7 @@ class ReviewerDrawer extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
-                    '광고주 인증',
+                    '사업자 인증',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.white,

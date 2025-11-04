@@ -20,7 +20,8 @@ class AdvertiserMyPageScreen extends ConsumerStatefulWidget {
       _AdvertiserMyPageScreenState();
 }
 
-class _AdvertiserMyPageScreenState extends ConsumerState<AdvertiserMyPageScreen> {
+class _AdvertiserMyPageScreenState
+    extends ConsumerState<AdvertiserMyPageScreen> {
   final CampaignService _campaignService = CampaignService();
   int _pendingCount = 0;
   int _recruitingCount = 0;
@@ -58,9 +59,9 @@ class _AdvertiserMyPageScreenState extends ConsumerState<AdvertiserMyPageScreen>
       if (result.success && result.data != null) {
         final campaignsData = result.data!;
         final campaignsList = campaignsData['campaigns'] as List?;
-        
+
         List<Campaign> allCampaigns = [];
-        
+
         if (campaignsList != null) {
           allCampaigns = campaignsList
               .map((item) {
@@ -79,7 +80,7 @@ class _AdvertiserMyPageScreenState extends ConsumerState<AdvertiserMyPageScreen>
               .select()
               .eq('user_id', user.id)
               .order('created_at', ascending: false);
-          
+
           allCampaigns = (directResult as List)
               .map((json) => Campaign.fromJson(json))
               .toList();
@@ -87,7 +88,7 @@ class _AdvertiserMyPageScreenState extends ConsumerState<AdvertiserMyPageScreen>
 
         // 상태별 카운트 계산
         final now = DateTime.now();
-        
+
         _pendingCount = allCampaigns.where((campaign) {
           return campaign.status == CampaignStatus.upcoming ||
               (campaign.startDate != null && campaign.startDate!.isAfter(now));
@@ -95,14 +96,16 @@ class _AdvertiserMyPageScreenState extends ConsumerState<AdvertiserMyPageScreen>
 
         final recruitingCampaigns = allCampaigns.where((campaign) {
           return campaign.status == CampaignStatus.active &&
-              (campaign.startDate == null || campaign.startDate!.isBefore(now)) &&
+              (campaign.startDate == null ||
+                  campaign.startDate!.isBefore(now)) &&
               (campaign.endDate == null || campaign.endDate!.isAfter(now));
         }).toList();
-        
+
         _recruitingCount = recruitingCampaigns.length;
 
         _selectedCount = recruitingCampaigns.where((campaign) {
-          return campaign.currentParticipants >= (campaign.maxParticipants ?? 0);
+          return campaign.currentParticipants >=
+              (campaign.maxParticipants ?? 0);
         }).length;
 
         _registeredCount = allCampaigns.where((campaign) {
@@ -169,7 +172,7 @@ class _AdvertiserMyPageScreenState extends ConsumerState<AdvertiserMyPageScreen>
             // 상단 파란색 카드
             MyPageCommonWidgets.buildTopCard(
               userName: user.displayName ?? '사용자',
-              userType: '광고주',
+              userType: '사업자',
               onSwitchPressed: () {
                 // 리뷰어 마이페이지로 이동
                 context.pushReplacement('/mypage/reviewer');
@@ -211,7 +214,7 @@ class _AdvertiserMyPageScreenState extends ConsumerState<AdvertiserMyPageScreen>
               ],
               actionButtonText: '캠페인 등록 >',
               onActionPressed: () {
-                context.push('/mypage/advertiser/my-campaigns/create');
+                context.go('/mypage/advertiser/my-campaigns/create');
               },
               onStatusTap: (tab) {
                 context.go('/mypage/advertiser/my-campaigns?tab=$tab');

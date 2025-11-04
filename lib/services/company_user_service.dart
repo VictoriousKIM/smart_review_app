@@ -49,10 +49,10 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
-      // status='active'만 조회
+      // status='active'만 조회 (복합 키 사용으로 id 제거)
       final response = await supabase
           .from('company_users')
-          .select('id')
+          .select('company_id')
           .eq('user_id', userId)
           .eq('status', 'active')
           .maybeSingle();

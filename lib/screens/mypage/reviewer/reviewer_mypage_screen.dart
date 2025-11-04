@@ -21,8 +21,9 @@ class ReviewerMyPageScreen extends ConsumerStatefulWidget {
 }
 
 class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
-  final CampaignLogService _campaignLogService =
-      CampaignLogService(SupabaseConfig.client);
+  final CampaignLogService _campaignLogService = CampaignLogService(
+    SupabaseConfig.client,
+  );
   int _appliedCount = 0;
   int _approvedCount = 0;
   int _registeredCount = 0;
@@ -56,26 +57,32 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
 
       if (result.success && result.data != null) {
         final logs = result.data!;
-        
+
         // 신청: status = 'applied'
         _appliedCount = logs.where((log) => log.status == 'applied').length;
-        
+
         // 선정: status = 'approved'
         _approvedCount = logs.where((log) => log.status == 'approved').length;
-        
+
         // 등록: 진행 중 상태들
-        _registeredCount = logs.where((log) => [
-          'purchased',
-          'review_submitted',
-          'visit_completed',
-          'article_submitted',
-          'review_approved',
-          'visit_verified',
-          'article_approved',
-        ].contains(log.status)).length;
-        
+        _registeredCount = logs
+            .where(
+              (log) => [
+                'purchased',
+                'review_submitted',
+                'visit_completed',
+                'article_submitted',
+                'review_approved',
+                'visit_verified',
+                'article_approved',
+              ].contains(log.status),
+            )
+            .length;
+
         // 완료: status = 'payment_completed'
-        _completedCount = logs.where((log) => log.status == 'payment_completed').length;
+        _completedCount = logs
+            .where((log) => log.status == 'payment_completed')
+            .length;
       }
 
       if (mounted) {
@@ -127,7 +134,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
         future: CompanyUserService.canConvertToAdvertiser(user.uid),
         builder: (context, snapshot) {
           final canConvert = snapshot.data ?? false;
-          
+
           return SingleChildScrollView(
             child: Column(
               children: [
@@ -137,14 +144,14 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
                   userType: '리뷰어',
                   onSwitchPressed: canConvert
                       ? () {
-                          // 광고주 모드로 이동
+                          // 사업자 모드로 이동
                           context.pushReplacement('/mypage/advertiser');
                         }
                       : () {
                           // 사업자 인증 필요 알림창 표시
                           _showAdvertiserConversionDialog(context);
                         },
-                  switchButtonText: '광고주 전환',
+                  switchButtonText: '사업자 전환',
                   showRating: true,
                 ),
 
@@ -222,7 +229,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
               size: 24,
             ),
             const SizedBox(width: 8),
-            const Text('광고주 전환'),
+            const Text('사업자 전환'),
           ],
         ),
         content: Column(

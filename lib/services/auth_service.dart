@@ -30,37 +30,11 @@ class AuthService {
         // 데이터베이스 프로필 정보로 User 객체 생성
         return app_user.User.fromDatabaseProfile(profileResponse, session.user);
       } catch (e) {
-        // 프로필이 없으면 자동으로 프로필 생성 시도
+        // 프로필이 없으면 null 반환 (자동 생성하지 않음)
+        // 프로필은 회원가입 시에만 생성됨
         debugPrint('사용자 프로필 조회 실패: $e');
-
-        // 프로필이 없을 때 자동 생성
-        try {
-          final displayName =
-              session!.user.userMetadata?['display_name'] ??
-              session.user.email?.split('@').first ??
-              'User';
-
-          await _ensureUserProfile(
-            session.user,
-            displayName,
-            app_user.UserType.user, // 기본값
-          );
-
-          // 프로필 생성 후 다시 조회
-          final profileResponse = await _supabase.rpc(
-            'get_user_profile_safe',
-            params: {'p_user_id': session.user.id},
-          );
-
-          return app_user.User.fromDatabaseProfile(
-            profileResponse,
-            session.user,
-          );
-        } catch (createError) {
-          debugPrint('프로필 자동 생성 실패: $createError');
-          // 프로필 생성도 실패하면 Supabase User 정보만으로 생성
-          return app_user.User.fromSupabaseUser(session!.user);
-        }
+        debugPrint('프로필이 없습니다. 회원가입을 통해 프로필을 생성해주세요.');
+        return null;
       }
     }
     return null;
@@ -81,33 +55,11 @@ class AuthService {
           // 데이터베이스 프로필 정보로 User 객체 생성
           return app_user.User.fromDatabaseProfile(profileResponse, user);
         } catch (e) {
-          // 프로필이 없으면 자동으로 프로필 생성 시도
+          // 프로필이 없으면 null 반환 (자동 생성하지 않음)
+          // 프로필은 회원가입 시에만 생성됨
           debugPrint('사용자 프로필 조회 실패: $e');
-
-          try {
-            final displayName =
-                user.userMetadata?['display_name'] ??
-                user.email?.split('@').first ??
-                'User';
-
-            await _ensureUserProfile(
-              user,
-              displayName,
-              app_user.UserType.user, // 기본값
-            );
-
-            // 프로필 생성 후 다시 조회
-            final profileResponse = await _supabase.rpc(
-              'get_user_profile_safe',
-              params: {'p_user_id': user.id},
-            );
-
-            return app_user.User.fromDatabaseProfile(profileResponse, user);
-          } catch (createError) {
-            debugPrint('프로필 자동 생성 실패: $createError');
-            // 프로필 생성도 실패하면 Supabase User 정보만으로 생성
-            return app_user.User.fromSupabaseUser(user);
-          }
+          debugPrint('프로필이 없습니다. 회원가입을 통해 프로필을 생성해주세요.');
+          return null;
         }
       }
       return null;
@@ -131,16 +83,9 @@ class AuthService {
         queryParams: {'access_type': 'offline', 'prompt': 'consent'},
       );
 
-      final user = await currentUser;
-      if (user != null) {
-        // 소셜 로그인인 경우 기본 프로필로 생성
-        await _ensureUserProfile(
-          _supabase.auth.currentUser!,
-          '', // 기본 display_name으로 설정
-          user.userType,
-        );
-      }
-      return user;
+      // 로그인 성공 시 프로필 관리는 authStateChanges와 currentUser에서 처리
+      // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
+      return await currentUser;
     } catch (e) {
       throw Exception('Google 로그인 실패: $e');
     }
@@ -154,14 +99,10 @@ class AuthService {
         password: password,
       );
 
+      // 로그인 성공 시 프로필 관리는 authStateChanges와 currentUser에서 처리
+      // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
       if (response.user != null) {
-        // 이메일 로그인인 경우 프로필 확인 및 생성
-        await _ensureUserProfile(
-          response.user!,
-          response.user!.userMetadata?['display_name'] ?? '',
-          app_user.UserType.user, // 기본값 설정
-        );
-        return app_user.User.fromSupabaseUser(response.user!);
+        return await currentUser;
       }
       return null;
     } catch (e) {
@@ -198,7 +139,8 @@ class AuthService {
         );
 
         debugPrint('프로필 생성 완료: ${response.user!.id}');
-        return app_user.User.fromSupabaseUser(response.user!);
+        // DB에서 최신 프로필 가져오기 (company_id 등 포함)
+        return await currentUser;
       }
       return null;
     } catch (e) {
@@ -217,16 +159,9 @@ class AuthService {
           authScreenLaunchMode: LaunchMode.inAppWebView,
         );
 
-        final user = await currentUser;
-        if (user != null) {
-          // 소셜 로그인인 경우 기본 프로필로 생성
-          await _ensureUserProfile(
-            _supabase.auth.currentUser!,
-            '', // 기본 display_name으로 설정
-            app_user.UserType.user, // 기본값 설정
-          );
-        }
-        return user;
+        // 로그인 성공 시 프로필 관리는 authStateChanges와 currentUser에서 처리
+        // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
+        return await currentUser;
       } else {
         // 네이티브 앱에서는 카카오 SDK 사용
         final kakao.OAuthToken token = await kakao.UserApi.instance
@@ -239,14 +174,10 @@ class AuthService {
           accessToken: token.accessToken,
         );
 
+        // 로그인 성공 시 프로필 관리는 authStateChanges와 currentUser에서 처리
+        // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
         if (response.user != null) {
-          // 소셜 로그인인 경우 기본 프로필로 생성
-          await _ensureUserProfile(
-            response.user!,
-            '', // 기본 display_name으로 설정
-            app_user.UserType.user, // 기본값 설정
-          );
-          return app_user.User.fromSupabaseUser(response.user!);
+          return await currentUser;
         }
         return null;
       }
@@ -364,39 +295,75 @@ class AuthService {
         '_ensureUserProfile 시작: ${user.id}, displayName: $displayName, isSignUp: $isSignUp',
       );
 
-      // 프로필이 존재하는지 확인
-      await _supabase.from('users').select().eq('id', user.id).single();
+      // RPC 함수로 안전하게 프로필 조회 (SECURITY DEFINER로 RLS 우회)
+      final profileResponse = await _supabase.rpc(
+        'get_user_profile_safe',
+        params: {'p_user_id': user.id},
+      );
 
       debugPrint('사용자 프로필이 이미 존재함: ${user.id}');
 
       // 프로필이 존재하면 업데이트 (필요 시)
-      await _supabase
-          .from('users')
-          .update({
-            'display_name': displayName,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', user.id);
-
-      debugPrint('사용자 프로필 업데이트 완료: ${user.id}');
+      // display_name이 변경되었을 때만 업데이트
+      if (profileResponse != null && 
+          profileResponse['display_name'] != displayName &&
+          displayName.isNotEmpty) {
+        await _supabase
+            .from('users')
+            .update({
+              'display_name': displayName,
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', user.id);
+        
+        debugPrint('사용자 프로필 업데이트 완료: ${user.id}');
+      } else {
+        debugPrint('사용자 프로필 업데이트 불필요: ${user.id}');
+      }
     } catch (e) {
-      // 정확한 에러 타입 확인: 프로필이 없는 경우에만 생성 시도
-      // PGRST116: no rows returned (프로필이 없음)
-      final isProfileNotFound =
-          e is PostgrestException &&
-          (e.code == 'PGRST116' || e.message.contains('No rows returned'));
+      // RPC 함수가 'User profile not found' 에러를 던지면 프로필이 없는 것
+      final isProfileNotFound = 
+          e.toString().contains('User profile not found') ||
+          (e is PostgrestException && 
+           (e.code == 'PGRST116' || e.message.contains('No rows returned')));
 
       if (isProfileNotFound) {
-        debugPrint('사용자 프로필이 없음, 생성 시도: ${user.id}');
-        // 프로필이 없으면 생성
+        // 회원가입이 아닌 경우 프로필을 생성하지 않음
+        if (!isSignUp) {
+          debugPrint('⚠️ 로그인 시 프로필이 없습니다. 회원가입을 통해 프로필을 생성해주세요: ${user.id}');
+          return;
+        }
+
+        // 프로필이 없다고 판단되기 전에 실제로 존재하는지 직접 확인
+        // 네트워크 에러 등으로 인한 오판을 방지하기 위함
+        try {
+          final directCheck = await _supabase
+              .from('users')
+              .select('id')
+              .eq('id', user.id)
+              .maybeSingle();
+          
+          if (directCheck != null) {
+            // 프로필이 실제로 존재함 - 중복 생성 방지
+            debugPrint('프로필이 실제로 존재함 (직접 확인됨): ${user.id}');
+            return;
+          }
+        } catch (checkError) {
+          // 직접 확인 중 에러가 발생해도 프로필 생성은 시도
+          debugPrint('프로필 직접 확인 중 에러 발생: $checkError');
+        }
+
+        debugPrint('회원가입 중: 사용자 프로필 생성 시도: ${user.id}');
+        // 회원가입 중일 때만 프로필 생성
         await _createUserProfile(
           user,
           displayName,
           userType,
-          isSignUp: isSignUp,
+          isSignUp: true, // 회원가입 중임을 명확히 표시
         );
       } else {
-        // 다른 에러(네트워크, 권한 등)는 재throw
+        // 다른 에러(네트워크, 권한 등)는 로그만 출력
+        // 프로필이 실제로 존재할 수 있으므로 생성 시도하지 않음
         debugPrint('프로필 조회 중 예상치 못한 에러 발생: ${user.id}, 에러: $e');
         if (isSignUp) {
           rethrow; // 회원가입 중일 때는 에러를 throw

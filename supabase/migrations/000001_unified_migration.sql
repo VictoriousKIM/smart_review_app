@@ -5289,7 +5289,11 @@ DROP FUNCTION IF EXISTS "public"."delete_sns_platform_connection"(uuid, uuid);
 -- PART 1: 데이터베이스 함수에 트랜잭션 적용
 -- ============================================================================
 
--- 1. create_user_profile_safe 함수: 트랜잭션으로 감싸기
+-- 1. create_user_profile_safe 함수: 트랜잭션으로 감싸기 및 버그 수정
+-- 수정 사항:
+--   - 프로필이 이미 존재하면 포인트 월렛을 생성하지 않음
+--   - 프로필이 새로 생성된 경우에만 포인트 월렛 생성
+--   - 중복 생성 방지 로직 명확화
 CREATE OR REPLACE FUNCTION "public"."create_user_profile_safe"(
   "p_user_id" "uuid", 
   "p_display_name" "text", 
@@ -5307,7 +5311,7 @@ BEGIN
   SELECT EXISTS(SELECT 1 FROM public.users WHERE id = p_user_id) INTO v_user_exists;
   
   IF v_user_exists THEN
-    -- 프로필이 이미 존재하면 해당 프로필 반환
+    -- 프로필이 이미 존재하면 해당 프로필 반환 (포인트 월렛 생성하지 않음)
     SELECT to_jsonb(users.*) INTO v_profile
     FROM public.users 
     WHERE id = p_user_id;
@@ -5331,12 +5335,10 @@ BEGIN
     RAISE EXCEPTION 'Only admins can create admin user types'; 
   END IF; 
   
-  -- 트랜잭션 시작: 모든 작업이 원자적으로 실행됨
-  -- PostgreSQL 함수는 자동으로 트랜잭션 블록 안에서 실행되지만,
-  -- 명시적으로 EXCEPTION 핸들링을 강화하여 에러 발생 시 롤백 보장
-  
+  -- 트랜잭션: 프로필이 없을 때만 생성
   BEGIN
-    -- 사용자 프로필 생성
+    -- 사용자 프로필 생성 (프로필이 없을 때만 실행됨)
+    -- ON CONFLICT는 방어적 코드로만 사용 (이미 위에서 체크했지만)
     INSERT INTO public.users ( 
       id, display_name, user_type, created_at, updated_at 
     ) VALUES ( 
@@ -5347,16 +5349,21 @@ BEGIN
       updated_at = NOW()
     RETURNING to_jsonb(users.*) INTO v_profile;
     
-    -- 포인트 지갑이 없으면 생성 (중복 체크)
-    IF NOT EXISTS (
-      SELECT 1 FROM public.point_wallets 
-      WHERE wallet_type = 'reviewer' AND user_id = p_user_id
-    ) THEN
-      INSERT INTO public.point_wallets ( 
-        wallet_type, user_id, current_points, created_at, updated_at 
-      ) VALUES ( 
-        'reviewer', p_user_id, 0, NOW(), NOW() 
-      );
+    -- INSERT가 실제로 실행되었는지 확인 (프로필이 새로 생성된 경우)
+    -- 프로필이 새로 생성된 경우에만 포인트 월렛 생성
+    IF v_profile IS NOT NULL THEN
+      -- 포인트 지갑이 없으면 생성 (중복 체크)
+      -- 프로필이 새로 생성된 경우에만 포인트 월렛 생성
+      IF NOT EXISTS (
+        SELECT 1 FROM public.point_wallets 
+        WHERE wallet_type = 'reviewer' AND user_id = p_user_id
+      ) THEN
+        INSERT INTO public.point_wallets ( 
+          wallet_type, user_id, current_points, created_at, updated_at 
+        ) VALUES ( 
+          'reviewer', p_user_id, 0, NOW(), NOW() 
+        );
+      END IF;
     END IF;
     
     -- 모든 작업이 성공하면 프로필 반환
@@ -5730,6 +5737,937 @@ WHERE id IN (
 
 -- ============================================================================
 -- End of Migration: 20250102000001_add_transactions_and_cleanup_orphaned_users.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000002_create_register_company_rpc.sql
+-- ============================================================================
+
+-- 회사 정보 저장 RPC 함수 (중복 체크 및 트랜잭션 포함)
+CREATE OR REPLACE FUNCTION "public"."register_company"(
+  "p_user_id" "uuid",
+  "p_business_name" "text",
+  "p_business_number" "text",
+  "p_address" "text",
+  "p_representative_name" "text",
+  "p_business_type" "text",
+  "p_registration_file_url" "text"
+) RETURNS "jsonb"
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+DECLARE
+  v_company_id uuid;
+  v_result jsonb;
+  v_cleaned_business_number text;
+BEGIN
+  -- 권한 확인: 자신의 데이터만 저장 가능
+  IF p_user_id != (SELECT auth.uid()) THEN
+    RAISE EXCEPTION 'Unauthorized: Can only register company for yourself';
+  END IF;
+
+  -- 사업자번호 정리 (하이픈 제거)
+  v_cleaned_business_number := REPLACE(p_business_number, '-', '');
+
+  -- 중복 체크 (트랜잭션 내에서)
+  IF EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE business_number = v_cleaned_business_number
+  ) THEN
+    RAISE EXCEPTION '이미 등록된 사업자번호입니다.';
+  END IF;
+
+  -- 회사 정보 저장
+  INSERT INTO public.companies (
+    user_id,
+    business_name,
+    business_number,
+    address,
+    representative_name,
+    business_type,
+    registration_file_url,
+    created_at,
+    updated_at
+  ) VALUES (
+    p_user_id,
+    p_business_name,
+    v_cleaned_business_number,
+    p_address,
+    p_representative_name,
+    p_business_type,
+    p_registration_file_url,
+    NOW(),
+    NOW()
+  )
+  RETURNING id INTO v_company_id;
+
+  -- company_users 관계 추가 (중복 체크 후)
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users 
+    WHERE company_id = v_company_id 
+    AND user_id = p_user_id
+  ) THEN
+    INSERT INTO public.company_users (
+      company_id,
+      user_id,
+      company_role,
+      status,
+      created_at
+    ) VALUES (
+      v_company_id,
+      p_user_id,
+      'owner',
+      'active',
+      NOW()
+    );
+  END IF;
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'company_id', v_company_id,
+    'business_number', v_cleaned_business_number
+  ) INTO v_result;
+
+  RETURN v_result;
+EXCEPTION
+  WHEN unique_violation THEN
+    RAISE EXCEPTION '이미 등록된 사업자번호입니다.';
+  WHEN OTHERS THEN
+    RAISE EXCEPTION '회사 등록 실패: %', SQLERRM;
+END;
+$$;
+
+-- 회사 정보 삭제 RPC 함수 (롤백용)
+CREATE OR REPLACE FUNCTION "public"."delete_company"(
+  "p_company_id" "uuid"
+) RETURNS "jsonb"
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+DECLARE
+  v_result jsonb;
+  v_user_id uuid;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_user_id := (SELECT auth.uid());
+  
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 권한 확인: 자신의 회사만 삭제 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = p_company_id 
+    AND user_id = v_user_id
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Can only delete your own company';
+  END IF;
+
+  -- company_users 관계 삭제
+  DELETE FROM public.company_users 
+  WHERE company_id = p_company_id;
+
+  -- 회사 정보 삭제
+  DELETE FROM public.companies 
+  WHERE id = p_company_id;
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'company_id', p_company_id
+  ) INTO v_result;
+
+  RETURN v_result;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE EXCEPTION '회사 삭제 실패: %', SQLERRM;
+END;
+$$;
+
+-- RPC 함수 권한 부여
+GRANT EXECUTE ON FUNCTION "public"."register_company" TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."delete_company" TO "authenticated";
+
+-- ============================================================================
+-- End of Migration: 20250102000002_create_register_company_rpc.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000004_add_status_to_company_users.sql
+-- ============================================================================
+
+-- status 필드 추가 (기본값: 'active')
+ALTER TABLE "public"."company_users"
+  ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'active' NOT NULL;
+
+-- status 값 제약 조건 추가 (active, inactive, pending, suspended)
+ALTER TABLE "public"."company_users"
+  DROP CONSTRAINT IF EXISTS "company_users_status_check";
+
+ALTER TABLE "public"."company_users"
+  ADD CONSTRAINT "company_users_status_check" 
+  CHECK (("status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'pending'::"text", 'suspended'::"text"])));
+
+-- 기존 레코드의 status를 'active'로 설정 (NULL인 경우 대비)
+UPDATE "public"."company_users"
+SET "status" = 'active'
+WHERE "status" IS NULL;
+
+-- 코멘트 추가
+COMMENT ON COLUMN "public"."company_users"."status" IS '회사-사용자 관계 상태: active(활성), inactive(비활성), pending(대기), suspended(정지)';
+
+-- ============================================================================
+-- End of Migration: 20250102000004_add_status_to_company_users.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000005_fix_update_user_profile_safe.sql
+-- ============================================================================
+
+-- 기존 함수들 삭제 (모든 오버로딩 버전)
+DROP FUNCTION IF EXISTS "public"."update_user_profile_safe"("uuid", "text", "uuid");
+DROP FUNCTION IF EXISTS "public"."update_user_profile_safe"("uuid", "text");
+
+-- update_user_profile_safe 함수 재생성 (company_id 제거)
+CREATE OR REPLACE FUNCTION "public"."update_user_profile_safe"(
+  "p_user_id" "uuid",
+  "p_display_name" "text" DEFAULT NULL::"text"
+) RETURNS "jsonb"
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+DECLARE
+  v_profile jsonb;
+BEGIN
+  -- 자신의 프로필만 업데이트 가능
+  IF p_user_id != (SELECT auth.uid()) THEN
+    RAISE EXCEPTION 'You can only update your own profile';
+  END IF;
+  
+  -- 프로필 업데이트 (display_name만)
+  UPDATE public.users 
+  SET 
+    display_name = COALESCE(p_display_name, display_name),
+    updated_at = NOW()
+  WHERE id = p_user_id
+  RETURNING to_jsonb(users.*) INTO v_profile;
+  
+  IF v_profile IS NULL THEN
+    RAISE EXCEPTION 'User profile not found';
+  END IF;
+  
+  RETURN v_profile;
+END;
+$$;
+
+-- 함수 권한 부여
+GRANT EXECUTE ON FUNCTION "public"."update_user_profile_safe"("uuid", "text") TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."update_user_profile_safe"("uuid", "text") TO "anon";
+GRANT EXECUTE ON FUNCTION "public"."update_user_profile_safe"("uuid", "text") TO "service_role";
+
+-- ============================================================================
+-- End of Migration: 20250102000005_fix_update_user_profile_safe.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000006_add_status_to_users_and_redesign_deleted_users.sql
+-- ============================================================================
+
+-- Step 1: Add status field to users table
+ALTER TABLE "public"."users"
+  ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'active' NOT NULL;
+
+ALTER TABLE "public"."users"
+  DROP CONSTRAINT IF EXISTS "users_status_check";
+
+ALTER TABLE "public"."users"
+  ADD CONSTRAINT "users_status_check" 
+  CHECK (status IN ('active', 'inactive', 'pending_deletion', 'deleted', 'suspended'));
+
+-- Update existing users to 'active' if not set
+UPDATE "public"."users"
+SET status = 'active'
+WHERE status IS NULL;
+
+-- Create partial index for active users
+CREATE INDEX IF NOT EXISTS "idx_users_status_active" 
+ON "public"."users" ("id") 
+WHERE "status" = 'active';
+
+-- Step 2: Backup existing deleted_users data
+CREATE TEMP TABLE IF NOT EXISTS "temp_deleted_users" AS
+SELECT 
+    id as user_id,
+    deletion_reason,
+    deleted_at
+FROM "public"."deleted_users"
+WHERE EXISTS (
+    SELECT 1 FROM "public"."users" u WHERE u.id = "public"."deleted_users".id
+);
+
+-- Step 3: Update users.status for existing deleted users
+UPDATE "public"."users" u
+SET status = 'deleted', updated_at = NOW()
+WHERE EXISTS (
+    SELECT 1 FROM "temp_deleted_users" tdu 
+    WHERE tdu.user_id = u.id
+);
+
+-- Step 4: Drop and recreate deleted_users table with FK
+DROP TABLE IF EXISTS "public"."deleted_users" CASCADE;
+
+CREATE TABLE "public"."deleted_users" (
+    "user_id" uuid NOT NULL PRIMARY KEY,
+    "deletion_reason" text,
+    "deleted_at" timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT "deleted_users_user_id_fkey" 
+        FOREIGN KEY ("user_id") 
+        REFERENCES "public"."users"("id") 
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+ALTER TABLE "public"."deleted_users" OWNER TO "postgres";
+
+-- Step 5: Migrate existing deleted_users data
+INSERT INTO "public"."deleted_users" ("user_id", "deletion_reason", "deleted_at")
+SELECT 
+    user_id,
+    deletion_reason,
+    deleted_at
+FROM "temp_deleted_users"
+ON CONFLICT ("user_id") DO NOTHING;
+
+-- Step 6: Create indexes
+CREATE INDEX IF NOT EXISTS "idx_deleted_users_deleted_at" 
+ON "public"."deleted_users" ("deleted_at");
+
+-- Step 7: Grant permissions
+GRANT ALL ON TABLE "public"."deleted_users" TO "anon";
+GRANT ALL ON TABLE "public"."deleted_users" TO "authenticated";
+GRANT ALL ON TABLE "public"."deleted_users" TO "service_role";
+
+-- Step 8: Enable RLS
+ALTER TABLE "public"."deleted_users" ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- End of Migration: 20250102000006_add_status_to_users_and_redesign_deleted_users.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000007_create_request_manager_role_rpc.sql
+-- ============================================================================
+
+-- 매니저 등록 요청 RPC 함수
+CREATE OR REPLACE FUNCTION "public"."request_manager_role"(
+  "p_business_name" "text",
+  "p_business_number" "text"
+) RETURNS "jsonb"
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+DECLARE
+  v_user_id uuid;
+  v_company_id uuid;
+  v_result jsonb;
+  v_cleaned_business_number text;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_user_id := (SELECT auth.uid());
+  
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 사업자번호 정리 (하이픈 제거)
+  v_cleaned_business_number := REPLACE(p_business_number, '-', '');
+
+  -- 회사 존재 여부 확인
+  SELECT id INTO v_company_id
+  FROM public.companies
+  WHERE business_number = v_cleaned_business_number
+    AND business_name = p_business_name
+  LIMIT 1;
+
+  -- 회사가 존재하지 않으면 에러
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION '등록된 사업자정보가 없습니다.';
+  END IF;
+
+  -- 이미 등록된 관계가 있는지 확인
+  IF EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = v_company_id
+      AND user_id = v_user_id
+  ) THEN
+    -- 이미 존재하면 status를 pending으로 업데이트
+    UPDATE public.company_users
+    SET status = 'pending',
+        company_role = 'manager',
+        created_at = NOW()
+    WHERE company_id = v_company_id
+      AND user_id = v_user_id;
+  ELSE
+    -- 없으면 새로 추가
+    INSERT INTO public.company_users (
+      company_id,
+      user_id,
+      company_role,
+      status,
+      created_at
+    ) VALUES (
+      v_company_id,
+      v_user_id,
+      'manager',
+      'pending',
+      NOW()
+    );
+  END IF;
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'company_id', v_company_id,
+    'business_name', p_business_name,
+    'business_number', v_cleaned_business_number,
+    'message', '매니저 등록 요청이 완료되었습니다. 승인 대기 중입니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+-- RPC 함수 권한 부여
+GRANT EXECUTE ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") TO "authenticated";
+
+-- ============================================================================
+-- End of Migration: 20250102000007_create_request_manager_role_rpc.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000008_update_rls_policies_for_company_users_status.sql
+-- ============================================================================
+
+-- Point logs 정책 업데이트
+DROP POLICY IF EXISTS "Point logs are viewable by wallet owner" ON "public"."point_logs";
+CREATE POLICY "Point logs are viewable by wallet owner" ON "public"."point_logs" FOR SELECT USING ((
+  "wallet_id" IN (
+    SELECT "point_wallets"."id"
+    FROM "public"."point_wallets"
+    WHERE (
+      (("point_wallets"."wallet_type" = 'reviewer'::"text") AND ("point_wallets"."user_id" = (SELECT auth.uid())))
+      OR
+      (("point_wallets"."wallet_type" = 'company'::"text") AND ("point_wallets"."user_id" IN (
+        SELECT "company_users"."company_id"
+        FROM "public"."company_users"
+        WHERE (
+          "company_users"."user_id" = (SELECT auth.uid())
+          AND "company_users"."status" = 'active'::text
+        )
+      )))
+    )
+  )
+));
+
+-- Point wallets 업데이트 정책
+DROP POLICY IF EXISTS "Point wallets are updatable by owner" ON "public"."point_wallets";
+CREATE POLICY "Point wallets are updatable by owner" ON "public"."point_wallets" FOR UPDATE USING ((
+  (("wallet_type" = 'reviewer'::"text") AND ("user_id" = (SELECT auth.uid())))
+  OR
+  (("wallet_type" = 'company'::"text") AND ("user_id" IN (
+    SELECT "company_users"."company_id"
+    FROM "public"."company_users"
+    WHERE (
+      "company_users"."user_id" = (SELECT auth.uid())
+      AND "company_users"."status" = 'active'::text
+    )
+  )))
+));
+
+-- Point wallets 조회 정책
+DROP POLICY IF EXISTS "Point wallets are viewable by owner" ON "public"."point_wallets";
+CREATE POLICY "Point wallets are viewable by owner" ON "public"."point_wallets" FOR SELECT USING ((
+  (("wallet_type" = 'reviewer'::"text") AND ("user_id" = (SELECT auth.uid())))
+  OR
+  (("wallet_type" = 'company'::"text") AND ("user_id" IN (
+    SELECT "company_users"."company_id"
+    FROM "public"."company_users"
+    WHERE (
+      "company_users"."user_id" = (SELECT auth.uid())
+      AND "company_users"."status" = 'active'::text
+    )
+  )))
+));
+
+-- Companies 업데이트 정책
+DROP POLICY IF EXISTS "Companies are updatable by owners" ON "public"."companies";
+CREATE POLICY "Companies are updatable by owners" ON "public"."companies" FOR UPDATE USING ((
+  EXISTS (
+    SELECT 1
+    FROM "public"."company_users"
+    WHERE (
+      "company_users"."company_id" = "companies"."id"
+      AND "company_users"."user_id" = (SELECT auth.uid())
+      AND "company_users"."company_role" = 'owner'::text
+      AND "company_users"."status" = 'active'::text
+    )
+  )
+));
+
+-- Company users 삽입 정책
+DROP POLICY IF EXISTS "Company users are insertable by company owners" ON "public"."company_users";
+CREATE POLICY "Company users are insertable by company owners" ON "public"."company_users" FOR INSERT WITH CHECK ((
+  EXISTS (
+    SELECT 1
+    FROM "public"."company_users" AS "cu"
+    WHERE (
+      "cu"."company_id" = "company_users"."company_id"
+      AND "cu"."user_id" = (SELECT auth.uid())
+      AND "cu"."company_role" = 'owner'::text
+      AND "cu"."status" = 'active'::text
+    )
+  )
+));
+
+-- ============================================================================
+-- End of Migration: 20250102000008_update_rls_policies_for_company_users_status.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000009_update_get_user_profile_safe_with_company_role.sql
+-- ============================================================================
+
+-- get_user_profile_safe 함수 업데이트 (company_users 테이블과 조인)
+CREATE OR REPLACE FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid" DEFAULT NULL::"uuid") 
+RETURNS "jsonb"
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+DECLARE
+  v_profile jsonb;
+  v_current_user_type text;
+  v_target_user_id uuid;
+  v_company_role text;
+  v_company_id uuid;
+BEGIN
+  -- 기본값은 현재 사용자
+  v_target_user_id := COALESCE(p_user_id, (select auth.uid()));
+  
+  -- 권한 확인: 자신의 프로필이거나 관리자
+  IF v_target_user_id != (select auth.uid()) THEN
+    SELECT user_type INTO v_current_user_type
+    FROM public.users 
+    WHERE id = (select auth.uid());
+    
+    IF v_current_user_type != 'admin' THEN
+      RAISE EXCEPTION 'You can only view your own profile';
+    END IF;
+  END IF;
+  
+  -- company_users 테이블에서 company_role과 company_id 조회 (status='active'만)
+  SELECT cu.company_role, cu.company_id
+  INTO v_company_role, v_company_id
+  FROM public.company_users cu
+  WHERE cu.user_id = v_target_user_id
+    AND cu.status = 'active'
+  LIMIT 1;
+  
+  -- 프로필 조회 및 company_role, company_id 추가
+  SELECT jsonb_build_object(
+    'id', u.id,
+    'created_at', u.created_at,
+    'updated_at', u.updated_at,
+    'display_name', u.display_name,
+    'user_type', u.user_type,
+    'status', u.status,
+    'company_id', v_company_id,
+    'company_role', v_company_role
+  ) INTO v_profile
+  FROM public.users u
+  WHERE u.id = v_target_user_id;
+  
+  IF v_profile IS NULL THEN
+    RAISE EXCEPTION 'User profile not found';
+  END IF;
+  
+  RETURN v_profile;
+END;
+$$;
+
+-- RPC 함수 권한 부여
+GRANT EXECUTE ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "anon";
+GRANT EXECUTE ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "service_role";
+
+-- ============================================================================
+-- End of Migration: 20250102000009_update_get_user_profile_safe_with_company_role.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000010_get_manager_list_with_email.sql
+-- ============================================================================
+
+-- 회사의 매니저 목록 조회 (이메일 포함)
+CREATE OR REPLACE FUNCTION "public"."get_company_managers"("p_company_id" "uuid")
+RETURNS TABLE (
+  "id" uuid,
+  "user_id" uuid,
+  "status" text,
+  "created_at" timestamp with time zone,
+  "email" character varying(255),
+  "display_name" text
+)
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+BEGIN
+  -- 권한 확인: 회사 소유자 또는 관리자만 조회 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = p_company_id
+      AND cu.user_id = (SELECT auth.uid())
+      AND cu.company_role IN ('owner', 'manager')
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners and managers can view manager list';
+  END IF;
+
+  -- 매니저 목록 조회 (auth.users의 email 포함)
+  RETURN QUERY
+  SELECT 
+    cu.id,
+    cu.user_id,
+    cu.status,
+    cu.created_at,
+    au.email,
+    COALESCE(u.display_name, '이름 없음')::text as display_name
+  FROM public.company_users cu
+  LEFT JOIN public.users u ON u.id = cu.user_id
+  LEFT JOIN auth.users au ON au.id = cu.user_id
+  WHERE cu.company_id = p_company_id
+    AND cu.company_role = 'manager'
+    AND cu.status IN ('pending', 'active')
+  ORDER BY 
+    CASE cu.status
+      WHEN 'pending' THEN 1
+      WHEN 'active' THEN 2
+      ELSE 3
+    END,
+    cu.created_at DESC;
+END;
+$$;
+
+-- RPC 함수 권한 부여
+GRANT EXECUTE ON FUNCTION "public"."get_company_managers"("p_company_id" "uuid") TO "anon";
+GRANT EXECUTE ON FUNCTION "public"."get_company_managers"("p_company_id" "uuid") TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."get_company_managers"("p_company_id" "uuid") TO "service_role";
+
+-- ============================================================================
+-- End of Migration: 20250102000010_get_manager_list_with_email.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000011_remove_manager_request_attempts_table.sql
+-- ============================================================================
+
+-- RPC 함수 업데이트 (manager_request_attempts 관련 로직 제거)
+CREATE OR REPLACE FUNCTION "public"."request_manager_role"(
+  "p_business_name" "text",
+  "p_business_number" "text"
+) RETURNS "jsonb"
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+DECLARE
+  v_user_id uuid;
+  v_company_id uuid;
+  v_result jsonb;
+  v_cleaned_business_number text;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_user_id := (SELECT auth.uid());
+  
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 사업자번호 정리 (하이픈 제거)
+  v_cleaned_business_number := REPLACE(p_business_number, '-', '');
+
+  -- 회사 존재 여부 확인
+  SELECT id INTO v_company_id
+  FROM public.companies
+  WHERE business_number = v_cleaned_business_number
+    AND business_name = p_business_name
+  LIMIT 1;
+
+  -- 회사가 존재하지 않으면 에러
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION '등록된 사업자정보가 없습니다.';
+  END IF;
+
+  -- 이미 등록된 관계가 있는지 확인
+  IF EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = v_company_id
+      AND user_id = v_user_id
+  ) THEN
+    -- 이미 존재하면 status를 pending으로 업데이트
+    UPDATE public.company_users
+    SET status = 'pending',
+        company_role = 'manager',
+        created_at = NOW()
+    WHERE company_id = v_company_id
+      AND user_id = v_user_id;
+  ELSE
+    -- 없으면 새로 추가
+    INSERT INTO public.company_users (
+      company_id,
+      user_id,
+      company_role,
+      status,
+      created_at
+    ) VALUES (
+      v_company_id,
+      v_user_id,
+      'manager',
+      'pending',
+      NOW()
+    );
+  END IF;
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'company_id', v_company_id,
+    'business_name', p_business_name,
+    'business_number', v_cleaned_business_number,
+    'message', '매니저 등록 요청이 완료되었습니다. 승인 대기 중입니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+-- 테이블 삭제
+DROP TABLE IF EXISTS "public"."manager_request_attempts" CASCADE;
+
+-- ============================================================================
+-- End of Migration: 20250102000011_remove_manager_request_attempts_table.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000012_add_rejected_status_to_company_users.sql
+-- ============================================================================
+
+-- status check constraint에 'rejected' 추가
+ALTER TABLE "public"."company_users"
+  DROP CONSTRAINT IF EXISTS "company_users_status_check";
+
+ALTER TABLE "public"."company_users"
+  ADD CONSTRAINT "company_users_status_check" 
+  CHECK (("status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'pending'::"text", 'suspended'::"text", 'rejected'::"text"])));
+
+-- 코멘트 업데이트
+COMMENT ON COLUMN "public"."company_users"."status" IS '회사-사용자 관계 상태: active(활성), inactive(비활성), pending(대기), suspended(정지), rejected(거절)';
+
+-- ============================================================================
+-- End of Migration: 20250102000012_add_rejected_status_to_company_users.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000013_add_update_policy_for_company_users.sql
+-- ============================================================================
+
+-- Company users 업데이트 정책 추가
+DROP POLICY IF EXISTS "Company users are updatable by company owners" ON "public"."company_users";
+CREATE POLICY "Company users are updatable by company owners" 
+ON "public"."company_users" 
+FOR UPDATE 
+USING (
+  EXISTS (
+    SELECT 1
+    FROM "public"."company_users" AS "cu"
+    WHERE (
+      "cu"."company_id" = "company_users"."company_id"
+      AND "cu"."user_id" = (SELECT auth.uid())
+      AND "cu"."company_role" IN ('owner', 'manager')
+      AND "cu"."status" = 'active'::text
+    )
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1
+    FROM "public"."company_users" AS "cu"
+    WHERE (
+      "cu"."company_id" = "company_users"."company_id"
+      AND "cu"."user_id" = (SELECT auth.uid())
+      AND "cu"."company_role" IN ('owner', 'manager')
+      AND "cu"."status" = 'active'::text
+    )
+  )
+);
+
+-- ============================================================================
+-- End of Migration: 20250102000013_add_update_policy_for_company_users.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000014_create_approve_reject_manager_rpc.sql
+-- ============================================================================
+
+-- 매니저 승인 RPC 함수
+CREATE OR REPLACE FUNCTION "public"."approve_manager"("p_company_user_id" "uuid")
+RETURNS "jsonb"
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+DECLARE
+  v_company_id uuid;
+  v_result jsonb;
+BEGIN
+  -- company_user_id로 company_id 조회
+  SELECT company_id INTO v_company_id
+  FROM public.company_users
+  WHERE id = p_company_user_id;
+  
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION 'Company user not found';
+  END IF;
+  
+  -- 권한 확인: 회사 소유자 또는 활성 매니저만 승인 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = v_company_id
+      AND cu.user_id = (SELECT auth.uid())
+      AND cu.company_role IN ('owner', 'manager')
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners and active managers can approve managers';
+  END IF;
+  
+  -- status를 'active'로 업데이트
+  UPDATE public.company_users
+  SET status = 'active'
+  WHERE id = p_company_user_id
+    AND status = 'pending'
+    AND company_role = 'manager';
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Manager request not found or already processed';
+  END IF;
+  
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'company_user_id', p_company_user_id,
+    'status', 'active'
+  ) INTO v_result;
+  
+  RETURN v_result;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+-- 매니저 거절 RPC 함수
+CREATE OR REPLACE FUNCTION "public"."reject_manager"("p_company_user_id" "uuid")
+RETURNS "jsonb"
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO ''
+AS $$
+DECLARE
+  v_company_id uuid;
+  v_result jsonb;
+BEGIN
+  -- company_user_id로 company_id 조회
+  SELECT company_id INTO v_company_id
+  FROM public.company_users
+  WHERE id = p_company_user_id;
+  
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION 'Company user not found';
+  END IF;
+  
+  -- 권한 확인: 회사 소유자 또는 활성 매니저만 거절 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = v_company_id
+      AND cu.user_id = (SELECT auth.uid())
+      AND cu.company_role IN ('owner', 'manager')
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners and active managers can reject managers';
+  END IF;
+  
+  -- status를 'rejected'로 업데이트
+  UPDATE public.company_users
+  SET status = 'rejected'
+  WHERE id = p_company_user_id
+    AND status = 'pending'
+    AND company_role = 'manager';
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Manager request not found or already processed';
+  END IF;
+  
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'company_user_id', p_company_user_id,
+    'status', 'rejected'
+  ) INTO v_result;
+  
+  RETURN v_result;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+-- RPC 함수 권한 부여
+GRANT EXECUTE ON FUNCTION "public"."approve_manager"("p_company_user_id" "uuid") TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."reject_manager"("p_company_user_id" "uuid") TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."approve_manager"("p_company_user_id" "uuid") TO "service_role";
+GRANT EXECUTE ON FUNCTION "public"."reject_manager"("p_company_user_id" "uuid") TO "service_role";
+
+-- ============================================================================
+-- End of Migration: 20250102000014_create_approve_reject_manager_rpc.sql
+-- ============================================================================
+
+
+-- ============================================================================
+-- Migration: 20250102000015_fix_create_user_profile_safe_duplicate.sql
+-- ============================================================================
+-- Note: create_user_profile_safe 함수는 이미 위에서 최신 버전으로 수정되었으므로
+-- 여기서는 주석으로 표시만 합니다. (실제 함수는 5292줄에서 이미 수정됨)
+
+-- ============================================================================
+-- End of Migration: 20250102000015_fix_create_user_profile_safe_duplicate.sql
 -- ============================================================================
 
 

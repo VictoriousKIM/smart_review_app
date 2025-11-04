@@ -34,14 +34,23 @@ import '../widgets/loading_screen.dart';
 // GoRouter Refresh Notifier
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<dynamic> stream) {
-    notifyListeners();
-    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+    // 초기 notifyListeners() 호출 제거 - 첫 리다이렉트에서만 처리
+    // 디바운싱을 통해 너무 빈번한 리프레시 방지
+    _subscription = stream.asBroadcastStream().listen((_) {
+      // 디바운싱: 200ms 내에 여러 번 호출되면 마지막 것만 실행
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(const Duration(milliseconds: 200), () {
+        notifyListeners();
+      });
+    });
   }
 
   late final StreamSubscription<dynamic> _subscription;
+  Timer? _debounceTimer;
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _subscription.cancel();
     super.dispose();
   }
@@ -57,38 +66,47 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     debugLogDiagnostics: true,
+    initialLocation: '/loading', // 초기 로딩 화면 표시
     refreshListenable: GoRouterRefreshStream(authService.authStateChanges),
     redirect: (context, state) async {
-      debugPrint(
-        '🔍 Redirect called: ${state.matchedLocation} (uri: ${state.uri})',
-      );
-
-      // 현재 인증 상태를 직접 확인 (authProvider를 watch하지 않음)
-      final user = await authService.currentUser;
-      final isLoggedIn = user != null;
-
       final isLoggingIn = state.matchedLocation == '/login';
       final isRoot = state.matchedLocation == '/';
       final isLoading = state.matchedLocation == '/loading';
 
-      // 로딩 페이지는 항상 허용
+      // 로딩 페이지는 항상 허용 (로딩 화면에서 직접 인증 상태 확인 및 리다이렉트 처리)
       if (isLoading) {
         return null;
       }
 
-      // 루트 경로 접근 시 인증 상태에 따라 적절한 페이지로 리다이렉트
-      if (isRoot) {
-        return isLoggedIn ? '/home' : '/login';
-      }
+      // 초기화 완료 후 정상적인 리다이렉트 로직
+      try {
+        final user = await authService.currentUser;
+        final isLoggedIn = user != null;
 
-      // 로그인되지 않은 상태에서 보호된 경로 접근 시 로그인 페이지로 리다이렉트
-      if (!isLoggedIn && !isLoggingIn) {
-        return '/login';
-      }
+        // 루트 경로 접근 시 인증 상태에 따라 적절한 페이지로 리다이렉트
+        if (isRoot) {
+          return isLoggedIn ? '/home' : '/login';
+        }
 
-      // 로그인된 상태에서 로그인 페이지 접근 시 홈으로 리다이렉트
-      if (isLoggedIn && isLoggingIn) {
-        return '/home';
+        // 로그인되지 않은 상태에서 보호된 경로 접근 시 로그인 페이지로 리다이렉트
+        // 단, 로딩 화면이나 로그인 화면이 아닐 때만
+        if (!isLoggedIn && !isLoggingIn && !isLoading) {
+          return '/login';
+        }
+
+        // 로그인된 상태에서 로그인 페이지 접근 시 홈으로 리다이렉트
+        if (isLoggedIn && isLoggingIn) {
+          return '/home';
+        }
+      } catch (e) {
+        // 인증 상태 확인 실패 시, 로그인 페이지가 아닌 경우에만 로그인으로 리다이렉트
+        if (!isLoggingIn && !isLoading && !isRoot) {
+          return '/login';
+        }
+        // 에러 발생 시에도 루트나 로그인 페이지는 그대로 유지
+        if (isRoot) {
+          return '/login';
+        }
       }
 
       return null; // 리다이렉트 없음

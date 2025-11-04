@@ -130,7 +130,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ),
         actions: [
           // 리뷰어인 경우 편집 버튼은 기본정보 박스로 이동했으므로 AppBar에는 표시하지 않음
-          // 광고주인 경우에만 AppBar에 편집 버튼 표시
+          // 사업자인 경우에만 AppBar에 편집 버튼 표시
           if (_user?.userType != app_user.UserType.user)
             if (!_isEditing)
               TextButton(
@@ -197,7 +197,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ],
       );
     } else {
-      // 광고주인 경우 탭 없이 기본 프로필만 표시
+      // 사업자인 경우 탭 없이 기본 프로필만 표시
       return _buildProfileContent();
     }
   }
@@ -403,8 +403,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
             const SizedBox(height: 8),
 
-            // 광고주 인증 상태
-            if (_user?.companyId != null) _buildInfoRow('광고주 인증', '인증 완료'),
+            // 사업자 인증 상태
+            if (_user?.companyId != null) _buildInfoRow('사업자 인증', '인증 완료'),
           ],
         ),
       ),
@@ -621,7 +621,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   String _getUserTypeText() {
     if (_user?.companyId != null) {
-      return '광고주';
+      return '사업자';
     } else {
       return '리뷰어';
     }

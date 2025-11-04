@@ -34,11 +34,6 @@ await page.evaluate(() => {
 npx supabase start
 ```
 
-```bash
-로컬 db 덤프방법
-npx supabase db dump --local --data-only -f supabase/seed.sql
-```
-
 ###  환경 확인
 
 성공적으로 시작되면 다음과 같은 정보가 출력됩니다:
@@ -62,3 +57,22 @@ npx supabase db dump --local --data-only -f supabase/seed.sql
 | 개발자 | `dev@example.com` | `dev@example.com` | 일반 사용자 |
 | 관리자 | `admin@example.com` | `admin@example.com` | 관리자 권한 |
 | 리뷰어 | `reviewer@example.com` | `reviewer@example.com` | 리뷰어 권한 |
+
+## 📦 데이터베이스 워크플로우
+
+### 데이터 덤프 (시드 데이터용)
+```bash
+# 데이터만 덤프 (스키마 제외)
+npx supabase db dump --local --data-only -f supabase/seed.sql
+```
+
+### 스키마 변경 마이그레이션 추가
+```bash
+# 현재 DB와 마이그레이션 파일 차이점 확인 후 새 마이그레이션 생성
+npx supabase db diff --local --schema public -f supabase/migrations/YYYYMMDDHHMMSS_description.sql
+```
+
+**베스트 프랙티스:**
+- `seed.sql`: 데이터만 저장 (--data-only)
+- `migrations/`: 스키마 변경 이력만 관리
+- 스키마 변경 시 `db diff`로 자동 생성

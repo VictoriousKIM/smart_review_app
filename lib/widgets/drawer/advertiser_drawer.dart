@@ -27,8 +27,8 @@ class AdvertiserDrawer extends ConsumerWidget {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                // 광고주 활동 섹션
-                _buildSectionHeader('광고주 활동'),
+                // 사업자 활동 섹션
+                _buildSectionHeader('사업자 활동'),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.business_outlined,
@@ -268,21 +268,6 @@ class AdvertiserDrawer extends ConsumerWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  '광고주',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
               if (user.companyId != null) ...[
                 const SizedBox(width: 8),
                 Container(
@@ -295,7 +280,11 @@ class AdvertiserDrawer extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    user.companyRole?.name == 'owner' ? '회사 소유자' : '회사 관리자',
+                    user.companyRole?.name == 'owner'
+                        ? '사업 관리자'
+                        : (user.companyRole?.name == 'manager'
+                              ? '사업 매니저'
+                              : '알수없음'),
                     style: const TextStyle(
                       fontSize: 12,
                       color: Colors.white,

@@ -54,7 +54,7 @@ class _AdvertiserManagerScreenState
 
       final managerList = (managerListResponse as List).map((item) {
         return {
-          'id': item['id'],
+          'company_id': item['company_id'],
           'user_id': item['user_id'],
           'status': item['status'],
           'created_at': item['created_at'],
@@ -486,10 +486,13 @@ class _AdvertiserManagerScreenState
     try {
       final supabase = Supabase.instance.client;
       
-      // RPC 함수로 매니저 승인
+      // RPC 함수로 매니저 승인 (복합 키 사용)
       await supabase.rpc(
         'approve_manager',
-        params: {'p_company_user_id': manager['id']},
+        params: {
+          'p_company_id': manager['company_id'],
+          'p_user_id': manager['user_id'],
+        },
       );
 
       if (mounted) {
@@ -542,10 +545,13 @@ class _AdvertiserManagerScreenState
     try {
       final supabase = Supabase.instance.client;
       
-      // RPC 함수로 매니저 거절
+      // RPC 함수로 매니저 거절 (복합 키 사용)
       await supabase.rpc(
         'reject_manager',
-        params: {'p_company_user_id': manager['id']},
+        params: {
+          'p_company_id': manager['company_id'],
+          'p_user_id': manager['user_id'],
+        },
       );
 
       if (mounted) {
