@@ -2,10 +2,6 @@ name = "smart-review-api"
 main = "workers/index.ts"
 compatibility_date = "2024-01-01"
 
-# 개발 환경 설정 (로컬 개발용)
-[env.development]
-name = "smart-review-api-dev"
-
 # 프로덕션 환경 설정 (기본값이 프로덕션)
 [env.production]
 name = "smart-review-api"

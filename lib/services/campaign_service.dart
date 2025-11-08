@@ -479,43 +479,71 @@ class CampaignService {
         );
       }
 
-      final campaign = {
-        'title': title.trim(),
-        'description': description.trim(),
-        'product_image_url': productImageUrl ?? '',
-        'platform': platform,
-        'platform_logo_url': platformLogoUrl ?? '',
-        'campaign_type': campaignType,
-        'product_price': productPrice,
-        'review_reward': reviewReward,
-        'start_date': startDate.toIso8601String(),
-        'end_date': endDate.toIso8601String(),
-        'max_participants': maxParticipants,
-        'current_participants': 0,
-        'status': 'active',
-        'user_id': user.id,
-        'is_template': false,
-        'template_name': null,
-        'last_used_at': DateTime.now().toIso8601String(),
-        'usage_count': 0,
-      };
-
-      final response = await _supabase
-          .from('campaigns')
-          .insert(campaign)
-          .select()
-          .single();
-
-      final newCampaign = Campaign.fromJson(response);
-      return ApiResponse<Campaign>(
-        success: true,
-        data: newCampaign,
-        message: '캠페인이 성공적으로 생성되었습니다.',
+      // RPC 호출로 포인트 차감 + 캠페인 생성 원자적 처리
+      final response = await _supabase.rpc(
+        'create_campaign_with_points',
+        params: {
+          'p_title': title.trim(),
+          'p_description': description.trim(),
+          'p_campaign_type': campaignType,
+          'p_product_price': productPrice,
+          'p_review_reward': reviewReward,
+          'p_max_participants': maxParticipants,
+          'p_start_date': startDate.toIso8601String(),
+          'p_end_date': endDate.toIso8601String(),
+          'p_product_image_url': productImageUrl,
+          'p_platform': platform,
+          'p_platform_logo_url': platformLogoUrl,
+        },
       );
-    } catch (e) {
+
+      if (response['success'] == true) {
+        // 생성된 캠페인 조회
+        final campaignId = response['campaign_id'];
+        final campaignData = await _supabase
+            .from('campaigns')
+            .select()
+            .eq('id', campaignId)
+            .single();
+
+        final newCampaign = Campaign.fromJson(campaignData);
+        
+        return ApiResponse<Campaign>(
+          success: true,
+          data: newCampaign,
+          message: '캠페인이 생성되었습니다. (소비 포인트: ${response['points_spent']}P)',
+        );
+      }
+
       return ApiResponse<Campaign>(
         success: false,
-        error: '캠페인 생성에 실패했습니다: ${e.toString()}',
+        error: '캠페인 생성에 실패했습니다.',
+      );
+    } catch (e) {
+      final errorMessage = e.toString();
+      
+      // 에러 메시지 파싱
+      if (errorMessage.contains('포인트가 부족합니다')) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '포인트가 부족합니다. 충전 후 다시 시도해주세요.',
+        );
+      } else if (errorMessage.contains('회사에 소속되지 않았습니다')) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '회사에 소속되어 있지 않습니다. 사업자 등록을 먼저 진행해주세요.',
+        );
+      } else if (errorMessage.contains('회사 지갑이 없습니다')) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '회사 지갑이 생성되지 않았습니다. 관리자에게 문의하세요.',
+        );
+      }
+      
+      print('❌ 캠페인 생성 실패: $e');
+      return ApiResponse<Campaign>(
+        success: false,
+        error: '캠페인 생성 중 오류가 발생했습니다.',
       );
     }
   }
@@ -556,6 +584,137 @@ class CampaignService {
       return ApiResponse<List<Campaign>>(
         success: false,
         error: '캠페인 검색에 실패했습니다: ${e.toString()}',
+      );
+    }
+  }
+
+  // 캠페인 생성 (V2 - 확장 버전)
+  Future<ApiResponse<Campaign>> createCampaignV2({
+    required String title,
+    required String description,
+    required String campaignType,
+    required String platform,
+    required int reviewReward,
+    required int maxParticipants,
+    required DateTime startDate,
+    required DateTime endDate,
+    String? keyword,
+    String? option,
+    int? quantity,
+    String? seller,
+    String? productNumber,
+    int? paymentAmount,
+    String? reviewType,
+    int? reviewTextLength,
+    int? reviewImageCount,
+    bool? preventProductDuplicate,
+    bool? preventStoreDuplicate,
+    int? duplicatePreventDays,
+    String? paymentMethod,
+    String? productImageUrl,
+    String? platformLogoUrl,
+  }) async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
+      }
+
+      // 입력값 검증
+      if (title.trim().isEmpty) {
+        return ApiResponse<Campaign>(success: false, error: '제품명을 입력해주세요.');
+      }
+
+      if (startDate.isAfter(endDate)) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '시작일은 종료일보다 빠를 수 없습니다.',
+        );
+      }
+
+      if (maxParticipants <= 0) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '모집 인원은 1명 이상이어야 합니다.',
+        );
+      }
+
+      // RPC 함수 호출 (create_campaign_with_points_v2)
+      final response = await _supabase.rpc('create_campaign_with_points_v2', params: {
+        'p_title': title,
+        'p_description': description,
+        'p_campaign_type': campaignType,
+        'p_review_reward': reviewReward,
+        'p_max_participants': maxParticipants,
+        'p_start_date': startDate.toIso8601String(),
+        'p_end_date': endDate.toIso8601String(),
+        'p_platform': platform,
+        'p_platform_logo_url': platformLogoUrl,
+        'p_keyword': keyword,
+        'p_option': option,
+        'p_quantity': quantity ?? 1,
+        'p_seller': seller,
+        'p_product_number': productNumber,
+        'p_product_image_url': productImageUrl,
+        'p_payment_amount': paymentAmount ?? 0,
+        'p_purchase_method': 'mobile',
+        'p_product_description': description,
+        'p_review_type': reviewType ?? 'star_only',
+        'p_review_text_length': reviewTextLength ?? 100,
+        'p_review_image_count': reviewImageCount ?? 0,
+        'p_prevent_product_duplicate': preventProductDuplicate ?? false,
+        'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
+        'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
+        'p_payment_method': paymentMethod ?? 'platform',
+      });
+
+      if (response['success'] == true) {
+        // 생성된 캠페인 조회
+        final campaignId = response['campaign_id'];
+        final campaignData = await _supabase
+            .from('campaigns')
+            .select()
+            .eq('id', campaignId)
+            .single();
+
+        final newCampaign = Campaign.fromJson(campaignData);
+        
+        return ApiResponse<Campaign>(
+          success: true,
+          data: newCampaign,
+          message: '캠페인이 생성되었습니다. (소비 포인트: ${response['points_spent']}P)',
+        );
+      }
+
+      return ApiResponse<Campaign>(
+        success: false,
+        error: response['error'] ?? '캠페인 생성에 실패했습니다.',
+      );
+    } catch (e) {
+      final errorMessage = e.toString();
+      
+      // 에러 메시지 파싱
+      if (errorMessage.contains('포인트가 부족합니다')) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '포인트가 부족합니다. 충전 후 다시 시도해주세요.',
+        );
+      } else if (errorMessage.contains('회사에 소속되지 않았습니다')) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '회사에 소속되어 있지 않습니다. 사업자 등록을 먼저 진행해주세요.',
+        );
+      } else if (errorMessage.contains('회사 지갑이 없습니다')) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '회사 지갑이 생성되지 않았습니다. 관리자에게 문의하세요.',
+        );
+      }
+      
+      print('❌ 캠페인 생성 실패: $e');
+      return ApiResponse<Campaign>(
+        success: false,
+        error: '캠페인 생성 중 오류가 발생했습니다: ${e.toString()}',
       );
     }
   }

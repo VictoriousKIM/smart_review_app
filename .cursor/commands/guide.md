@@ -1,5 +1,7 @@
 # Flutter 웹 앱 접근성 활성화 가이드
-수파베이스와 플러터를 실행하여 개발자계정으로 로그인하고 새탭에 수파베이스 대시보드를 열어줘
+- 수파베이스와 플러터를 실행하여 첫번째 탭에 개발자계정으로 로그인하고 두번째 탭에 수파베이스 대시보드, 세번째 탭에 Cloudflare Workers 대시보드를 열어줘
+- 이미 로그인이 돼었다면 로그인시도를 반복할 필요 없음
+
 Flutter 웹 앱에서 접근성 버튼을 활성화하는 방법:
 
 ```javascript
@@ -23,6 +25,7 @@ await page.evaluate(() => {
 - 이메일: `dev@example.com`
 - 비밀번호: `dev@example.com`
 - 역할: 관리자 사용자
+
 <!-- - 참고: `test@example.com` -->
 <!-- - 참고: `reviewer@example.com` -->
 <!-- - 참고: `company_owner@example.com` -->

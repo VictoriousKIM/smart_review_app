@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict eHzBWTfSMZIHEvyDox0XjnTHstBCDwaVj5Td8JaNYtBzHlC8YFSpvgzSUJRLbML
+-- \restrict x8hMLbnssblLe8oh2AOnZsaYuyJY1S96o648bWcjsx4g3jcSgY6qWLNpWCOtJye
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -177,7 +177,7 @@ INSERT INTO "public"."users" ("id", "created_at", "updated_at", "display_name", 
 --
 
 INSERT INTO "public"."companies" ("id", "business_name", "business_number", "contact_email", "contact_phone", "address", "representative_name", "business_type", "registration_file_url", "user_id", "created_at", "updated_at") VALUES
-	('eefe8bd9-9a75-4081-96d9-a4f6b464a2ef', '포인터스', '8677000726', NULL, NULL, '충청남도 천안시 서북구 직산읍 부송상덕길 28', '김동익', '도매 및 소매업', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/business-registration/2025/11/04/2234639c-59f0-4861-8448-103febfa612f_1762219023804.png', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-04 01:17:02.598767+00', '2025-11-04 01:17:02.598767+00');
+	('3aa3545b-ed63-40e9-8735-576686170346', '포인터스', '8677000726', NULL, NULL, '충청남도 천안시 서북구 직산읍 부송상덕길 28', '김동익', '도매 및 소매업', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/business-registration/2025/11/06/2234639c-59f0-4861-8448-103febfa612f_1762409956018.png', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-06 06:19:13.099002+00', '2025-11-06 06:19:13.099002+00');
 
 
 --
@@ -199,12 +199,25 @@ INSERT INTO "public"."companies" ("id", "business_name", "business_number", "con
 
 
 --
+-- Data for Name: company_wallets; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO "public"."company_wallets" ("company_id", "current_points", "created_at", "updated_at") VALUES
+	('3aa3545b-ed63-40e9-8735-576686170346', 0, '2025-11-06 06:19:13.099002+00', '2025-11-06 06:19:13.099002+00');
+
+
+--
+-- Data for Name: company_point_logs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
 -- Data for Name: company_users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 INSERT INTO "public"."company_users" ("company_id", "user_id", "company_role", "created_at", "status") VALUES
-	('eefe8bd9-9a75-4081-96d9-a4f6b464a2ef', '2234639c-59f0-4861-8448-103febfa612f', 'owner', '2025-11-04 01:17:02.598767+00', 'active'),
-	('eefe8bd9-9a75-4081-96d9-a4f6b464a2ef', '201cf9ca-15f0-45a1-8033-b9fd08a99445', 'manager', '2025-11-04 01:18:27.508559+00', 'active');
+	('3aa3545b-ed63-40e9-8735-576686170346', '2234639c-59f0-4861-8448-103febfa612f', 'owner', '2025-11-06 06:19:13.099002+00', 'active');
 
 
 --
@@ -220,25 +233,25 @@ INSERT INTO "public"."company_users" ("company_id", "user_id", "company_role", "
 
 
 --
--- Data for Name: point_wallets; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO "public"."point_wallets" ("id", "wallet_type", "user_id", "current_points", "created_at", "updated_at") VALUES
-	('e594e797-bb02-4f62-af1f-e9357e8e028a', 'reviewer', '2234639c-59f0-4861-8448-103febfa612f', 0, '2025-11-03 08:11:33.033199+00', '2025-11-03 08:11:33.033199+00'),
-	('327c17bf-7610-4b2e-847f-ae0cd41bf5d7', 'reviewer', '2eb8c022-92d6-4c42-988c-166e83050e09', 0, '2025-11-04 01:11:36.8133+00', '2025-11-04 01:11:36.8133+00'),
-	('7ccbf495-1d06-4b77-92b6-e7f53a79da3b', 'reviewer', 'f0214704-7b33-4168-829c-c1e0fcb96ce9', 0, '2025-11-04 01:11:54.281747+00', '2025-11-04 01:11:54.281747+00'),
-	('64398801-cc4d-444f-94b1-a7f867996fbd', 'reviewer', '420e4945-845a-4e93-849c-3fba45632cf3', 0, '2025-11-04 01:12:09.087909+00', '2025-11-04 01:12:09.087909+00'),
-	('7e448c17-6118-413b-ae49-a7c603e6a669', 'reviewer', '201cf9ca-15f0-45a1-8033-b9fd08a99445', 0, '2025-11-04 01:13:32.651223+00', '2025-11-04 01:13:32.651223+00');
-
-
---
--- Data for Name: point_logs; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
 -- Data for Name: sns_connections; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: user_wallets; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO "public"."user_wallets" ("user_id", "current_points", "created_at", "updated_at") VALUES
+	('2234639c-59f0-4861-8448-103febfa612f', 0, '2025-11-03 08:11:33.033199+00', '2025-11-03 08:11:33.033199+00'),
+	('2eb8c022-92d6-4c42-988c-166e83050e09', 0, '2025-11-04 01:11:36.8133+00', '2025-11-04 01:11:36.8133+00'),
+	('f0214704-7b33-4168-829c-c1e0fcb96ce9', 0, '2025-11-04 01:11:54.281747+00', '2025-11-04 01:11:54.281747+00'),
+	('420e4945-845a-4e93-849c-3fba45632cf3', 0, '2025-11-04 01:12:09.087909+00', '2025-11-04 01:12:09.087909+00'),
+	('201cf9ca-15f0-45a1-8033-b9fd08a99445', 0, '2025-11-04 01:13:32.651223+00', '2025-11-04 01:13:32.651223+00');
+
+
+--
+-- Data for Name: user_point_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 
@@ -279,6 +292,6 @@ SELECT pg_catalog.setval('"supabase_functions"."hooks_id_seq"', 1, false);
 -- PostgreSQL database dump complete
 --
 
--- \unrestrict eHzBWTfSMZIHEvyDox0XjnTHstBCDwaVj5Td8JaNYtBzHlC8YFSpvgzSUJRLbML
+-- \unrestrict x8hMLbnssblLe8oh2AOnZsaYuyJY1S96o648bWcjsx4g3jcSgY6qWLNpWCOtJye
 
 RESET ALL;
