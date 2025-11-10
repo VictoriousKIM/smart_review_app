@@ -5,6 +5,9 @@ class UserWallet {
   final String id;
   final String userId;
   final int currentPoints;
+  final String? withdrawBankName;
+  final String? withdrawAccountNumber;
+  final String? withdrawAccountHolder;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -12,6 +15,9 @@ class UserWallet {
     required this.id,
     required this.userId,
     required this.currentPoints,
+    this.withdrawBankName,
+    this.withdrawAccountNumber,
+    this.withdrawAccountHolder,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -21,6 +27,9 @@ class UserWallet {
       id: json['wallet_id'] ?? json['id'] ?? '',
       userId: json['user_id'] ?? '',
       currentPoints: json['current_points'] ?? 0,
+      withdrawBankName: json['withdraw_bank_name'],
+      withdrawAccountNumber: json['withdraw_account_number'],
+      withdrawAccountHolder: json['withdraw_account_holder'],
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),
@@ -35,6 +44,9 @@ class UserWallet {
       'id': id,
       'user_id': userId,
       'current_points': currentPoints,
+      'withdraw_bank_name': withdrawBankName,
+      'withdraw_account_number': withdrawAccountNumber,
+      'withdraw_account_holder': withdrawAccountHolder,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -44,6 +56,9 @@ class UserWallet {
     String? id,
     String? userId,
     int? currentPoints,
+    String? withdrawBankName,
+    String? withdrawAccountNumber,
+    String? withdrawAccountHolder,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -51,6 +66,9 @@ class UserWallet {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       currentPoints: currentPoints ?? this.currentPoints,
+      withdrawBankName: withdrawBankName ?? this.withdrawBankName,
+      withdrawAccountNumber: withdrawAccountNumber ?? this.withdrawAccountNumber,
+      withdrawAccountHolder: withdrawAccountHolder ?? this.withdrawAccountHolder,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -65,6 +83,9 @@ class CompanyWallet {
   final int currentPoints;
   final String userRole;
   final String status;
+  final String? withdrawBankName;
+  final String? withdrawAccountNumber;
+  final String? withdrawAccountHolder;
 
   CompanyWallet({
     required this.id,
@@ -73,6 +94,9 @@ class CompanyWallet {
     required this.currentPoints,
     required this.userRole,
     required this.status,
+    this.withdrawBankName,
+    this.withdrawAccountNumber,
+    this.withdrawAccountHolder,
   });
 
   factory CompanyWallet.fromJson(Map<String, dynamic> json) {
@@ -83,6 +107,9 @@ class CompanyWallet {
       currentPoints: json['current_points'] ?? 0,
       userRole: json['user_role'] ?? '',
       status: json['status'] ?? '',
+      withdrawBankName: json['withdraw_bank_name'],
+      withdrawAccountNumber: json['withdraw_account_number'],
+      withdrawAccountHolder: json['withdraw_account_holder'],
     );
   }
 
@@ -94,6 +121,9 @@ class CompanyWallet {
       'current_points': currentPoints,
       'user_role': userRole,
       'status': status,
+      'withdraw_bank_name': withdrawBankName,
+      'withdraw_account_number': withdrawAccountNumber,
+      'withdraw_account_holder': withdrawAccountHolder,
     };
   }
 
@@ -108,6 +138,9 @@ class CompanyWallet {
     int? currentPoints,
     String? userRole,
     String? status,
+    String? withdrawBankName,
+    String? withdrawAccountNumber,
+    String? withdrawAccountHolder,
   }) {
     return CompanyWallet(
       id: id ?? this.id,
@@ -116,6 +149,9 @@ class CompanyWallet {
       currentPoints: currentPoints ?? this.currentPoints,
       userRole: userRole ?? this.userRole,
       status: status ?? this.status,
+      withdrawBankName: withdrawBankName ?? this.withdrawBankName,
+      withdrawAccountNumber: withdrawAccountNumber ?? this.withdrawAccountNumber,
+      withdrawAccountHolder: withdrawAccountHolder ?? this.withdrawAccountHolder,
     );
   }
 }

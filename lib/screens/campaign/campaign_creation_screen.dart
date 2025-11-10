@@ -31,16 +31,19 @@ class _CampaignCreationScreenState
   final _campaignImageService = CampaignImageService();
   final _campaignService = CampaignService();
 
+  // ✅ 6. 이미지 캐싱
+  final Map<String, Uint8List> _imageCache = {};
+
   // 이미지 관련
   Uint8List? _capturedImage;
-  Uint8List? _productImage; // 크롭된 상품 이미지
-  Rect? _currentCropRect; // 현재 크롭 영역 좌표 저장
+  Uint8List? _productImage;
+  Rect? _currentCropRect;
   bool _isAnalyzing = false;
-  bool _isLoadingImage = false; // 이미지 선택 중
-  bool _isEditingImage = false; // 이미지 편집 중
+  bool _isLoadingImage = false;
+  bool _isEditingImage = false;
   bool _isCreatingCampaign = false;
 
-  // 자동 추출 필드 컨트롤러
+  // 컨트롤러들
   final _keywordController = TextEditingController();
   final _productNameController = TextEditingController();
   final _optionController = TextEditingController();
@@ -49,8 +52,6 @@ class _CampaignCreationScreenState
   final _productNumberController = TextEditingController();
   final _paymentAmountController = TextEditingController();
   final _reviewRewardController = TextEditingController();
-
-  // 추가 필드 컨트롤러
   final _productDescriptionController = TextEditingController();
   final _reviewTextLengthController = TextEditingController(text: '100');
   final _reviewImageCountController = TextEditingController(text: '1');
@@ -62,11 +63,10 @@ class _CampaignCreationScreenState
   String _campaignType = 'reviewer';
   String _platform = 'coupang';
   String _paymentType = 'platform';
-  String? _productProvisionType; // null, 'delivery', 'return', 'other'
+  String? _productProvisionType;
   String _productProvisionOther = '';
   bool _onlyAllowedReviewers = false;
-  String _reviewType =
-      'star_only'; // 'star_only', 'star_text', 'star_text_image'
+  String _reviewType = 'star_only';
   DateTime? _startDateTime;
   DateTime? _endDateTime;
   bool _preventProductDuplicate = false;
@@ -79,35 +79,65 @@ class _CampaignCreationScreenState
 
   String? _errorMessage;
 
-  // 성능 최적화: 디바운싱용 Timer
+  // ✅ 5. 비용 계산 디바운싱
   Timer? _costCalculationTimer;
-
-  // 디바운싱 중 리스너 무시 플래그
   bool _ignoreCostListeners = false;
 
-  // 성능 최적화: DateTime 필드용 컨트롤러
+  // ✅ 9. Throttle
+  Timer? _throttleTimer;
+  bool _throttleActive = false;
+
+  // DateTime 컨트롤러
   late final TextEditingController _startDateTimeController;
   late final TextEditingController _endDateTimeController;
 
+  // ✅ 5. 포맷팅 캐싱
+  String? _cachedFormattedBalance;
+  String? _cachedFormattedTotalCost;
+  String? _cachedFormattedRemaining;
+
+  // ✅ 1. initState 최적화 - 단계별 초기화
   @override
   void initState() {
     super.initState();
-    // DateTime 컨트롤러 초기화
+
+    // 가벼운 작업만 동기 실행
     _startDateTimeController = TextEditingController();
     _endDateTimeController = TextEditingController();
 
-    // ✅ 첫 프레임 렌더링 후 실행하여 초기 렌더링 속도 향상
+    // 무거운 작업은 프레임 렌더링 후 단계별 실행
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _setupCostListeners();
-      _loadCompanyBalance();
-      _updateDateTimeControllers();
+      _initializeInStages();
+    });
+  }
+
+  // ✅ 1. 단계별 초기화 (우선순위별 로딩)
+  Future<void> _initializeInStages() async {
+    if (!mounted) return;
+
+    // 1단계: 즉시 필요한 데이터 (최우선 - 사용자에게 보이는 정보)
+    await _loadCompanyBalance();
+
+    // 2단계: UI 인터랙션 준비 (중요 - 입력 필드 리스너)
+    await Future.microtask(() {
+      if (mounted) _setupCostListeners();
+    });
+
+    // 3단계: 부가 기능 (나중에 - 초기 화면에 영향 없음)
+    await Future.microtask(() {
+      if (mounted) {
+        _updateDateTimeControllers();
+        _calculateCost(); // 초기 비용 계산
+      }
     });
   }
 
   @override
   void dispose() {
-    // Timer 정리
     _costCalculationTimer?.cancel();
+    _throttleTimer?.cancel();
+    _imageCache.clear(); // ✅ 6. 캐시 정리
+
     // 컨트롤러 정리
     _keywordController.dispose();
     _productNameController.dispose();
@@ -129,25 +159,22 @@ class _CampaignCreationScreenState
   }
 
   void _setupCostListeners() {
-    // 비용 계산에 영향을 주는 필드들 리스너 설정 (디바운싱 적용)
     _paymentAmountController.addListener(_calculateCostDebounced);
     _reviewRewardController.addListener(_calculateCostDebounced);
     _maxParticipantsController.addListener(_calculateCostDebounced);
   }
 
-  // 디바운싱된 비용 계산 (500ms 지연)
+  // ✅ 5. 디바운싱된 비용 계산
   void _calculateCostDebounced() {
-    if (_ignoreCostListeners) return; // 리스너 무시 중이면 스킵
+    if (_ignoreCostListeners) return;
     _costCalculationTimer?.cancel();
     _costCalculationTimer = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        _calculateCost();
-      }
+      if (mounted) _calculateCost();
     });
   }
 
   Future<void> _loadCompanyBalance() async {
-    // ✅ 초기 로딩 상태만 즉시 업데이트 (사용자 피드백)
+    // 즉시 로딩 상태만 표시
     if (mounted) {
       setState(() {
         _isLoadingBalance = true;
@@ -162,7 +189,6 @@ class _CampaignCreationScreenState
       if (user == null) {
         pendingErrorMessage = '로그인이 필요합니다.';
       } else {
-        // 회사 지갑 조회
         final wallets = await WalletService.getCompanyWallets();
         if (wallets.isNotEmpty) {
           pendingBalance = wallets.first.currentPoints;
@@ -174,14 +200,12 @@ class _CampaignCreationScreenState
     } catch (e) {
       pendingErrorMessage = '잔액 조회 실패: $e';
     } finally {
-      // ✅ 마지막에 한 번만 setState 호출
       if (mounted) {
         setState(() {
           _isLoadingBalance = false;
           if (pendingBalance != null) {
             _currentBalance = pendingBalance;
-            // 포맷팅 캐시 무효화
-            _cachedFormattedBalance = null;
+            _cachedFormattedBalance = null; // 캐시 무효화
             _cachedFormattedRemaining = null;
           }
           if (pendingErrorMessage != null) {
@@ -192,6 +216,7 @@ class _CampaignCreationScreenState
     }
   }
 
+  // ✅ 5. 비용 계산 최적화 (값 변경 시만 setState)
   void _calculateCost() {
     final paymentAmount = int.tryParse(_paymentAmountController.text) ?? 0;
     final reviewReward = int.tryParse(_reviewRewardController.text) ?? 0;
@@ -199,28 +224,26 @@ class _CampaignCreationScreenState
 
     int cost = 0;
     if (_paymentType == 'platform') {
-      // 플랫폼 지급: (결제금액 + 리뷰비 + 500) * 신청인원
       cost = (paymentAmount + reviewReward + 500) * maxParticipants;
     } else {
-      // 직접 지급: 500 * 신청인원
       cost = 500 * maxParticipants;
     }
 
-    // 값이 변경되었을 때만 setState 호출 및 포맷팅 캐싱
+    // ✅ 값이 변경되었을 때만 setState
     if (_totalCost != cost) {
       _totalCost = cost;
-      // 포맷팅 캐싱 업데이트
+
+      // ✅ 포맷팅 캐싱 (매번 계산하지 않음)
       _cachedFormattedBalance = _formatNumber(_currentBalance);
       _cachedFormattedTotalCost = _formatNumber(_totalCost);
       _cachedFormattedRemaining = _formatNumber(_currentBalance - _totalCost);
 
       if (mounted) {
-        setState(() {});
+        setState(() {}); // 빈 setState (UI만 갱신)
       }
     }
   }
 
-  // 숫자 포맷팅 헬퍼 함수
   String _formatNumber(int number) {
     return number.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -228,12 +251,6 @@ class _CampaignCreationScreenState
     );
   }
 
-  // 포맷된 값 캐싱 (비용 계산 시에만 업데이트)
-  String? _cachedFormattedBalance;
-  String? _cachedFormattedTotalCost;
-  String? _cachedFormattedRemaining;
-
-  // 포맷된 값 getter (캐시된 값 사용)
   String get _formattedBalance =>
       _cachedFormattedBalance ?? _formatNumber(_currentBalance);
   String get _formattedTotalCost =>
@@ -241,46 +258,47 @@ class _CampaignCreationScreenState
   String get _formattedRemaining =>
       _cachedFormattedRemaining ?? _formatNumber(_currentBalance - _totalCost);
 
+  // ✅ 2. 이미지 선택 최적화 (즉각적인 UI 피드백)
   Future<void> _pickImage() async {
-    // 로딩 상태 시작
-    if (mounted) {
-      setState(() {
-        _isLoadingImage = true;
-        _errorMessage = null;
-      });
-    }
+    // 즉시 로딩 상태만 표시 (동기 실행)
+    setState(() {
+      _isLoadingImage = true;
+      _errorMessage = null;
+    });
 
-    Uint8List? pendingImageBytes;
-    String? pendingErrorMessage;
+    // UI 업데이트 후 비동기 작업 실행
+    Future.microtask(() async {
+      Uint8List? pendingImageBytes;
+      String? pendingErrorMessage;
 
-    try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 70, // 품질 감소로 메모리 사용량 감소
-        maxWidth: 1920, // 최대 크기 제한
-        maxHeight: 1920,
-      );
+      try {
+        final XFile? image = await _imagePicker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 70,
+          maxWidth: 1920,
+          maxHeight: 1920,
+        );
 
-      if (image != null) {
-        final bytes = await image.readAsBytes();
+        if (image != null) {
+          final bytes = await image.readAsBytes();
 
-        // 이미지 크기 제한 (5MB)
-        if (bytes.length > 5 * 1024 * 1024) {
-          pendingErrorMessage = '이미지 크기가 너무 큽니다. (최대 5MB)';
-        } else {
-          pendingImageBytes = bytes;
+          if (bytes.length > 5 * 1024 * 1024) {
+            pendingErrorMessage = '이미지 크기가 너무 큽니다. (최대 5MB)';
+          } else {
+            // ✅ 6. 캐시 확인 후 리사이징
+            pendingImageBytes = await _getCachedOrResizeImage(bytes);
+          }
         }
+      } catch (e) {
+        pendingErrorMessage = '이미지 선택 실패: $e';
       }
-    } catch (e) {
-      pendingErrorMessage = '이미지 선택 실패: $e';
-    } finally {
-      // 마지막에 한 번만 setState 호출
+
       if (mounted) {
         setState(() {
           _isLoadingImage = false;
           if (pendingImageBytes != null) {
             _capturedImage = pendingImageBytes;
-            _productImage = null; // 새 이미지 선택 시 상품 이미지 초기화
+            _productImage = null;
             _currentCropRect = null;
             _errorMessage = null;
           }
@@ -289,166 +307,155 @@ class _CampaignCreationScreenState
           }
         });
       }
-    }
+    });
   }
 
+  // ✅ 6. 이미지 캐싱 (중복 처리 방지)
+  Future<Uint8List> _getCachedOrResizeImage(Uint8List originalBytes) async {
+    final key = '${originalBytes.lengthInBytes}_${originalBytes.hashCode}';
+
+    if (_imageCache.containsKey(key)) {
+      print('✅ 캐시된 이미지 사용');
+      return _imageCache[key]!;
+    }
+
+    print('🔄 이미지 리사이징 시작...');
+    final resized = await compute(
+      _resizeImageInIsolate,
+      _ResizeImageParams(
+        imageBytes: originalBytes,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        quality: 85,
+      ),
+    );
+
+    _imageCache[key] = resized;
+    return resized;
+  }
+
+  // ✅ 3. 이미지 분석 최적화 (백그라운드 처리)
   Future<void> _extractFromImage() async {
     if (_capturedImage == null) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = '먼저 이미지를 선택해주세요.';
-        });
-      }
+      setState(() => _errorMessage = '먼저 이미지를 선택해주세요.');
       return;
     }
 
-    // 초기 상태 업데이트
-    if (mounted) {
-      setState(() {
-        _isAnalyzing = true;
-        _errorMessage = null;
-      });
-    }
+    // 즉시 로딩 표시
+    setState(() {
+      _isAnalyzing = true;
+      _errorMessage = null;
+    });
 
-    String? pendingErrorMessage;
-    Map<String, dynamic>? pendingExtractedData;
-    bool shouldUpdateProductImage = false;
-    Uint8List? pendingProductImage;
+    // 비동기 작업을 마이크로태스크로 분리
+    Future.microtask(() async {
+      String? pendingErrorMessage;
+      Map<String, dynamic>? pendingExtractedData;
 
-    try {
-      final extractedData = await _campaignImageService.extractFromImage(
-        _capturedImage!,
-      );
+      try {
+        final extractedData = await _campaignImageService.extractFromImage(
+          _capturedImage!,
+        );
 
-      if (extractedData != null) {
-        pendingExtractedData = extractedData;
+        if (extractedData != null) {
+          pendingExtractedData = extractedData;
 
-        // ✅ 플래그로 리스너 무시 (비용 계산 트리거 방지)
-        _ignoreCostListeners = true;
+          // ✅ 플래그로 리스너 무시 (불필요한 비용 계산 방지)
+          _ignoreCostListeners = true;
 
-        // 컨트롤러 업데이트
-        _keywordController.text = extractedData['keyword'] ?? '';
-        _productNameController.text = extractedData['title'] ?? '';
-        _optionController.text = extractedData['option'] ?? '';
-        _quantityController.text = (extractedData['quantity'] ?? 1).toString();
-        _sellerController.text = extractedData['seller'] ?? '';
-        _productNumberController.text = extractedData['productNumber'] ?? '';
-        _paymentAmountController.text = (extractedData['paymentAmount'] ?? 0)
-            .toString();
+          _keywordController.text = extractedData['keyword'] ?? '';
+          _productNameController.text = extractedData['title'] ?? '';
+          _optionController.text = extractedData['option'] ?? '';
+          _quantityController.text = (extractedData['quantity'] ?? 1)
+              .toString();
+          _sellerController.text = extractedData['seller'] ?? '';
+          _productNumberController.text = extractedData['productNumber'] ?? '';
+          _paymentAmountController.text = (extractedData['paymentAmount'] ?? 0)
+              .toString();
 
-        // 플래그 해제 및 비용 재계산 (한 번만 실행)
-        _ignoreCostListeners = false;
-        _calculateCost();
+          _ignoreCostListeners = false;
+          _calculateCost();
 
-        // 상품 이미지 크롭 처리
-        final cropData = extractedData['productImageCrop'];
-        print('🔍 크롭 데이터: $cropData');
-
-        if (cropData != null && _capturedImage != null) {
-          try {
-            // 이미지 크기 확인 및 정규화를 Isolate에서 한 번에 처리
-            final normalizedResult = await compute(
-              _normalizeCropCoordinates,
-              _NormalizeCropParams(
-                imageBytes: _capturedImage!,
-                x: cropData['x']?.toInt() ?? 0,
-                y: cropData['y']?.toInt() ?? 0,
-                width: cropData['width']?.toInt() ?? 0,
-                height: cropData['height']?.toInt() ?? 0,
-              ),
-            );
-
-            if (normalizedResult != null &&
-                normalizedResult['normalizedWidth']! > 0 &&
-                normalizedResult['normalizedHeight']! > 0) {
-              final normalizedX = normalizedResult['normalizedX'] as int;
-              final normalizedY = normalizedResult['normalizedY'] as int;
-              final normalizedWidth =
-                  normalizedResult['normalizedWidth'] as int;
-              final normalizedHeight =
-                  normalizedResult['normalizedHeight'] as int;
-
-              print(
-                '📐 정규화된 크롭 좌표: x=$normalizedX, y=$normalizedY, width=$normalizedWidth, height=$normalizedHeight',
-              );
-
-              // 크롭 좌표 저장
-              _currentCropRect = Rect.fromLTWH(
-                normalizedX.toDouble(),
-                normalizedY.toDouble(),
-                normalizedWidth.toDouble(),
-                normalizedHeight.toDouble(),
-              );
-
-              // 크롭 작업 실행 (비동기로 진행, 결과는 별도 처리)
-              _cropProductImage(
-                _capturedImage!,
-                normalizedX,
-                normalizedY,
-                normalizedWidth,
-                normalizedHeight,
-              ).catchError((error) {
-                print('❌ 크롭 작업 실패: $error');
-                // 크롭 실패 시 전체 이미지 사용 (별도 setState)
-                if (mounted) {
-                  setState(() {
-                    _productImage = _capturedImage;
-                    _errorMessage = '이미지 크롭 실패: $error';
-                  });
-                }
-              });
-            } else {
-              print('⚠️ 크롭 좌표가 유효하지 않음. 전체 이미지를 사용합니다.');
-              shouldUpdateProductImage = true;
-              pendingProductImage = _capturedImage;
+          // ✅ 크롭 작업은 별도로 비동기 실행 (UI 블로킹 방지)
+          final cropData = extractedData['productImageCrop'];
+          if (cropData != null) {
+            _processCropInBackground(cropData);
+          } else {
+            if (mounted) {
+              setState(() => _productImage = _capturedImage);
             }
-          } catch (e) {
-            print('⚠️ 크롭 정규화 실패: $e. 전체 이미지를 사용합니다.');
-            shouldUpdateProductImage = true;
-            pendingProductImage = _capturedImage;
           }
         } else {
-          print('⚠️ 크롭 데이터가 없음. 전체 이미지를 사용합니다.');
-          shouldUpdateProductImage = true;
-          pendingProductImage = _capturedImage;
+          pendingErrorMessage = '이미지에서 정보를 추출할 수 없습니다.';
         }
-      } else {
-        pendingErrorMessage = '이미지에서 정보를 추출할 수 없습니다.';
+      } catch (e) {
+        pendingErrorMessage = '이미지 분석 실패: $e';
       }
-    } catch (e) {
-      pendingErrorMessage = '이미지 분석 실패: $e';
-    } finally {
-      // 마지막에 한 번만 setState 호출
+
+      // 분석 완료 상태 업데이트
       if (mounted) {
         setState(() {
           _isAnalyzing = false;
           if (pendingErrorMessage != null) {
             _errorMessage = pendingErrorMessage;
           }
-          if (shouldUpdateProductImage && pendingProductImage != null) {
-            _productImage = pendingProductImage;
-          }
         });
 
-        // 성공 메시지는 setState 외부에서
+        // 성공 메시지는 별도로
         if (pendingExtractedData != null && pendingErrorMessage == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('이미지 분석 완료! 필요시 수정해주세요.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('이미지 분석 완료!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 1),
+            ),
+          );
         }
+      }
+    });
+  }
+
+  // ✅ 3. 크롭 작업을 백그라운드에서 실행 (UI와 독립적)
+  Future<void> _processCropInBackground(Map<String, dynamic> cropData) async {
+    try {
+      final normalizedResult = await compute(
+        _normalizeCropCoordinates,
+        _NormalizeCropParams(
+          imageBytes: _capturedImage!,
+          x: cropData['x']?.toInt() ?? 0,
+          y: cropData['y']?.toInt() ?? 0,
+          width: cropData['width']?.toInt() ?? 0,
+          height: cropData['height']?.toInt() ?? 0,
+        ),
+      );
+
+      if (normalizedResult != null &&
+          normalizedResult['normalizedWidth']! > 0 &&
+          normalizedResult['normalizedHeight']! > 0) {
+        _currentCropRect = Rect.fromLTWH(
+          normalizedResult['normalizedX']!.toDouble(),
+          normalizedResult['normalizedY']!.toDouble(),
+          normalizedResult['normalizedWidth']!.toDouble(),
+          normalizedResult['normalizedHeight']!.toDouble(),
+        );
+
+        // 크롭 작업도 비동기로
+        await _cropProductImage(
+          _capturedImage!,
+          normalizedResult['normalizedX']!,
+          normalizedResult['normalizedY']!,
+          normalizedResult['normalizedWidth']!,
+          normalizedResult['normalizedHeight']!,
+        );
+      }
+    } catch (e) {
+      print('⚠️ 백그라운드 크롭 처리 실패: $e');
+      if (mounted) {
+        setState(() => _productImage = _capturedImage);
       }
     }
   }
 
-  /// 이미지를 지정된 좌표로 크롭 (디버깅 강화)
-  /// isolate에서 실행하여 UI 블로킹 방지
   Future<void> _cropProductImage(
     Uint8List imageBytes,
     int x,
@@ -457,15 +464,8 @@ class _CampaignCreationScreenState
     int height,
   ) async {
     try {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('🔧 크롭 작업 시작');
-      print('   입력 좌표:');
-      print('     X: $x');
-      print('     Y: $y');
-      print('     W: $width');
-      print('     H: $height');
+      print('🔧 크롭 작업 시작: x=$x, y=$y, w=$width, h=$height');
 
-      // 이미지 크롭 작업을 isolate에서 실행
       final cropResult = await compute(
         _cropImageInIsolate,
         _CropImageParams(
@@ -494,9 +494,7 @@ class _CampaignCreationScreenState
       final cropWidth = cropResult['cropWidth'] as int;
       final cropHeight = cropResult['cropHeight'] as int;
 
-      print('✓ 크롭 완료');
-      print('   결과 크기: ${cropWidth}x${cropHeight}');
-      print('   파일 크기: ${(croppedBytes.length / 1024).toStringAsFixed(2)} KB');
+      print('✅ 크롭 완료: ${cropWidth}x${cropHeight}');
 
       if (mounted) {
         setState(() {
@@ -509,26 +507,9 @@ class _CampaignCreationScreenState
           );
           _errorMessage = null;
         });
-
-        print('✅ 상품 이미지 업데이트 완료');
-        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('크롭 완료: ${cropWidth}x${cropHeight}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
       }
     } catch (e, stackTrace) {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('❌ 크롭 실패');
-      print('에러: $e');
-      print('스택 트레이스:');
-      print(stackTrace);
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
+      print('❌ 크롭 실패: $e\n$stackTrace');
       if (mounted) {
         setState(() {
           _productImage = imageBytes;
@@ -538,36 +519,21 @@ class _CampaignCreationScreenState
     }
   }
 
-  // Isolate에서 실행할 이미지 크롭 함수
   static Map<String, dynamic>? _cropImageInIsolate(_CropImageParams params) {
     try {
-      final imageBytes = params.imageBytes;
-      final x = params.x;
-      final y = params.y;
-      final width = params.width;
-      final height = params.height;
-
-      // 이미지 디코딩
-      final originalImage = img.decodeImage(imageBytes);
-      if (originalImage == null) {
-        return null;
-      }
+      final originalImage = img.decodeImage(params.imageBytes);
+      if (originalImage == null) return null;
 
       final imageWidth = originalImage.width;
       final imageHeight = originalImage.height;
 
-      // 좌표 보정
-      int cropX = x.clamp(0, imageWidth - 1);
-      int cropY = y.clamp(0, imageHeight - 1);
-      int cropWidth = width.clamp(1, imageWidth - cropX);
-      int cropHeight = height.clamp(1, imageHeight - cropY);
+      int cropX = params.x.clamp(0, imageWidth - 1);
+      int cropY = params.y.clamp(0, imageHeight - 1);
+      int cropWidth = params.width.clamp(1, imageWidth - cropX);
+      int cropHeight = params.height.clamp(1, imageHeight - cropY);
 
-      // 최소 크기 확인
-      if (cropWidth < 10 || cropHeight < 10) {
-        return null;
-      }
+      if (cropWidth < 10 || cropHeight < 10) return null;
 
-      // 이미지 크롭 수행
       final croppedImage = img.copyCrop(
         originalImage,
         x: cropX,
@@ -576,7 +542,6 @@ class _CampaignCreationScreenState
         height: cropHeight,
       );
 
-      // ✅ JPEG로 인코딩하여 메모리 사용량 감소 (품질 85%)
       final croppedBytes = Uint8List.fromList(
         img.encodeJpg(croppedImage, quality: 85),
       );
@@ -589,66 +554,25 @@ class _CampaignCreationScreenState
         'cropHeight': cropHeight,
       };
     } catch (e) {
-      print('❌ Isolate에서 크롭 실패: $e');
+      print('❌ Isolate 크롭 실패: $e');
       return null;
     }
   }
 
-  // Isolate에서 실행할 크롭 좌표 정규화 함수
   static Map<String, int>? _normalizeCropCoordinates(
     _NormalizeCropParams params,
   ) {
     try {
-      // 이미지 디코딩
       final image = img.decodeImage(params.imageBytes);
-      if (image == null) {
-        return null;
-      }
+      if (image == null) return null;
 
       final actualWidth = image.width;
       final actualHeight = image.height;
 
-      // 원본 크롭 좌표
-      int x = params.x;
-      int y = params.y;
-      int width = params.width;
-      int height = params.height;
-
-      // 크롭 좌표 정규화
-      int normalizedX = x;
-      int normalizedY = y;
-      int normalizedWidth = width;
-      int normalizedHeight = height;
-
-      // 좌표가 이미지 범위를 벗어나면 조정
-      if (normalizedX < 0) normalizedX = 0;
-      if (normalizedY < 0) normalizedY = 0;
-      if (normalizedX >= actualWidth) normalizedX = 0;
-      if (normalizedY >= actualHeight) normalizedY = 0;
-
-      // 크롭 좌표가 이미지 크기를 초과하는 경우 조정
-      if (normalizedX + normalizedWidth > actualWidth) {
-        normalizedWidth = actualWidth - normalizedX;
-      }
-      if (normalizedY + normalizedHeight > actualHeight) {
-        normalizedHeight = actualHeight - normalizedY;
-      }
-
-      // 너비/높이가 0이거나 음수면 기본값 사용
-      if (normalizedWidth <= 0) {
-        normalizedWidth = (actualWidth / 2).round();
-      }
-      if (normalizedHeight <= 0) {
-        normalizedHeight = actualHeight;
-      }
-
-      // 최종 크롭 영역이 이미지 범위를 벗어나지 않도록 보정
-      if (normalizedX + normalizedWidth > actualWidth) {
-        normalizedWidth = actualWidth - normalizedX;
-      }
-      if (normalizedY + normalizedHeight > actualHeight) {
-        normalizedHeight = actualHeight - normalizedY;
-      }
+      int normalizedX = params.x.clamp(0, actualWidth - 1);
+      int normalizedY = params.y.clamp(0, actualHeight - 1);
+      int normalizedWidth = params.width.clamp(1, actualWidth - normalizedX);
+      int normalizedHeight = params.height.clamp(1, actualHeight - normalizedY);
 
       return {
         'normalizedX': normalizedX,
@@ -657,202 +581,152 @@ class _CampaignCreationScreenState
         'normalizedHeight': normalizedHeight,
       };
     } catch (e) {
-      print('❌ Isolate에서 크롭 좌표 정규화 실패: $e');
+      print('❌ 크롭 좌표 정규화 실패: $e');
       return null;
     }
   }
 
-  /// 이미지 크롭 에디터 열기
-  Future<void> _editProductImage() async {
-    if (_capturedImage == null) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = '먼저 이미지를 선택해주세요.';
-        });
-      }
-      return;
-    }
+  // ✅ 9. Throttle 헬퍼 함수
+  void _throttle(
+    VoidCallback action, {
+    Duration duration = const Duration(milliseconds: 300),
+  }) {
+    if (_throttleActive) return;
 
-    // 로딩 상태 시작
-    if (mounted) {
+    _throttleActive = true;
+    action();
+
+    _throttleTimer?.cancel();
+    _throttleTimer = Timer(duration, () {
+      _throttleActive = false;
+    });
+  }
+
+  // ✅ 9. Throttle 적용한 이미지 편집
+  Future<void> _editProductImage() async {
+    _throttle(() async {
+      if (_capturedImage == null) {
+        setState(() => _errorMessage = '먼저 이미지를 선택해주세요.');
+        return;
+      }
+
       setState(() {
         _isEditingImage = true;
         _errorMessage = null;
       });
-    }
 
-    String? pendingErrorMessage;
-    Uint8List? pendingProductImage;
-    bool webDialogShown = false;
-
-    try {
-      // 웹에서는 image_cropper가 동작하지 않으므로 간단한 좌표 입력 다이얼로그 사용
-      if (kIsWeb) {
-        await _showWebCropDialog();
-        webDialogShown = true;
-        // _showWebCropDialog 내부에서 setState 처리하므로 여기서는 로딩만 해제
-        if (mounted) {
-          setState(() {
-            _isEditingImage = false;
-          });
-        }
-        return;
-      }
-
-      // 모바일/데스크톱에서는 image_cropper 사용
-      final tempDir = Directory.systemTemp;
-      File? tempFile;
+      String? pendingErrorMessage;
+      Uint8List? pendingProductImage;
+      bool webDialogShown = false;
 
       try {
-        tempFile = File(
-          '${tempDir.path}/temp_crop_${DateTime.now().millisecondsSinceEpoch}.png',
-        );
-        await tempFile.writeAsBytes(_capturedImage!);
+        if (kIsWeb) {
+          await _showWebCropDialog();
+          webDialogShown = true;
+          if (mounted) {
+            setState(() => _isEditingImage = false);
+          }
+          return;
+        }
 
-        // 이미지 크롭 에디터 열기
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: tempFile.path,
-          aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-          uiSettings: [
-            AndroidUiSettings(
-              toolbarTitle: '상품 이미지 크롭',
-              toolbarColor: const Color(0xFF137fec),
-              toolbarWidgetColor: Colors.white,
-              initAspectRatio: CropAspectRatioPreset.original,
-              lockAspectRatio: false,
-            ),
-            IOSUiSettings(title: '상품 이미지 크롭', aspectRatioLockEnabled: false),
-          ],
-        );
+        final tempDir = Directory.systemTemp;
+        File? tempFile;
 
-        if (croppedFile != null) {
-          pendingProductImage = await croppedFile.readAsBytes();
+        try {
+          tempFile = File(
+            '${tempDir.path}/temp_crop_${DateTime.now().millisecondsSinceEpoch}.png',
+          );
+          await tempFile.writeAsBytes(_capturedImage!);
+
+          final croppedFile = await ImageCropper().cropImage(
+            sourcePath: tempFile.path,
+            aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+            uiSettings: [
+              AndroidUiSettings(
+                toolbarTitle: '상품 이미지 크롭',
+                toolbarColor: const Color(0xFF137fec),
+                toolbarWidgetColor: Colors.white,
+                initAspectRatio: CropAspectRatioPreset.original,
+                lockAspectRatio: false,
+              ),
+              IOSUiSettings(title: '상품 이미지 크롭', aspectRatioLockEnabled: false),
+            ],
+          );
+
+          if (croppedFile != null) {
+            pendingProductImage = await croppedFile.readAsBytes();
+          }
+        } finally {
+          try {
+            if (tempFile != null && await tempFile.exists()) {
+              await tempFile.delete();
+            }
+          } catch (e) {
+            print('⚠️ 임시 파일 삭제 실패: $e');
+          }
+        }
+      } catch (e) {
+        print('❌ 이미지 크롭 실패: $e');
+        pendingErrorMessage = '이미지 편집 실패: $e';
+
+        if (kIsWeb && !webDialogShown) {
+          try {
+            await _showWebCropDialog();
+            pendingErrorMessage = null;
+          } catch (e2) {
+            pendingErrorMessage = '이미지 편집 실패: $e2';
+          }
         }
       } finally {
-        // 임시 파일 삭제 (에러 발생해도 삭제)
-        try {
-          if (tempFile != null && await tempFile.exists()) {
-            await tempFile.delete();
-          }
-        } catch (e) {
-          print('⚠️ 임시 파일 삭제 실패: $e');
+        if (mounted && !webDialogShown) {
+          setState(() {
+            _isEditingImage = false;
+            if (pendingErrorMessage != null) {
+              _errorMessage = pendingErrorMessage;
+            }
+            if (pendingProductImage != null) {
+              _productImage = pendingProductImage;
+            }
+          });
         }
       }
-    } catch (e) {
-      print('❌ 이미지 크롭 에디터 실패: $e');
-      pendingErrorMessage = '이미지 편집 실패: $e';
-
-      // 웹에서는 fallback으로 크롭 다이얼로그 표시
-      if (kIsWeb && !webDialogShown) {
-        try {
-          await _showWebCropDialog();
-          pendingErrorMessage = null; // 성공하면 에러 메시지 제거
-        } catch (e2) {
-          pendingErrorMessage = '이미지 편집 실패: $e2';
-        }
-      }
-    } finally {
-      // 마지막에 한 번만 setState 호출
-      if (mounted && !webDialogShown) {
-        setState(() {
-          _isEditingImage = false;
-          if (pendingErrorMessage != null) {
-            _errorMessage = pendingErrorMessage;
-          }
-          if (pendingProductImage != null) {
-            _productImage = pendingProductImage;
-          }
-        });
-      }
-    }
+    });
   }
 
-  /// 웹용 시각적 크롭 다이얼로그 (디버깅 강화)
   Future<void> _showWebCropDialog() async {
-    if (_capturedImage == null) {
-      print('❌ _capturedImage가 null입니다');
-      return;
-    }
+    if (_capturedImage == null) return;
 
-    // 이미지 크기 가져오기
-    final originalImage = img.decodeImage(_capturedImage!);
+    final originalImage = await compute(_decodeImageInIsolate, _capturedImage!);
     if (originalImage == null) {
-      print('❌ 이미지 디코딩 실패');
+      if (mounted) {
+        setState(() => _errorMessage = '이미지 디코딩에 실패했습니다.');
+      }
       return;
     }
 
     final imgWidth = originalImage.width;
     final imgHeight = originalImage.height;
 
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('🖼️ 원본 이미지 정보:');
-    print('   크기: ${imgWidth}x${imgHeight}');
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    Rect? initialCrop =
+        _currentCropRect ??
+        Rect.fromLTWH(0, 0, imgWidth / 2, imgHeight.toDouble());
 
-    // 현재 크롭 영역이 있으면 초기값으로 사용
-    Rect? initialCrop = _currentCropRect;
-    if (initialCrop == null) {
-      initialCrop = Rect.fromLTWH(0, 0, imgWidth / 2, imgHeight.toDouble());
-      print('📐 초기 크롭 영역 (기본값):');
-    } else {
-      print('📐 초기 크롭 영역 (저장된 값):');
-    }
-    print('   X: ${initialCrop.left.toInt()}');
-    print('   Y: ${initialCrop.top.toInt()}');
-    print('   W: ${initialCrop.width.toInt()}');
-    print('   H: ${initialCrop.height.toInt()}');
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    // 디코딩된 이미지를 ImageCropEditor에 전달하여 중복 디코딩 방지
     final result = await showDialog<Map<String, int>>(
       context: context,
       builder: (context) => ImageCropEditor(
         imageBytes: _capturedImage!,
-        decodedImage: originalImage, // 이미 디코딩된 이미지 전달
+        decodedImage: originalImage,
         initialCrop: initialCrop,
       ),
     );
 
-    if (result == null) {
-      print('❌ 사용자가 크롭을 취소했습니다');
-      return;
-    }
+    if (result == null || _capturedImage == null) return;
 
-    if (_capturedImage == null) {
-      print('❌ 크롭 후 _capturedImage가 null입니다');
-      return;
-    }
-
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('✅ 에디터에서 반환된 크롭 좌표:');
-    print('   X: ${result['x']}');
-    print('   Y: ${result['y']}');
-    print('   W: ${result['width']}');
-    print('   H: ${result['height']}');
-
-    // 유효성 검사
     if (result['width']! <= 0 || result['height']! <= 0) {
-      print('❌ 유효하지 않은 크기입니다');
-      setState(() {
-        _errorMessage = '유효하지 않은 크롭 영역입니다';
-      });
+      setState(() => _errorMessage = '유효하지 않은 크롭 영역입니다');
       return;
     }
 
-    if (result['x']! < 0 ||
-        result['y']! < 0 ||
-        result['x']! >= imgWidth ||
-        result['y']! >= imgHeight) {
-      print('❌ 좌표가 이미지 범위를 벗어났습니다');
-      setState(() {
-        _errorMessage = '크롭 좌표가 이미지 범위를 벗어났습니다';
-      });
-      return;
-    }
-
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    // 크롭 좌표 저장
     _currentCropRect = Rect.fromLTWH(
       result['x']!.toDouble(),
       result['y']!.toDouble(),
@@ -860,7 +734,6 @@ class _CampaignCreationScreenState
       result['height']!.toDouble(),
     );
 
-    // 실제 크롭 수행
     await _cropProductImage(
       _capturedImage!,
       result['x']!,
@@ -871,11 +744,8 @@ class _CampaignCreationScreenState
   }
 
   Future<void> _createCampaign() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    // 잔액 확인
     if (_totalCost > _currentBalance) {
       setState(() {
         _errorMessage =
@@ -962,7 +832,6 @@ class _CampaignCreationScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 에러 메시지
               if (_errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -991,41 +860,32 @@ class _CampaignCreationScreenState
                 const SizedBox(height: 16),
               ],
 
-              // 캠페인 타입 및 플랫폼 (최상단)
               RepaintBoundary(child: _buildCampaignTypeSection()),
               const SizedBox(height: 24),
 
-              // 이미지 업로드 및 추출
               RepaintBoundary(child: _buildImageSection()),
               const SizedBox(height: 24),
 
-              // 상품 이미지 (자동 추출 후 또는 수동 편집 시 표시)
               if (_productImage != null || _capturedImage != null) ...[
                 RepaintBoundary(child: _buildProductImageSection()),
                 const SizedBox(height: 24),
               ],
 
-              // 상품 정보
               RepaintBoundary(child: _buildProductInfoSection()),
               const SizedBox(height: 24),
 
-              // 리뷰 설정
               RepaintBoundary(child: _buildReviewSettings()),
               const SizedBox(height: 24),
 
-              // 일정 설정
               RepaintBoundary(child: _buildScheduleSection()),
               const SizedBox(height: 24),
 
-              // 중복 방지 설정
               RepaintBoundary(child: _buildDuplicatePreventSection()),
               const SizedBox(height: 24),
 
-              // 비용 설정
               RepaintBoundary(child: _buildCostSection()),
               const SizedBox(height: 32),
 
-              // 생성 버튼
               RepaintBoundary(
                 child: CustomButton(
                   text: '캠페인 생성하기',
@@ -1065,7 +925,7 @@ class _CampaignCreationScreenState
             const SizedBox(height: 12),
             if (_capturedImage != null)
               Container(
-                height: 300, // 고정 높이
+                height: 300,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey[300]!),
@@ -1074,10 +934,7 @@ class _CampaignCreationScreenState
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    _capturedImage!,
-                    fit: BoxFit.contain, // 박스 안에 전체가 보이도록
-                  ),
+                  child: Image.memory(_capturedImage!, fit: BoxFit.contain),
                 ),
               )
             else
@@ -1141,7 +998,6 @@ class _CampaignCreationScreenState
   }
 
   Widget _buildProductImageSection() {
-    // 크롭된 이미지가 있으면 크롭된 이미지, 없으면 null (원본은 표시 안 함)
     final displayImage = _productImage;
 
     return Card(
@@ -1181,7 +1037,7 @@ class _CampaignCreationScreenState
             const SizedBox(height: 12),
             if (displayImage != null)
               Container(
-                height: 300, // 고정 높이
+                height: 300,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.green[200]!),
@@ -1190,10 +1046,7 @@ class _CampaignCreationScreenState
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    displayImage,
-                    fit: BoxFit.contain, // 박스 안에 전체가 보이도록
-                  ),
+                  child: Image.memory(displayImage, fit: BoxFit.contain),
                 ),
               )
             else
@@ -1406,7 +1259,6 @@ class _CampaignCreationScreenState
               },
             ),
             const SizedBox(height: 16),
-            // 상품제공여부 필드
             DropdownButtonFormField<String>(
               value: _productProvisionType,
               decoration: const InputDecoration(
@@ -1474,8 +1326,6 @@ class _CampaignCreationScreenState
               ],
             ),
             const SizedBox(height: 16),
-
-            // 리뷰 타입 선택
             DropdownButtonFormField<String>(
               value: _reviewType,
               decoration: const InputDecoration(
@@ -1499,8 +1349,6 @@ class _CampaignCreationScreenState
                 });
               },
             ),
-
-            // 텍스트 리뷰 설정 (별점+텍스트 또는 별점+텍스트+사진일 때)
             if (_reviewType == 'star_text' ||
                 _reviewType == 'star_text_image') ...[
               const SizedBox(height: 16),
@@ -1524,8 +1372,6 @@ class _CampaignCreationScreenState
                 },
               ),
             ],
-
-            // 사진 리뷰 설정 (별점+텍스트+사진일 때)
             if (_reviewType == 'star_text_image') ...[
               const SizedBox(height: 16),
               CustomTextField(
@@ -1547,7 +1393,6 @@ class _CampaignCreationScreenState
                 },
               ),
             ],
-
             const SizedBox(height: 16),
             CustomTextField(
               controller: _reviewRewardController,
@@ -1597,7 +1442,7 @@ class _CampaignCreationScreenState
                     ),
                     readOnly: true,
                     onTap: () => _selectDateTime(context, true),
-                    controller: _startDateTimeController, // 재사용
+                    controller: _startDateTimeController,
                     validator: (value) {
                       if (_startDateTime == null) {
                         return '시작 일시를 선택해주세요';
@@ -1616,7 +1461,7 @@ class _CampaignCreationScreenState
                     ),
                     readOnly: true,
                     onTap: () => _selectDateTime(context, false),
-                    controller: _endDateTimeController, // 재사용
+                    controller: _endDateTimeController,
                     validator: (value) {
                       if (_endDateTime == null) {
                         return '종료 일시를 선택해주세요';
@@ -1659,7 +1504,6 @@ class _CampaignCreationScreenState
     );
 
     if (date != null) {
-      // ignore: use_build_context_synchronously
       final time = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.now(),
@@ -1671,7 +1515,7 @@ class _CampaignCreationScreenState
           date.month,
           date.day,
           time.hour,
-          0, // 분은 0으로 고정 (시까지만)
+          0,
         );
 
         setState(() {
@@ -1684,7 +1528,7 @@ class _CampaignCreationScreenState
           } else {
             _endDateTime = dateTime;
           }
-          _updateDateTimeControllers(); // 컨트롤러 업데이트
+          _updateDateTimeControllers();
         });
       }
     }
@@ -1835,7 +1679,7 @@ class _CampaignCreationScreenState
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : Text(
-                              '${_formattedBalance} P',
+                              '$_formattedBalance P',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -1856,7 +1700,7 @@ class _CampaignCreationScreenState
                         ),
                       ),
                       Text(
-                        '${_formattedTotalCost} P',
+                        '$_formattedTotalCost P',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -1871,7 +1715,7 @@ class _CampaignCreationScreenState
                     children: [
                       const Text('잔여 금액'),
                       Text(
-                        '${_formattedRemaining} P',
+                        '$_formattedRemaining P',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: _totalCost <= _currentBalance
@@ -1926,7 +1770,6 @@ class _CampaignCreationScreenState
         (int.tryParse(maxParticipants) ?? 0) > 0;
   }
 
-  // DateTime 컨트롤러 업데이트 헬퍼
   void _updateDateTimeControllers() {
     _startDateTimeController.text = _startDateTime != null
         ? '${_startDateTime!.year}-${_startDateTime!.month.toString().padLeft(2, '0')}-${_startDateTime!.day.toString().padLeft(2, '0')} ${_startDateTime!.hour.toString().padLeft(2, '0')}:00'
@@ -1936,9 +1779,69 @@ class _CampaignCreationScreenState
         ? '${_endDateTime!.year}-${_endDateTime!.month.toString().padLeft(2, '0')}-${_endDateTime!.day.toString().padLeft(2, '0')} ${_endDateTime!.hour.toString().padLeft(2, '0')}:00'
         : '';
   }
+
+  static img.Image? _decodeImageInIsolate(Uint8List imageBytes) {
+    try {
+      return img.decodeImage(imageBytes);
+    } catch (e) {
+      print('❌ Isolate 이미지 디코딩 실패: $e');
+      return null;
+    }
+  }
+
+  static Uint8List _resizeImageInIsolate(_ResizeImageParams params) {
+    try {
+      final originalImage = img.decodeImage(params.imageBytes);
+      if (originalImage == null) {
+        print('❌ 이미지 디코딩 실패, 원본 반환');
+        return params.imageBytes;
+      }
+
+      final originalWidth = originalImage.width;
+      final originalHeight = originalImage.height;
+
+      if (originalWidth <= params.maxWidth &&
+          originalHeight <= params.maxHeight) {
+        return params.imageBytes;
+      }
+
+      double scale = 1.0;
+      if (originalWidth > params.maxWidth) {
+        scale = params.maxWidth / originalWidth;
+      }
+      if (originalHeight > params.maxHeight) {
+        final heightScale = params.maxHeight / originalHeight;
+        if (heightScale < scale) {
+          scale = heightScale;
+        }
+      }
+
+      final newWidth = (originalWidth * scale).round();
+      final newHeight = (originalHeight * scale).round();
+
+      final resizedImage = img.copyResize(
+        originalImage,
+        width: newWidth,
+        height: newHeight,
+        interpolation: img.Interpolation.linear,
+      );
+
+      final resizedBytes = Uint8List.fromList(
+        img.encodeJpg(resizedImage, quality: params.quality),
+      );
+
+      print(
+        '✅ 이미지 리사이징: ${originalWidth}x${originalHeight} -> ${newWidth}x${newHeight}',
+      );
+
+      return resizedBytes;
+    } catch (e) {
+      print('❌ 리사이징 실패: $e, 원본 반환');
+      return params.imageBytes;
+    }
+  }
 }
 
-// Isolate에서 사용할 이미지 크롭 파라미터 클래스
 class _CropImageParams {
   final Uint8List imageBytes;
   final int x;
@@ -1955,7 +1858,6 @@ class _CropImageParams {
   });
 }
 
-// Isolate에서 사용할 크롭 좌표 정규화 파라미터 클래스
 class _NormalizeCropParams {
   final Uint8List imageBytes;
   final int x;
@@ -1969,5 +1871,19 @@ class _NormalizeCropParams {
     required this.y,
     required this.width,
     required this.height,
+  });
+}
+
+class _ResizeImageParams {
+  final Uint8List imageBytes;
+  final int maxWidth;
+  final int maxHeight;
+  final int quality;
+
+  _ResizeImageParams({
+    required this.imageBytes,
+    required this.maxWidth,
+    required this.maxHeight,
+    required this.quality,
   });
 }

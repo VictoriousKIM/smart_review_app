@@ -1,4 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/wallet_models.dart';
 import '../config/supabase_config.dart';
 
@@ -17,17 +16,30 @@ class WalletService {
         return null;
       }
 
-      final response = await _supabase.rpc(
-        'get_user_wallet',
-        params: {'p_user_id': userId},
-      ) as List;
+      // wallets 테이블에서 직접 조회
+      final response = await _supabase
+          .from('wallets')
+          .select()
+          .eq('user_id', userId)
+          .isFilter('company_id', null)
+          .maybeSingle();
 
-      if (response.isEmpty) {
+      if (response == null) {
         print('ℹ️ 개인 지갑이 없습니다');
         return null;
       }
 
-      final wallet = UserWallet.fromJson(response.first as Map<String, dynamic>);
+      final wallet = UserWallet.fromJson({
+        'wallet_id': response['id'],
+        'id': response['id'],
+        'user_id': response['user_id'],
+        'current_points': response['current_points'],
+        'withdraw_bank_name': response['withdraw_bank_name'],
+        'withdraw_account_number': response['withdraw_account_number'],
+        'withdraw_account_holder': response['withdraw_account_holder'],
+        'created_at': response['created_at'],
+        'updated_at': response['updated_at'],
+      });
       print('✅ 개인 지갑 조회 성공: ${wallet.currentPoints}P');
       return wallet;
     } catch (e) {
@@ -45,14 +57,58 @@ class WalletService {
         return [];
       }
 
-      final response = await _supabase.rpc(
-        'get_user_company_wallets',
-        params: {'p_user_id': userId},
-      ) as List;
+      // company_users를 통해 접근 가능한 회사 조회
+      final companyUsers = await _supabase
+          .from('company_users')
+          .select('company_id, company_role, status')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .inFilter('company_role', ['owner', 'manager']);
 
-      final wallets = response
-          .map((e) => CompanyWallet.fromJson(e as Map<String, dynamic>))
+      if (companyUsers.isEmpty) {
+        return [];
+      }
+
+      final companyIds = companyUsers
+          .map((cu) => cu['company_id'] as String)
           .toList();
+
+      // wallets 테이블에서 회사 지갑 조회 (계좌정보 포함)
+      final walletsResponse = await _supabase
+          .from('wallets')
+          .select('''
+            id,
+            company_id,
+            current_points,
+            withdraw_bank_name,
+            withdraw_account_number,
+            withdraw_account_holder,
+            companies!inner(id, business_name)
+          ''')
+          .inFilter('company_id', companyIds);
+
+      // company_users 정보와 조인하여 최종 결과 생성
+      final wallets = <CompanyWallet>[];
+      for (final walletData in walletsResponse) {
+        final companyId = walletData['company_id'] as String;
+        final companyUser = companyUsers.firstWhere(
+          (cu) => cu['company_id'] == companyId,
+        );
+        final company = walletData['companies'] as Map<String, dynamic>;
+
+        wallets.add(CompanyWallet.fromJson({
+          'wallet_id': walletData['id'],
+          'id': walletData['id'],
+          'company_id': companyId,
+          'company_name': company['business_name'],
+          'current_points': walletData['current_points'],
+          'user_role': companyUser['company_role'],
+          'status': companyUser['status'],
+          'withdraw_bank_name': walletData['withdraw_bank_name'],
+          'withdraw_account_number': walletData['withdraw_account_number'],
+          'withdraw_account_holder': walletData['withdraw_account_holder'],
+        }));
+      }
 
       print('✅ 회사 지갑 조회 성공: ${wallets.length}개');
       return wallets;
@@ -265,6 +321,78 @@ class WalletService {
       return '+${formatPoints(points)} P';
     } else {
       return '${formatPoints(points)} P';
+    }
+  }
+
+  // ==================== 계좌정보 관리 ====================
+
+  /// 개인 지갑 계좌정보 업데이트 (RPC 트랜잭션 사용)
+  static Future<void> updateUserWalletAccount({
+    required String bankName,
+    required String accountNumber,
+    required String accountHolder,
+  }) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
+      }
+
+      // 지갑 조회
+      final wallet = await getUserWallet();
+      if (wallet == null) {
+        throw Exception('지갑을 찾을 수 없습니다');
+      }
+
+      // RPC 함수 호출로 트랜잭션 처리
+      // wallets 업데이트 + wallet_histories 기록을 원자적으로 처리
+      await _supabase.rpc('update_user_wallet_account', params: {
+        'p_wallet_id': wallet.id,
+        'p_bank_name': bankName,
+        'p_account_number': accountNumber,
+        'p_account_holder': accountHolder,
+      });
+
+      print('✅ 개인 지갑 계좌정보 업데이트 성공');
+    } catch (e) {
+      print('❌ 개인 지갑 계좌정보 업데이트 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 회사 지갑 계좌정보 업데이트 (오너 전용, RPC 트랜잭션 사용)
+  static Future<void> updateCompanyWalletAccount({
+    required String companyId,
+    required String bankName,
+    required String accountNumber,
+    required String accountHolder,
+  }) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
+      }
+
+      // 지갑 조회
+      final wallet = await getCompanyWalletByCompanyId(companyId);
+      if (wallet == null) {
+        throw Exception('회사 지갑을 찾을 수 없습니다');
+      }
+
+      // RPC 함수 호출로 트랜잭션 처리
+      // 권한 확인 + wallets 업데이트 + wallet_histories 기록을 원자적으로 처리
+      await _supabase.rpc('update_company_wallet_account', params: {
+        'p_wallet_id': wallet.id,
+        'p_company_id': companyId,
+        'p_bank_name': bankName,
+        'p_account_number': accountNumber,
+        'p_account_holder': accountHolder,
+      });
+
+      print('✅ 회사 지갑 계좌정보 업데이트 성공');
+    } catch (e) {
+      print('❌ 회사 지갑 계좌정보 업데이트 실패: $e');
+      rethrow;
     }
   }
 }

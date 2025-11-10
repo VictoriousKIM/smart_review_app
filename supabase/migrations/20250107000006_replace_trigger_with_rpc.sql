@@ -161,6 +161,24 @@ COMMENT ON FUNCTION "public"."approve_manager"("p_company_id" "uuid", "p_user_id
 
 
 
+CREATE OR REPLACE FUNCTION "public"."calculate_campaign_cost"("p_payment_method" "text", "p_payment_amount" integer, "p_review_reward" integer, "p_max_participants" integer) RETURNS integer
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  IF p_payment_method = 'platform' THEN
+    -- 플랫폼 지급: (결제금액 + 리뷰비 + 500) * 인원
+    RETURN (p_payment_amount + p_review_reward + 500) * p_max_participants;
+  ELSE
+    -- 직접 지급: 500 * 인원
+    RETURN 500 * p_max_participants;
+  END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."calculate_campaign_cost"("p_payment_method" "text", "p_payment_amount" integer, "p_review_reward" integer, "p_max_participants" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."check_user_exists"("p_user_id" "uuid") RETURNS boolean
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -282,14 +300,138 @@ $$;
 ALTER FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text", "p_platform_logo_url" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_platform_logo_url" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_payment_amount" integer DEFAULT 0, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_product_description" "text" DEFAULT NULL::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT 100, "p_review_image_count" integer DEFAULT 0, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_user_id UUID;
+  v_company_id UUID;
+  v_current_points INTEGER;
+  v_total_cost INTEGER;
+  v_campaign_id UUID;
+  v_result JSONB;
+BEGIN
+  -- 1. 현재 사용자
+  v_user_id := (SELECT auth.uid());
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  
+  -- 2. 사용자의 활성 회사 조회
+  SELECT cu.company_id INTO v_company_id
+  FROM public.company_users cu
+  WHERE cu.user_id = v_user_id
+    AND cu.status = 'active'
+    AND cu.company_role IN ('owner', 'manager')
+  LIMIT 1;
+  
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION '회사에 소속되지 않았습니다';
+  END IF;
+  
+  -- 3. 총 비용 계산
+  v_total_cost := calculate_campaign_cost(
+    p_payment_method,
+    p_payment_amount,
+    p_review_reward,
+    p_max_participants
+  );
+  
+  -- 4. 회사 지갑 조회 및 잔액 확인
+  SELECT cw.current_points INTO v_current_points
+  FROM public.company_wallets cw
+  WHERE cw.company_id = v_company_id
+  FOR UPDATE;
+  
+  IF v_current_points IS NULL THEN
+    RAISE EXCEPTION '회사 지갑이 없습니다';
+  END IF;
+  
+  IF v_current_points < v_total_cost THEN
+    RAISE EXCEPTION '포인트가 부족합니다 (필요: %, 보유: %)', 
+      v_total_cost, v_current_points;
+  END IF;
+  
+  -- 5. 포인트 차감
+  UPDATE public.company_wallets
+  SET current_points = current_points - v_total_cost,
+      updated_at = NOW()
+  WHERE company_id = v_company_id;
+  
+  -- 6. 캠페인 생성
+  INSERT INTO public.campaigns (
+    title, description, company_id, user_id,
+    campaign_type, platform, platform_logo_url,
+    keyword, option, quantity, seller, product_number,
+    product_image_url, payment_amount, purchase_method,
+    product_description, review_type, review_text_length, review_image_count,
+    review_reward, max_participants, current_participants,
+    start_date, end_date,
+    prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days,
+    payment_method, total_cost,
+    status, created_at, updated_at
+  ) VALUES (
+    p_title, p_description, v_company_id, v_user_id,
+    p_campaign_type, p_platform, p_platform_logo_url,
+    p_keyword, p_option, p_quantity, p_seller, p_product_number,
+    p_product_image_url, p_payment_amount, p_purchase_method,
+    p_product_description, p_review_type, p_review_text_length, p_review_image_count,
+    p_review_reward, p_max_participants, 0,
+    p_start_date, p_end_date,
+    p_prevent_product_duplicate, p_prevent_store_duplicate, p_duplicate_prevent_days,
+    p_payment_method, v_total_cost,
+    'active', NOW(), NOW()
+  ) RETURNING id INTO v_campaign_id;
+  
+  -- 7. 포인트 로그 기록
+  INSERT INTO public.company_point_logs (
+    company_id, transaction_type, amount,
+    description, related_entity_type, related_entity_id,
+    created_by_user_id, created_at
+  ) VALUES (
+    v_company_id, 'spend', -v_total_cost,
+    '캠페인 생성: ' || p_title,
+    'campaign', v_campaign_id,
+    v_user_id, NOW()
+  );
+  
+  -- 8. 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'campaign_id', v_campaign_id,
+    'total_cost', v_total_cost,
+    'points_spent', v_total_cost,
+    'remaining_points', v_current_points - v_total_cost
+  ) INTO v_result;
+  
+  RETURN v_result;
+  
+EXCEPTION WHEN OTHERS THEN
+  RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."create_company_wallet_on_registration"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
     AS $$
+DECLARE
+    v_wallet_id UUID;
 BEGIN
-  INSERT INTO public.company_wallets (company_id, current_points, created_at, updated_at)
-  VALUES (NEW.id, 0, NOW(), NOW())
-  ON CONFLICT (company_id) DO NOTHING;
-  RETURN NEW;
+    -- wallets 테이블에 지갑 생성
+    INSERT INTO wallets (company_id, user_id, current_points, created_at, updated_at)
+    VALUES (NEW.id, NULL, 0, NOW(), NOW())
+    ON CONFLICT DO NOTHING
+    RETURNING id INTO v_wallet_id;
+    
+    -- 누적 로그 방식에서는 초기 기록을 생성하지 않음 (첫 변경 시 기록됨)
+    
+    RETURN NEW;
 END;
 $$;
 
@@ -419,12 +561,20 @@ COMMENT ON FUNCTION "public"."create_user_profile_safe"("p_user_id" "uuid", "p_d
 
 CREATE OR REPLACE FUNCTION "public"."create_user_wallet_on_signup"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
     AS $$
+DECLARE
+    v_wallet_id UUID;
 BEGIN
-  INSERT INTO public.user_wallets (user_id, current_points, created_at, updated_at)
-  VALUES (NEW.id, 0, NOW(), NOW())
-  ON CONFLICT (user_id) DO NOTHING;
-  RETURN NEW;
+    -- wallets 테이블에 지갑 생성
+    INSERT INTO wallets (company_id, user_id, current_points, created_at, updated_at)
+    VALUES (NULL, NEW.id, 0, NOW(), NOW())
+    ON CONFLICT DO NOTHING
+    RETURNING id INTO v_wallet_id;
+    
+    -- 누적 로그 방식에서는 초기 기록을 생성하지 않음 (첫 변경 시 기록됨)
+    
+    RETURN NEW;
 END;
 $$;
 
@@ -580,6 +730,64 @@ ALTER FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p
 
 COMMENT ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") IS '포인트 적립과 로그 생성을 원자적으로 처리합니다. 에러 발생 시 모든 작업이 롤백됩니다.';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."ensure_company_wallet"("p_company_id" "uuid") RETURNS "uuid"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_wallet_id UUID;
+BEGIN
+    -- 기존 지갑 확인
+    SELECT id INTO v_wallet_id
+    FROM wallets
+    WHERE company_id = p_company_id;
+    
+    -- 없으면 생성
+    IF v_wallet_id IS NULL THEN
+        INSERT INTO wallets (company_id, user_id, current_points, created_at, updated_at)
+        VALUES (p_company_id, NULL, 0, NOW(), NOW())
+        RETURNING id INTO v_wallet_id;
+        
+        -- 누적 로그 방식에서는 초기 기록을 생성하지 않음 (첫 변경 시 기록됨)
+    END IF;
+    
+    RETURN v_wallet_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."ensure_company_wallet"("p_company_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."ensure_user_wallet"("p_user_id" "uuid") RETURNS "uuid"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_wallet_id UUID;
+BEGIN
+    -- 기존 지갑 확인
+    SELECT id INTO v_wallet_id
+    FROM wallets
+    WHERE user_id = p_user_id;
+    
+    -- 없으면 생성
+    IF v_wallet_id IS NULL THEN
+        INSERT INTO wallets (company_id, user_id, current_points, created_at, updated_at)
+        VALUES (NULL, p_user_id, 0, NOW(), NOW())
+        RETURNING id INTO v_wallet_id;
+        
+        -- 누적 로그 방식에서는 초기 기록을 생성하지 않음 (첫 변경 시 기록됨)
+    END IF;
+    
+    RETURN v_wallet_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."ensure_user_wallet"("p_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_company_managers"("p_company_id" "uuid") RETURNS TABLE("company_id" "uuid", "user_id" "uuid", "status" "text", "created_at" timestamp with time zone, "email" character varying, "display_name" "text")
@@ -1048,6 +1256,54 @@ $$;
 ALTER FUNCTION "public"."get_user_wallets"("p_user_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_wallet_by_company_id"("p_company_id" "uuid") RETURNS TABLE("id" "uuid", "company_id" "uuid", "user_id" "uuid", "current_points" integer, "withdraw_bank_name" "text", "withdraw_account_number" "text", "withdraw_account_holder" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone)
+    LANGUAGE "plpgsql" STABLE
+    AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        w.id,
+        w.company_id,
+        w.user_id,
+        w.current_points,
+        w.withdraw_bank_name,
+        w.withdraw_account_number,
+        w.withdraw_account_holder,
+        w.created_at,
+        w.updated_at
+    FROM wallets w
+    WHERE w.company_id = p_company_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_wallet_by_company_id"("p_company_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_wallet_by_user_id"("p_user_id" "uuid") RETURNS TABLE("id" "uuid", "company_id" "uuid", "user_id" "uuid", "current_points" integer, "withdraw_bank_name" "text", "withdraw_account_number" "text", "withdraw_account_holder" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone)
+    LANGUAGE "plpgsql" STABLE
+    AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        w.id,
+        w.company_id,
+        w.user_id,
+        w.current_points,
+        w.withdraw_bank_name,
+        w.withdraw_account_number,
+        w.withdraw_account_holder,
+        w.created_at,
+        w.updated_at
+    FROM wallets w
+    WHERE w.user_id = p_user_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_wallet_by_user_id"("p_user_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_wallet_info"("p_wallet_id" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -1256,6 +1512,48 @@ $$;
 
 
 ALTER FUNCTION "public"."leave_campaign_safe"("p_campaign_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."log_wallet_account_change"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+BEGIN
+    -- 계좌 정보가 변경된 경우에만 기록
+    IF (OLD.withdraw_bank_name IS DISTINCT FROM NEW.withdraw_bank_name) OR
+       (OLD.withdraw_account_number IS DISTINCT FROM NEW.withdraw_account_number) OR
+       (OLD.withdraw_account_holder IS DISTINCT FROM NEW.withdraw_account_holder) THEN
+        
+        -- 누적 로그로 INSERT (여러 기록 가능)
+        INSERT INTO wallet_histories (
+            wallet_id,
+            old_bank_name,
+            old_account_number,
+            old_account_holder,
+            new_bank_name,
+            new_account_number,
+            new_account_holder,
+            changed_by,
+            created_at
+        ) VALUES (
+            NEW.id,
+            OLD.withdraw_bank_name,
+            OLD.withdraw_account_number,
+            OLD.withdraw_account_holder,
+            NEW.withdraw_bank_name,
+            NEW.withdraw_account_number,
+            NEW.withdraw_account_holder,
+            (SELECT auth.uid()),
+            NOW()
+        );
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."log_wallet_account_change"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."register_company"("p_user_id" "uuid", "p_business_name" "text", "p_business_number" "text", "p_address" "text", "p_representative_name" "text", "p_business_type" "text", "p_registration_file_url" "text") RETURNS "jsonb"
@@ -1781,6 +2079,106 @@ COMMENT ON FUNCTION "public"."sync_campaign_user_status_on_event"() IS 'campaign
 
 
 
+CREATE OR REPLACE FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_old_bank_name TEXT;
+    v_old_account_number TEXT;
+    v_old_account_holder TEXT;
+    v_user_id UUID;
+BEGIN
+    -- 사용자 확인
+    v_user_id := auth.uid();
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION '로그인이 필요합니다';
+    END IF;
+    
+    -- 권한 확인: owner만 가능
+    IF NOT EXISTS (
+        SELECT 1 FROM company_users
+        WHERE company_id = p_company_id
+        AND user_id = v_user_id
+        AND company_role = 'owner'
+        AND status = 'active'
+    ) THEN
+        RAISE EXCEPTION '회사 소유자만 계좌정보를 수정할 수 있습니다';
+    END IF;
+    
+    -- 트랜잭션 시작
+    BEGIN
+        -- 이전 계좌정보 조회 (행 잠금으로 동시성 제어)
+        SELECT withdraw_bank_name, withdraw_account_number, withdraw_account_holder
+        INTO v_old_bank_name, v_old_account_number, v_old_account_holder
+        FROM wallets
+        WHERE id = p_wallet_id
+        AND company_id = p_company_id
+        FOR UPDATE;
+        
+        IF NOT FOUND THEN
+            RAISE EXCEPTION '회사 지갑을 찾을 수 없습니다';
+        END IF;
+        
+        -- wallets 테이블 업데이트
+        UPDATE wallets
+        SET 
+            withdraw_bank_name = p_bank_name,
+            withdraw_account_number = p_account_number,
+            withdraw_account_holder = p_account_holder,
+            updated_at = NOW()
+        WHERE id = p_wallet_id
+        AND company_id = p_company_id;
+        
+        -- 변경이 있었으면 wallet_histories에 기록
+        IF (v_old_bank_name IS DISTINCT FROM p_bank_name) OR
+           (v_old_account_number IS DISTINCT FROM p_account_number) OR
+           (v_old_account_holder IS DISTINCT FROM p_account_holder) THEN
+            
+            -- wallet_histories 테이블이 없어도 에러 처리
+            BEGIN
+                INSERT INTO wallet_histories (
+                    wallet_id,
+                    old_bank_name,
+                    old_account_number,
+                    old_account_holder,
+                    new_bank_name,
+                    new_account_number,
+                    new_account_holder,
+                    changed_by,
+                    created_at
+                ) VALUES (
+                    p_wallet_id,
+                    v_old_bank_name,
+                    v_old_account_number,
+                    v_old_account_holder,
+                    p_bank_name,
+                    p_account_number,
+                    p_account_holder,
+                    v_user_id,
+                    NOW()
+                );
+            EXCEPTION WHEN OTHERS THEN
+                -- wallet_histories 테이블이 없어도 계좌정보 업데이트는 성공
+                RAISE WARNING 'Failed to insert wallet_histories: %', SQLERRM;
+            END;
+        END IF;
+        
+    EXCEPTION WHEN OTHERS THEN
+        -- 에러 발생 시 자동으로 롤백됨
+        RAISE;
+    END;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") IS '회사 지갑 계좌정보 업데이트 및 이력 기록을 트랜잭션으로 처리합니다. owner만 수정 가능하며, wallet_histories 테이블이 없어도 계좌정보 업데이트는 성공합니다.';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."update_sns_connection"("p_id" "uuid", "p_user_id" "uuid", "p_platform_account_name" "text" DEFAULT NULL::"text", "p_phone" "text" DEFAULT NULL::"text", "p_address" "text" DEFAULT NULL::"text", "p_return_address" "text" DEFAULT NULL::"text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -1951,6 +2349,108 @@ $$;
 
 ALTER FUNCTION "public"."update_user_profile_safe"("p_user_id" "uuid", "p_display_name" "text") OWNER TO "postgres";
 
+
+CREATE OR REPLACE FUNCTION "public"."update_user_wallet_account"("p_wallet_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_old_bank_name TEXT;
+    v_old_account_number TEXT;
+    v_old_account_holder TEXT;
+    v_user_id UUID;
+BEGIN
+    -- 사용자 확인
+    v_user_id := auth.uid();
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION '로그인이 필요합니다';
+    END IF;
+    
+    -- 트랜잭션 시작 (PostgreSQL 함수는 자동으로 트랜잭션 블록)
+    BEGIN
+        -- 이전 계좌정보 조회 (행 잠금으로 동시성 제어)
+        SELECT withdraw_bank_name, withdraw_account_number, withdraw_account_holder
+        INTO v_old_bank_name, v_old_account_number, v_old_account_holder
+        FROM wallets
+        WHERE id = p_wallet_id
+        AND user_id = v_user_id
+        FOR UPDATE;
+        
+        IF NOT FOUND THEN
+            RAISE EXCEPTION '지갑을 찾을 수 없습니다';
+        END IF;
+        
+        -- wallets 테이블 업데이트
+        UPDATE wallets
+        SET 
+            withdraw_bank_name = p_bank_name,
+            withdraw_account_number = p_account_number,
+            withdraw_account_holder = p_account_holder,
+            updated_at = NOW()
+        WHERE id = p_wallet_id
+        AND user_id = v_user_id;
+        
+        -- 변경이 있었으면 wallet_histories에 기록
+        IF (v_old_bank_name IS DISTINCT FROM p_bank_name) OR
+           (v_old_account_number IS DISTINCT FROM p_account_number) OR
+           (v_old_account_holder IS DISTINCT FROM p_account_holder) THEN
+            
+            -- wallet_histories 테이블이 없어도 에러 처리
+            BEGIN
+                INSERT INTO wallet_histories (
+                    wallet_id,
+                    old_bank_name,
+                    old_account_number,
+                    old_account_holder,
+                    new_bank_name,
+                    new_account_number,
+                    new_account_holder,
+                    changed_by,
+                    created_at
+                ) VALUES (
+                    p_wallet_id,
+                    v_old_bank_name,
+                    v_old_account_number,
+                    v_old_account_holder,
+                    p_bank_name,
+                    p_account_number,
+                    p_account_holder,
+                    v_user_id,
+                    NOW()
+                );
+            EXCEPTION WHEN OTHERS THEN
+                -- wallet_histories 테이블이 없어도 계좌정보 업데이트는 성공
+                RAISE WARNING 'Failed to insert wallet_histories: %', SQLERRM;
+            END;
+        END IF;
+        
+    EXCEPTION WHEN OTHERS THEN
+        -- 에러 발생 시 자동으로 롤백됨
+        RAISE;
+    END;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_user_wallet_account"("p_wallet_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."update_user_wallet_account"("p_wallet_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") IS '개인 지갑 계좌정보 업데이트 및 이력 기록을 트랜잭션으로 처리합니다. wallet_histories 테이블이 없어도 계좌정보 업데이트는 성공합니다.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."update_wallets_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_wallets_updated_at"() OWNER TO "postgres";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
@@ -2029,7 +2529,26 @@ CREATE TABLE IF NOT EXISTS "public"."campaigns" (
     "last_used_at" timestamp with time zone,
     "usage_count" integer DEFAULT 0,
     "completed_applicants_count" integer DEFAULT 0 NOT NULL,
+    "keyword" "text",
+    "option" "text",
+    "quantity" integer DEFAULT 1,
+    "seller" "text",
+    "product_number" "text",
+    "payment_amount" integer DEFAULT 0,
+    "purchase_method" "text" DEFAULT 'mobile'::"text",
+    "product_description" "text",
+    "review_type" "text" DEFAULT 'star_only'::"text",
+    "review_text_length" integer DEFAULT 100,
+    "review_image_count" integer DEFAULT 0,
+    "prevent_product_duplicate" boolean DEFAULT false,
+    "prevent_store_duplicate" boolean DEFAULT false,
+    "duplicate_prevent_days" integer DEFAULT 0,
+    "payment_method" "text" DEFAULT 'platform'::"text",
+    "total_cost" integer DEFAULT 0 NOT NULL,
     CONSTRAINT "campaigns_campaign_type_check" CHECK (("campaign_type" = ANY (ARRAY['reviewer'::"text", 'journalist'::"text", 'visit'::"text"]))),
+    CONSTRAINT "campaigns_payment_method_check" CHECK (("payment_method" = ANY (ARRAY['platform'::"text", 'direct'::"text"]))),
+    CONSTRAINT "campaigns_purchase_method_check" CHECK (("purchase_method" = ANY (ARRAY['mobile'::"text", 'pc'::"text"]))),
+    CONSTRAINT "campaigns_review_type_check" CHECK (("review_type" = ANY (ARRAY['star_only'::"text", 'star_text'::"text", 'star_text_image'::"text"]))),
     CONSTRAINT "campaigns_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'completed'::"text", 'cancelled'::"text"])))
 );
 
@@ -2038,6 +2557,58 @@ ALTER TABLE "public"."campaigns" OWNER TO "postgres";
 
 
 COMMENT ON COLUMN "public"."campaigns"."completed_applicants_count" IS '캠페인 완료자 수 (성능 최적화를 위한 캐시 컬럼)';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."keyword" IS '검색 키워드';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."option" IS '제품 옵션 (색상, 사이즈 등)';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."quantity" IS '구매 개수';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."seller" IS '판매자명';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."product_number" IS '상품번호';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."payment_amount" IS '결제금액 (원)';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."purchase_method" IS '구매방법 (mobile/pc)';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."review_text_length" IS '텍스트 리뷰 길이';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."prevent_product_duplicate" IS '상품 중복 금지 여부';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."prevent_store_duplicate" IS '스토어 중복 금지 여부';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."duplicate_prevent_days" IS '중복 금지 기간 (일)';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."payment_method" IS '지급 방법 (platform/direct)';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."total_cost" IS '총 비용';
 
 
 
@@ -2112,22 +2683,6 @@ COMMENT ON TABLE "public"."company_users" IS '회사-사용자 관계 테이블 
 
 
 COMMENT ON COLUMN "public"."company_users"."status" IS '회사-사용자 관계 상태: active(활성), inactive(비활성), pending(대기), suspended(정지), rejected(거절)';
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."company_wallets" (
-    "company_id" "uuid" NOT NULL,
-    "current_points" integer DEFAULT 0 NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "company_wallets_points_check" CHECK (("current_points" >= 0))
-);
-
-
-ALTER TABLE "public"."company_wallets" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."company_wallets" IS '회사 포인트 지갑 (광고주용)';
 
 
 
@@ -2219,22 +2774,6 @@ COMMENT ON TABLE "public"."user_point_logs" IS '개인 포인트 거래 내역';
 
 
 
-CREATE TABLE IF NOT EXISTS "public"."user_wallets" (
-    "user_id" "uuid" NOT NULL,
-    "current_points" integer DEFAULT 0 NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "user_wallets_points_check" CHECK (("current_points" >= 0))
-);
-
-
-ALTER TABLE "public"."user_wallets" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."user_wallets" IS '개인 사용자 포인트 지갑 (리뷰어용)';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."users" (
     "id" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
@@ -2247,6 +2786,93 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
 
 
 ALTER TABLE "public"."users" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."wallet_histories" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "wallet_id" "uuid" NOT NULL,
+    "old_bank_name" "text",
+    "old_account_number" "text",
+    "old_account_holder" "text",
+    "new_bank_name" "text",
+    "new_account_number" "text",
+    "new_account_holder" "text",
+    "changed_by" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."wallet_histories" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."wallet_histories" IS '지갑 계좌 정보 변경 이력 (누적 로그)';
+
+
+
+COMMENT ON COLUMN "public"."wallet_histories"."id" IS '기록 ID (PK)';
+
+
+
+COMMENT ON COLUMN "public"."wallet_histories"."wallet_id" IS '지갑 ID (FK)';
+
+
+
+COMMENT ON COLUMN "public"."wallet_histories"."old_bank_name" IS '이전 은행명';
+
+
+
+COMMENT ON COLUMN "public"."wallet_histories"."old_account_number" IS '이전 계좌번호';
+
+
+
+COMMENT ON COLUMN "public"."wallet_histories"."old_account_holder" IS '이전 예금주';
+
+
+
+COMMENT ON COLUMN "public"."wallet_histories"."new_bank_name" IS '변경 은행명';
+
+
+
+COMMENT ON COLUMN "public"."wallet_histories"."new_account_number" IS '변경 계좌번호';
+
+
+
+COMMENT ON COLUMN "public"."wallet_histories"."new_account_holder" IS '변경 예금주';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."wallets" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "company_id" "uuid",
+    "user_id" "uuid",
+    "current_points" integer DEFAULT 0 NOT NULL,
+    "withdraw_bank_name" "text",
+    "withdraw_account_number" "text",
+    "withdraw_account_holder" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "wallets_current_points_check" CHECK (("current_points" >= 0)),
+    CONSTRAINT "wallets_owner_check" CHECK (((("company_id" IS NOT NULL) AND ("user_id" IS NULL)) OR (("company_id" IS NULL) AND ("user_id" IS NOT NULL))))
+);
+
+
+ALTER TABLE "public"."wallets" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."wallets" IS '통합 지갑 테이블 (회사 및 유저 지갑)';
+
+
+
+COMMENT ON COLUMN "public"."wallets"."company_id" IS '회사 지갑인 경우 회사 ID (FK)';
+
+
+
+COMMENT ON COLUMN "public"."wallets"."user_id" IS '유저 지갑인 경우 유저 ID (FK)';
+
+
+
+COMMENT ON CONSTRAINT "wallets_owner_check" ON "public"."wallets" IS 'company_id 또는 user_id 중 하나는 반드시 있어야 함';
+
 
 
 ALTER TABLE ONLY "public"."campaign_events"
@@ -2279,11 +2905,6 @@ ALTER TABLE ONLY "public"."company_users"
 
 
 
-ALTER TABLE ONLY "public"."company_wallets"
-    ADD CONSTRAINT "company_wallets_pkey" PRIMARY KEY ("company_id");
-
-
-
 ALTER TABLE ONLY "public"."deleted_users"
     ADD CONSTRAINT "deleted_users_pkey" PRIMARY KEY ("user_id");
 
@@ -2309,13 +2930,18 @@ ALTER TABLE ONLY "public"."user_point_logs"
 
 
 
-ALTER TABLE ONLY "public"."user_wallets"
-    ADD CONSTRAINT "user_wallets_pkey" PRIMARY KEY ("user_id");
-
-
-
 ALTER TABLE ONLY "public"."users"
     ADD CONSTRAINT "users_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."wallet_histories"
+    ADD CONSTRAINT "wallet_histories_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."wallets"
+    ADD CONSTRAINT "wallets_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2379,6 +3005,10 @@ CREATE INDEX "idx_campaigns_end_date" ON "public"."campaigns" USING "btree" ("en
 
 
 
+CREATE INDEX "idx_campaigns_keyword" ON "public"."campaigns" USING "btree" ("keyword");
+
+
+
 CREATE INDEX "idx_campaigns_last_used_at" ON "public"."campaigns" USING "btree" ("last_used_at");
 
 
@@ -2387,11 +3017,23 @@ CREATE INDEX "idx_campaigns_max_participants" ON "public"."campaigns" USING "btr
 
 
 
+CREATE INDEX "idx_campaigns_payment_method" ON "public"."campaigns" USING "btree" ("payment_method");
+
+
+
 CREATE INDEX "idx_campaigns_platform" ON "public"."campaigns" USING "btree" ("platform");
 
 
 
+CREATE INDEX "idx_campaigns_product_number" ON "public"."campaigns" USING "btree" ("product_number");
+
+
+
 CREATE INDEX "idx_campaigns_review_cost" ON "public"."campaigns" USING "btree" ("review_cost");
+
+
+
+CREATE INDEX "idx_campaigns_seller" ON "public"."campaigns" USING "btree" ("seller");
 
 
 
@@ -2507,6 +3149,30 @@ CREATE INDEX "idx_users_status_active" ON "public"."users" USING "btree" ("id") 
 
 
 
+CREATE INDEX "idx_wallet_histories_changed_by" ON "public"."wallet_histories" USING "btree" ("changed_by");
+
+
+
+CREATE INDEX "idx_wallet_histories_created_at" ON "public"."wallet_histories" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_wallet_histories_wallet_id" ON "public"."wallet_histories" USING "btree" ("wallet_id");
+
+
+
+CREATE INDEX "idx_wallets_company_id" ON "public"."wallets" USING "btree" ("company_id") WHERE ("company_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_wallets_created_at" ON "public"."wallets" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_wallets_user_id" ON "public"."wallets" USING "btree" ("user_id") WHERE ("user_id" IS NOT NULL);
+
+
+
 CREATE OR REPLACE TRIGGER "create_company_wallet_trigger" AFTER INSERT ON "public"."companies" FOR EACH ROW EXECUTE FUNCTION "public"."create_company_wallet_on_registration"();
 
 
@@ -2535,15 +3201,11 @@ CREATE OR REPLACE TRIGGER "update_companies_updated_at" BEFORE UPDATE ON "public
 
 
 
-CREATE OR REPLACE TRIGGER "update_company_wallets_updated_at" BEFORE UPDATE ON "public"."company_wallets" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
-
-
-
-CREATE OR REPLACE TRIGGER "update_user_wallets_updated_at" BEFORE UPDATE ON "public"."user_wallets" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
-
-
-
 CREATE OR REPLACE TRIGGER "update_users_updated_at" BEFORE UPDATE ON "public"."users" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+CREATE OR REPLACE TRIGGER "update_wallets_updated_at_trigger" BEFORE UPDATE ON "public"."wallets" FOR EACH ROW EXECUTE FUNCTION "public"."update_wallets_updated_at"();
 
 
 
@@ -2583,11 +3245,6 @@ ALTER TABLE ONLY "public"."companies"
 
 
 ALTER TABLE ONLY "public"."company_point_logs"
-    ADD CONSTRAINT "company_point_logs_company_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."company_wallets"("company_id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."company_point_logs"
     ADD CONSTRAINT "company_point_logs_user_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
@@ -2599,11 +3256,6 @@ ALTER TABLE ONLY "public"."company_users"
 
 ALTER TABLE ONLY "public"."company_users"
     ADD CONSTRAINT "company_users_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."company_wallets"
-    ADD CONSTRAINT "company_wallets_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE CASCADE;
 
 
 
@@ -2622,13 +3274,31 @@ ALTER TABLE ONLY "public"."sns_connections"
 
 
 
-ALTER TABLE ONLY "public"."user_point_logs"
-    ADD CONSTRAINT "user_point_logs_user_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user_wallets"("user_id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."wallet_histories"
+    ADD CONSTRAINT "wallet_histories_changed_by_fkey" FOREIGN KEY ("changed_by") REFERENCES "public"."users"("id");
 
 
 
-ALTER TABLE ONLY "public"."user_wallets"
-    ADD CONSTRAINT "user_wallets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."wallet_histories"
+    ADD CONSTRAINT "wallet_histories_wallet_id_fkey" FOREIGN KEY ("wallet_id") REFERENCES "public"."wallets"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."wallets"
+    ADD CONSTRAINT "wallets_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."wallets"
+    ADD CONSTRAINT "wallets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
+CREATE POLICY "Admins can update all wallets" ON "public"."wallets" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."users"
+  WHERE (("users"."id" = "auth"."uid"()) AND ("users"."user_type" = 'admin'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."users"
+  WHERE (("users"."id" = "auth"."uid"()) AND ("users"."user_type" = 'admin'::"text")))));
 
 
 
@@ -2692,9 +3362,17 @@ CREATE POLICY "Company members can view company point logs" ON "public"."company
 
 
 
-CREATE POLICY "Company members can view company wallet" ON "public"."company_wallets" FOR SELECT USING ((EXISTS ( SELECT 1
+CREATE POLICY "Company members can view company wallet" ON "public"."wallets" FOR SELECT USING ((("company_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."company_users" "cu"
-  WHERE (("cu"."company_id" = "company_wallets"."company_id") AND ("cu"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("cu"."status" = 'active'::"text")))));
+  WHERE (("cu"."company_id" = "wallets"."company_id") AND ("cu"."user_id" = "auth"."uid"()) AND ("cu"."status" = 'active'::"text"))))));
+
+
+
+CREATE POLICY "Company owners can update company wallet account" ON "public"."wallets" FOR UPDATE USING ((("company_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM "public"."company_users" "cu"
+  WHERE (("cu"."company_id" = "wallets"."company_id") AND ("cu"."user_id" = "auth"."uid"()) AND ("cu"."company_role" = 'owner'::"text") AND ("cu"."status" = 'active'::"text")))))) WITH CHECK ((("company_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM "public"."company_users" "cu"
+  WHERE (("cu"."company_id" = "wallets"."company_id") AND ("cu"."user_id" = "auth"."uid"()) AND ("cu"."company_role" = 'owner'::"text") AND ("cu"."status" = 'active'::"text"))))));
 
 
 
@@ -2737,23 +3415,7 @@ CREATE POLICY "Notifications are viewable by owner" ON "public"."notifications" 
 
 
 
-CREATE POLICY "Only admins can update wallets" ON "public"."user_wallets" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."users"
-  WHERE (("users"."id" = ( SELECT "auth"."uid"() AS "uid")) AND ("users"."user_type" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "Only owners can update company wallet" ON "public"."company_wallets" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."company_users" "cu"
-  WHERE (("cu"."company_id" = "company_wallets"."company_id") AND ("cu"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("cu"."company_role" = 'owner'::"text") AND ("cu"."status" = 'active'::"text")))));
-
-
-
 CREATE POLICY "System can insert company point logs" ON "public"."company_point_logs" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "System can insert company wallets" ON "public"."company_wallets" FOR INSERT WITH CHECK (true);
 
 
 
@@ -2761,7 +3423,7 @@ CREATE POLICY "System can insert user point logs" ON "public"."user_point_logs" 
 
 
 
-CREATE POLICY "System can insert wallets" ON "public"."user_wallets" FOR INSERT WITH CHECK (true);
+CREATE POLICY "System can insert wallets" ON "public"."wallets" FOR INSERT WITH CHECK (true);
 
 
 
@@ -2781,11 +3443,23 @@ CREATE POLICY "Users can insert own profile" ON "public"."users" FOR INSERT WITH
 
 
 
+CREATE POLICY "Users can insert their own wallet histories" ON "public"."wallet_histories" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."wallets" "w"
+  WHERE (("w"."id" = "wallet_histories"."wallet_id") AND (("w"."user_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+           FROM "public"."company_users" "cu"
+          WHERE (("cu"."company_id" = "w"."company_id") AND ("cu"."user_id" = "auth"."uid"()) AND ("cu"."status" = 'active'::"text") AND ("cu"."company_role" = 'owner'::"text")))))))));
+
+
+
 CREATE POLICY "Users can update own profile" ON "public"."users" FOR UPDATE USING (("id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
 CREATE POLICY "Users can update their own SNS connections" ON "public"."sns_connections" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can update their own wallet account" ON "public"."wallets" FOR UPDATE USING (("user_id" = "auth"."uid"())) WITH CHECK (("user_id" = "auth"."uid"()));
 
 
 
@@ -2797,7 +3471,15 @@ CREATE POLICY "Users can view their own point logs" ON "public"."user_point_logs
 
 
 
-CREATE POLICY "Users can view their own wallet" ON "public"."user_wallets" FOR SELECT USING ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
+CREATE POLICY "Users can view their own wallet" ON "public"."wallets" FOR SELECT USING (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can view their own wallet histories" ON "public"."wallet_histories" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."wallets" "w"
+  WHERE (("w"."id" = "wallet_histories"."wallet_id") AND (("w"."user_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+           FROM "public"."company_users" "cu"
+          WHERE (("cu"."company_id" = "w"."company_id") AND ("cu"."user_id" = "auth"."uid"()) AND ("cu"."status" = 'active'::"text")))))))));
 
 
 
@@ -2819,9 +3501,6 @@ ALTER TABLE "public"."company_point_logs" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."company_users" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."company_wallets" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."deleted_users" ENABLE ROW LEVEL SECURITY;
 
 
@@ -2834,10 +3513,13 @@ ALTER TABLE "public"."sns_connections" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_point_logs" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."user_wallets" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."wallet_histories" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."wallets" ENABLE ROW LEVEL SECURITY;
 
 
 
@@ -3023,6 +3705,12 @@ GRANT ALL ON FUNCTION "public"."approve_manager"("p_company_id" "uuid", "p_user_
 
 
 
+GRANT ALL ON FUNCTION "public"."calculate_campaign_cost"("p_payment_method" "text", "p_payment_amount" integer, "p_review_reward" integer, "p_max_participants" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."calculate_campaign_cost"("p_payment_method" "text", "p_payment_amount" integer, "p_review_reward" integer, "p_max_participants" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."calculate_campaign_cost"("p_payment_method" "text", "p_payment_amount" integer, "p_review_reward" integer, "p_max_participants" integer) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."check_user_exists"("p_user_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."check_user_exists"("p_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."check_user_exists"("p_user_id" "uuid") TO "service_role";
@@ -3032,6 +3720,12 @@ GRANT ALL ON FUNCTION "public"."check_user_exists"("p_user_id" "uuid") TO "servi
 GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text", "p_platform_logo_url" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text", "p_platform_logo_url" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text", "p_platform_logo_url" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "service_role";
 
 
 
@@ -3074,6 +3768,18 @@ GRANT ALL ON FUNCTION "public"."delete_sns_connection"("p_id" "uuid", "p_user_id
 GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."ensure_company_wallet"("p_company_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."ensure_company_wallet"("p_company_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."ensure_company_wallet"("p_company_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."ensure_user_wallet"("p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."ensure_user_wallet"("p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."ensure_user_wallet"("p_user_id" "uuid") TO "service_role";
 
 
 
@@ -3143,6 +3849,18 @@ GRANT ALL ON FUNCTION "public"."get_user_wallets"("p_user_id" "uuid") TO "servic
 
 
 
+GRANT ALL ON FUNCTION "public"."get_wallet_by_company_id"("p_company_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_wallet_by_company_id"("p_company_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_wallet_by_company_id"("p_company_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_wallet_by_user_id"("p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_wallet_by_user_id"("p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_wallet_by_user_id"("p_user_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_wallet_info"("p_wallet_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."get_wallet_info"("p_wallet_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_wallet_info"("p_wallet_id" "uuid") TO "service_role";
@@ -3164,6 +3882,12 @@ GRANT ALL ON FUNCTION "public"."join_campaign_safe"("p_campaign_id" "uuid", "p_a
 GRANT ALL ON FUNCTION "public"."leave_campaign_safe"("p_campaign_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."leave_campaign_safe"("p_campaign_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."leave_campaign_safe"("p_campaign_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."log_wallet_account_change"() TO "anon";
+GRANT ALL ON FUNCTION "public"."log_wallet_account_change"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."log_wallet_account_change"() TO "service_role";
 
 
 
@@ -3215,6 +3939,12 @@ GRANT ALL ON FUNCTION "public"."sync_campaign_user_status_on_event"() TO "servic
 
 
 
+GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."update_sns_connection"("p_id" "uuid", "p_user_id" "uuid", "p_platform_account_name" "text", "p_phone" "text", "p_address" "text", "p_return_address" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."update_sns_connection"("p_id" "uuid", "p_user_id" "uuid", "p_platform_account_name" "text", "p_phone" "text", "p_address" "text", "p_return_address" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_sns_connection"("p_id" "uuid", "p_user_id" "uuid", "p_platform_account_name" "text", "p_phone" "text", "p_address" "text", "p_return_address" "text") TO "service_role";
@@ -3248,6 +3978,18 @@ GRANT ALL ON FUNCTION "public"."update_user_company_association"("p_user_id" "uu
 GRANT ALL ON FUNCTION "public"."update_user_profile_safe"("p_user_id" "uuid", "p_display_name" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."update_user_profile_safe"("p_user_id" "uuid", "p_display_name" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_user_profile_safe"("p_user_id" "uuid", "p_display_name" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_user_wallet_account"("p_wallet_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_user_wallet_account"("p_wallet_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_user_wallet_account"("p_wallet_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_wallets_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_wallets_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_wallets_updated_at"() TO "service_role";
 
 
 
@@ -3302,12 +4044,6 @@ GRANT ALL ON TABLE "public"."company_users" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."company_wallets" TO "anon";
-GRANT ALL ON TABLE "public"."company_wallets" TO "authenticated";
-GRANT ALL ON TABLE "public"."company_wallets" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."deleted_users" TO "anon";
 GRANT ALL ON TABLE "public"."deleted_users" TO "authenticated";
 GRANT ALL ON TABLE "public"."deleted_users" TO "service_role";
@@ -3332,15 +4068,21 @@ GRANT ALL ON TABLE "public"."user_point_logs" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."user_wallets" TO "anon";
-GRANT ALL ON TABLE "public"."user_wallets" TO "authenticated";
-GRANT ALL ON TABLE "public"."user_wallets" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."users" TO "anon";
 GRANT ALL ON TABLE "public"."users" TO "authenticated";
 GRANT ALL ON TABLE "public"."users" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."wallet_histories" TO "anon";
+GRANT ALL ON TABLE "public"."wallet_histories" TO "authenticated";
+GRANT ALL ON TABLE "public"."wallet_histories" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."wallets" TO "anon";
+GRANT ALL ON TABLE "public"."wallets" TO "authenticated";
+GRANT ALL ON TABLE "public"."wallets" TO "service_role";
 
 
 
@@ -3406,3 +4148,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 RESET ALL;
+
+--
+-- Dumped schema changes for auth and storage
+--
+

@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/point_service.dart';
 import '../../../services/company_service.dart';
+import '../../../services/wallet_service.dart';
 import '../../../models/user.dart' as app_user;
+import '../../../models/wallet_models.dart';
 import 'business_registration_form.dart';
+import 'account_registration_form.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -30,6 +32,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   bool _isLoadingCompanyData = false;
   Map<String, dynamic>? _pendingManagerRequest;
   bool _isLoadingPendingRequest = false;
+  UserWallet? _userWallet;
+  CompanyWallet? _companyWallet;
 
   late TabController _tabController;
 
@@ -37,9 +41,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onTabChanged);
     _loadUserProfile();
     _loadCompanyData();
     _loadPendingManagerRequest();
+    _loadWalletData();
 
     // URL 파라미터로 사업자 탭을 요청한 경우 자동으로 사업자 탭으로 이동
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -52,10 +58,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _displayNameController.dispose();
     _emailController.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _onTabChanged() {
+    // 탭 변경 시 처리 (필요시)
   }
 
   Future<void> _loadUserProfile() async {
@@ -74,26 +85,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           _emailController.text = user.email;
         });
 
-        // 포인트 정보 로드
-        try {
-          final wallets = await PointService.getUserWallets(user.uid);
-          final personalWallet = wallets.isNotEmpty
-              ? wallets.firstWhere(
-                  (w) => w.walletType == 'PERSONAL',
-                  orElse: () => wallets.first,
-                )
-              : null;
-
-          setState(() {
-            _currentPoints = personalWallet?.points ?? 0;
-            _isLoading = false;
-          });
-        } catch (e) {
-          setState(() {
-            _currentPoints = 0;
-            _isLoading = false;
-          });
-        }
+        // 포인트 정보는 _loadWalletData에서 로드하므로 여기서는 사용자 정보만 설정
+        setState(() {
+          _isLoading = false;
+        });
       } else {
         setState(() {
           _isLoading = false;
@@ -207,18 +202,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // 프로필 이미지 섹션
-          _buildProfileImageSection(),
-
-          const SizedBox(height: 24),
-
           // 프로필 정보 섹션
           _buildProfileInfoSection(),
 
           const SizedBox(height: 24),
 
+          // 계좌정보 섹션
+          AccountRegistrationForm(
+            userWallet: _userWallet,
+            onSaved: _loadWalletData,
+          ),
+
+          const SizedBox(height: 24),
+
           // 계정 정보 섹션
-          _buildAccountInfoSection(),
+          _buildAccountManagementSection(),
 
           const SizedBox(height: 24),
 
@@ -229,56 +227,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
           // 계정 관리 버튼들
           _buildAccountManagementButtons(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileImageSection() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: const Color(0xFF137fec),
-            child: Text(
-              (_user?.displayName?.isNotEmpty == true)
-                  ? _user!.displayName!.substring(0, 1)
-                  : (_user?.email.isNotEmpty == true)
-                  ? _user!.email.substring(0, 1).toUpperCase()
-                  : 'U',
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_isEditing)
-            CustomButton(
-              text: '프로필 이미지 변경',
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('프로필 이미지 변경 기능은 준비 중입니다')),
-                );
-              },
-              backgroundColor: Colors.grey[100],
-              textColor: Colors.grey[700],
-            ),
         ],
       ),
     );
@@ -416,6 +364,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     required TextEditingController controller,
     required bool enabled,
     String? Function(String?)? validator,
+    TextInputType? keyboardType,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,6 +382,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           controller: controller,
           enabled: enabled,
           validator: validator,
+          keyboardType: keyboardType,
           decoration: InputDecoration(
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -476,7 +426,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     );
   }
 
-  Widget _buildAccountInfoSection() {
+  Widget _buildAccountManagementSection() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -702,8 +652,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       child: Column(
         children: [
           const SizedBox(height: 24),
-          // 사업자등록폼 통합 (제일 위)
+          // 사업자등록폼 통합
           _buildBusinessRegistrationForm(),
+          const SizedBox(height: 24),
+          // 계좌정보 섹션
+          AccountRegistrationForm(
+            companyWallet: _companyWallet,
+            onSaved: _loadWalletData,
+          ),
           // 사업자 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
           if (_existingCompanyData == null && !_isLoadingCompanyData) ...[
             const SizedBox(height: 24),
@@ -1101,6 +1057,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       setState(() {
         _isLoadingPendingRequest = false;
       });
+    }
+  }
+
+  /// 지갑 데이터 로드
+  Future<void> _loadWalletData() async {
+    try {
+      final user = await _authService.currentUser;
+      if (user == null) {
+        return;
+      }
+
+      // 개인 지갑 로드
+      final userWallet = await WalletService.getUserWallet();
+
+      // 회사 지갑 로드
+      CompanyWallet? companyWallet;
+      if (user.companyId != null) {
+        final companyWallets = await WalletService.getCompanyWallets();
+        companyWallet = companyWallets.isNotEmpty ? companyWallets.first : null;
+      }
+
+      setState(() {
+        _userWallet = userWallet;
+        _companyWallet = companyWallet;
+        _currentPoints = userWallet?.currentPoints ?? 0;
+      });
+    } catch (e) {
+      print('❌ 지갑 데이터 로드 실패: $e');
     }
   }
 
