@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/user.dart' as app_user;
 import '../../widgets/custom_button.dart';
 
 class InquiryScreen extends ConsumerStatefulWidget {
@@ -43,7 +45,20 @@ class _InquiryScreenState extends ConsumerState<InquiryScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/mypage'),
+          onPressed: () {
+            final user = ref.read(currentUserProvider).value;
+            if (user != null) {
+              if (user.userType == app_user.UserType.admin) {
+                context.go('/mypage/admin');
+              } else if (user.companyId != null) {
+                context.go('/mypage/advertiser');
+              } else {
+                context.go('/mypage/reviewer');
+              }
+            } else {
+              context.go('/mypage');
+            }
+          },
         ),
       ),
       body: SingleChildScrollView(

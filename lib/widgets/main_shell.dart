@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/auth_provider.dart';
+import '../models/user.dart' as app_user;
 
 class MainShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -12,13 +14,33 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
+  String? _previousPath;
+  String? _lastMyPagePath;
+
   @override
   Widget build(BuildContext context) {
+    // 현재 경로를 확인하여 마이페이지 기본 경로만 저장
+    final location = GoRouterState.of(context).uri.path;
+    String? basePath;
+
+    if (location.startsWith('/mypage/admin')) {
+      basePath = '/mypage/admin';
+    } else if (location.startsWith('/mypage/reviewer')) {
+      basePath = '/mypage/reviewer';
+    } else if (location.startsWith('/mypage/advertiser')) {
+      basePath = '/mypage/advertiser';
+    }
+
+    // 기본 경로가 있고 변경되었을 때만 업데이트
+    if (basePath != null && _previousPath != basePath) {
+      _previousPath = basePath;
+      _lastMyPagePath = basePath;
+    }
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _calculateSelectedIndex(context),
-        onTap: (index) => _onItemTapped(index, context),
+        onTap: (index) => _onItemTapped(index, context, ref),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Colors.grey[600],
@@ -65,7 +87,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     return 0;
   }
 
-  void _onItemTapped(int index, BuildContext context) {
+  void _onItemTapped(int index, BuildContext context, WidgetRef ref) {
     final currentIndex = _calculateSelectedIndex(context);
 
     // 같은 탭을 다시 클릭한 경우는 무시
@@ -82,7 +104,25 @@ class _MainShellState extends ConsumerState<MainShell> {
         context.go('/guide');
         break;
       case 3:
-        context.go('/mypage');
+        // 마이페이지: 마지막 방문한 경로가 있으면 그 경로로, 없으면 사용자 타입에 따라 이동
+        if (_lastMyPagePath != null) {
+          // 마지막 방문한 경로로 이동
+          context.go(_lastMyPagePath!);
+        } else {
+          // 마지막 경로가 없으면 사용자 타입에 따라 적절한 경로로 이동
+          final user = ref.read(currentUserProvider).value;
+          if (user != null) {
+            if (user.userType == app_user.UserType.admin) {
+              context.go('/mypage/admin');
+            } else if (user.companyId != null) {
+              context.go('/mypage/advertiser');
+            } else {
+              context.go('/mypage/reviewer');
+            }
+          } else {
+            context.go('/mypage');
+          }
+        }
         break;
     }
   }

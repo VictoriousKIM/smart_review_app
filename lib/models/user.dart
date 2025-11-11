@@ -12,6 +12,7 @@ class User {
   final String? companyId;
   final CompanyRole? companyRole;
   final SNSConnections? snsConnections;
+  final String? status;
 
   User({
     required this.uid,
@@ -25,6 +26,7 @@ class User {
     this.companyId,
     this.companyRole,
     this.snsConnections,
+    this.status,
   });
 
   // company_users 테이블을 통해 회사 정보 확인
@@ -86,6 +88,7 @@ class User {
       snsConnections: profileData['sns_connections'] != null
           ? SNSConnections.fromJson(profileData['sns_connections'])
           : null,
+      status: profileData['status'],
     );
   }
 
@@ -112,6 +115,7 @@ class User {
       snsConnections: json['sns_connections'] != null
           ? SNSConnections.fromJson(json['sns_connections'])
           : null,
+      status: json['status'],
     );
   }
 
@@ -128,6 +132,7 @@ class User {
       'company_id': companyId,
       'company_role': companyRole?.name,
       'sns_connections': snsConnections?.toJson(),
+      'status': status,
     };
   }
 
@@ -143,6 +148,7 @@ class User {
     String? companyId,
     CompanyRole? companyRole,
     SNSConnections? snsConnections,
+    String? status,
   }) {
     return User(
       uid: uid ?? this.uid,
@@ -156,6 +162,7 @@ class User {
       companyId: companyId ?? this.companyId,
       companyRole: companyRole ?? this.companyRole,
       snsConnections: snsConnections ?? this.snsConnections,
+      status: status ?? this.status,
     );
   }
 }

@@ -2097,7 +2097,7 @@ BEGIN
     
     -- 권한 확인: owner만 가능
     IF NOT EXISTS (
-        SELECT 1 FROM company_users
+        SELECT 1 FROM public.company_users
         WHERE company_id = p_company_id
         AND user_id = v_user_id
         AND company_role = 'owner'
@@ -2111,7 +2111,7 @@ BEGIN
         -- 이전 계좌정보 조회 (행 잠금으로 동시성 제어)
         SELECT withdraw_bank_name, withdraw_account_number, withdraw_account_holder
         INTO v_old_bank_name, v_old_account_number, v_old_account_holder
-        FROM wallets
+        FROM public.wallets
         WHERE id = p_wallet_id
         AND company_id = p_company_id
         FOR UPDATE;
@@ -2121,7 +2121,7 @@ BEGIN
         END IF;
         
         -- wallets 테이블 업데이트
-        UPDATE wallets
+        UPDATE public.wallets
         SET 
             withdraw_bank_name = p_bank_name,
             withdraw_account_number = p_account_number,
@@ -2137,7 +2137,7 @@ BEGIN
             
             -- wallet_histories 테이블이 없어도 에러 처리
             BEGIN
-                INSERT INTO wallet_histories (
+                INSERT INTO public.wallet_histories (
                     wallet_id,
                     old_bank_name,
                     old_account_number,
@@ -2371,7 +2371,7 @@ BEGIN
         -- 이전 계좌정보 조회 (행 잠금으로 동시성 제어)
         SELECT withdraw_bank_name, withdraw_account_number, withdraw_account_holder
         INTO v_old_bank_name, v_old_account_number, v_old_account_holder
-        FROM wallets
+        FROM public.wallets
         WHERE id = p_wallet_id
         AND user_id = v_user_id
         FOR UPDATE;
@@ -2381,7 +2381,7 @@ BEGIN
         END IF;
         
         -- wallets 테이블 업데이트
-        UPDATE wallets
+        UPDATE public.wallets
         SET 
             withdraw_bank_name = p_bank_name,
             withdraw_account_number = p_account_number,
@@ -2397,7 +2397,7 @@ BEGIN
             
             -- wallet_histories 테이블이 없어도 에러 처리
             BEGIN
-                INSERT INTO wallet_histories (
+                INSERT INTO public.wallet_histories (
                     wallet_id,
                     old_bank_name,
                     old_account_number,

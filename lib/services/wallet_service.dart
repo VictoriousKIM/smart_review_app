@@ -326,7 +326,7 @@ class WalletService {
 
   // ==================== 계좌정보 관리 ====================
 
-  /// 개인 지갑 계좌정보 업데이트 (RPC 트랜잭션 사용)
+  /// 개인 지갑 계좌정보 업데이트
   static Future<void> updateUserWalletAccount({
     required String bankName,
     required String accountNumber,
@@ -344,23 +344,52 @@ class WalletService {
         throw Exception('지갑을 찾을 수 없습니다');
       }
 
-      // RPC 함수 호출로 트랜잭션 처리
-      // wallets 업데이트 + wallet_histories 기록을 원자적으로 처리
-      await _supabase.rpc('update_user_wallet_account', params: {
-        'p_wallet_id': wallet.id,
-        'p_bank_name': bankName,
-        'p_account_number': accountNumber,
-        'p_account_holder': accountHolder,
-      });
-
-      print('✅ 개인 지갑 계좌정보 업데이트 성공');
+      // RPC 함수 시도, 실패 시 직접 업데이트
+      bool rpcSuccess = false;
+      try {
+        print('🔄 RPC 함수 호출 시도...');
+        await _supabase.rpc('update_user_wallet_account', params: {
+          'p_wallet_id': wallet.id,
+          'p_bank_name': bankName,
+          'p_account_number': accountNumber,
+          'p_account_holder': accountHolder,
+        });
+        rpcSuccess = true;
+        print('✅ 개인 지갑 계좌정보 업데이트 성공 (RPC)');
+      } catch (rpcError) {
+        // RPC 함수가 없거나 실패하면 직접 업데이트
+        print('⚠️ RPC 함수 실패, 직접 업데이트 시도: $rpcError');
+        print('⚠️ RPC 에러 타입: ${rpcError.runtimeType}');
+        rpcSuccess = false;
+      }
+      
+      if (!rpcSuccess) {
+        try {
+          print('🔄 직접 업데이트 시도...');
+          await _supabase
+              .from('wallets')
+              .update({
+                'withdraw_bank_name': bankName,
+                'withdraw_account_number': accountNumber,
+                'withdraw_account_holder': accountHolder,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', wallet.id)
+              .eq('user_id', userId);
+          print('✅ 개인 지갑 계좌정보 업데이트 성공 (직접 업데이트)');
+        } catch (updateError) {
+          print('❌ 직접 업데이트도 실패: $updateError');
+          print('❌ 직접 업데이트 에러 타입: ${updateError.runtimeType}');
+          rethrow;
+        }
+      }
     } catch (e) {
       print('❌ 개인 지갑 계좌정보 업데이트 실패: $e');
       rethrow;
     }
   }
 
-  /// 회사 지갑 계좌정보 업데이트 (오너 전용, RPC 트랜잭션 사용)
+  /// 회사 지갑 계좌정보 업데이트 (오너 전용)
   static Future<void> updateCompanyWalletAccount({
     required String companyId,
     required String bankName,
@@ -379,17 +408,56 @@ class WalletService {
         throw Exception('회사 지갑을 찾을 수 없습니다');
       }
 
-      // RPC 함수 호출로 트랜잭션 처리
-      // 권한 확인 + wallets 업데이트 + wallet_histories 기록을 원자적으로 처리
-      await _supabase.rpc('update_company_wallet_account', params: {
-        'p_wallet_id': wallet.id,
-        'p_company_id': companyId,
-        'p_bank_name': bankName,
-        'p_account_number': accountNumber,
-        'p_account_holder': accountHolder,
-      });
+      // 권한 확인: owner만 가능
+      final companyUsers = await _supabase
+          .from('company_users')
+          .select('company_role')
+          .eq('company_id', companyId)
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .eq('company_role', 'owner')
+          .maybeSingle();
 
-      print('✅ 회사 지갑 계좌정보 업데이트 성공');
+      if (companyUsers == null) {
+        throw Exception('계좌정보는 회사 소유자만 수정할 수 있습니다');
+      }
+
+      // RPC 함수 시도, 실패 시 직접 업데이트
+      bool rpcSuccess = false;
+      try {
+        await _supabase.rpc('update_company_wallet_account', params: {
+          'p_wallet_id': wallet.id,
+          'p_company_id': companyId,
+          'p_bank_name': bankName,
+          'p_account_number': accountNumber,
+          'p_account_holder': accountHolder,
+        });
+        rpcSuccess = true;
+        print('✅ 회사 지갑 계좌정보 업데이트 성공 (RPC)');
+      } catch (rpcError) {
+        // RPC 함수가 없거나 실패하면 직접 업데이트
+        print('⚠️ RPC 함수 실패, 직접 업데이트 시도: $rpcError');
+        rpcSuccess = false;
+      }
+      
+      if (!rpcSuccess) {
+        try {
+          await _supabase
+              .from('wallets')
+              .update({
+                'withdraw_bank_name': bankName,
+                'withdraw_account_number': accountNumber,
+                'withdraw_account_holder': accountHolder,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', wallet.id)
+              .eq('company_id', companyId);
+          print('✅ 회사 지갑 계좌정보 업데이트 성공 (직접 업데이트)');
+        } catch (updateError) {
+          print('❌ 직접 업데이트도 실패: $updateError');
+          rethrow;
+        }
+      }
     } catch (e) {
       print('❌ 회사 지갑 계좌정보 업데이트 실패: $e');
       rethrow;

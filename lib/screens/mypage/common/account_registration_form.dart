@@ -43,9 +43,18 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
   @override
   void didUpdateWidget(AccountRegistrationForm oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.userWallet != widget.userWallet ||
-        oldWidget.companyWallet != widget.companyWallet) {
+    final userWalletChanged = oldWidget.userWallet?.id != widget.userWallet?.id ||
+        oldWidget.userWallet?.withdrawBankName != widget.userWallet?.withdrawBankName ||
+        oldWidget.userWallet?.withdrawAccountNumber != widget.userWallet?.withdrawAccountNumber ||
+        oldWidget.userWallet?.withdrawAccountHolder != widget.userWallet?.withdrawAccountHolder;
+    final companyWalletChanged = oldWidget.companyWallet?.id != widget.companyWallet?.id ||
+        oldWidget.companyWallet?.withdrawBankName != widget.companyWallet?.withdrawBankName ||
+        oldWidget.companyWallet?.withdrawAccountNumber != widget.companyWallet?.withdrawAccountNumber ||
+        oldWidget.companyWallet?.withdrawAccountHolder != widget.companyWallet?.withdrawAccountHolder;
+    
+    if (userWalletChanged || companyWalletChanged) {
       if (!_isEditing) {
+        print('🔄 지갑 데이터 변경 감지, 계좌정보 다시 로드');
         _loadAccountData();
       }
     }
@@ -61,17 +70,25 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
 
   void _loadAccountData() {
     if (_isCompanyWallet) {
-      _bankNameController.text = widget.companyWallet?.withdrawBankName ?? '';
-      _accountNumberController.text =
-          widget.companyWallet?.withdrawAccountNumber ?? '';
-      _accountHolderController.text =
-          widget.companyWallet?.withdrawAccountHolder ?? '';
+      final bankName = widget.companyWallet?.withdrawBankName ?? '';
+      final accountNumber = widget.companyWallet?.withdrawAccountNumber ?? '';
+      final accountHolder = widget.companyWallet?.withdrawAccountHolder ?? '';
+      print('📝 회사 지갑 계좌정보 로드: 은행=$bankName, 계좌=$accountNumber, 예금주=$accountHolder');
+      setState(() {
+        _bankNameController.text = bankName;
+        _accountNumberController.text = accountNumber;
+        _accountHolderController.text = accountHolder;
+      });
     } else {
-      _bankNameController.text = widget.userWallet?.withdrawBankName ?? '';
-      _accountNumberController.text =
-          widget.userWallet?.withdrawAccountNumber ?? '';
-      _accountHolderController.text =
-          widget.userWallet?.withdrawAccountHolder ?? '';
+      final bankName = widget.userWallet?.withdrawBankName ?? '';
+      final accountNumber = widget.userWallet?.withdrawAccountNumber ?? '';
+      final accountHolder = widget.userWallet?.withdrawAccountHolder ?? '';
+      print('📝 개인 지갑 계좌정보 로드: 은행=$bankName, 계좌=$accountNumber, 예금주=$accountHolder');
+      setState(() {
+        _bankNameController.text = bankName;
+        _accountNumberController.text = accountNumber;
+        _accountHolderController.text = accountHolder;
+      });
     }
   }
 

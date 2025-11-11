@@ -5,6 +5,7 @@ import '../../../widgets/custom_button.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/company_service.dart';
 import '../../../services/wallet_service.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../models/wallet_models.dart';
 import 'business_registration_form.dart';
@@ -121,38 +122,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/mypage'),
+          onPressed: () {
+            final user = ref.read(currentUserProvider).value;
+            if (user != null) {
+              if (user.userType == app_user.UserType.admin) {
+                context.go('/mypage/admin');
+              } else if (user.companyId != null) {
+                context.go('/mypage/advertiser');
+              } else {
+                context.go('/mypage/reviewer');
+              }
+            } else {
+              context.go('/mypage');
+            }
+          },
         ),
-        actions: [
-          // 리뷰어인 경우 편집 버튼은 기본정보 박스로 이동했으므로 AppBar에는 표시하지 않음
-          // 사업자인 경우에만 AppBar에 편집 버튼 표시
-          if (_user?.userType != app_user.UserType.user)
-            if (!_isEditing)
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _isEditing = true;
-                  });
-                },
-                child: const Text('편집'),
-              )
-            else
-              Row(
-                children: [
-                  TextButton(onPressed: _cancelEdit, child: const Text('취소')),
-                  TextButton(
-                    onPressed: _isSaving ? null : _saveProfile,
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('저장'),
-                  ),
-                ],
-              ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -161,8 +145,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   Widget _buildTabbedContent() {
-    // 사용자가 리뷰어인 경우에만 탭 표시
-    if (_user?.userType == app_user.UserType.user) {
+    // 사용자가 null이 아닌 경우 항상 탭 표시 (유저타입 제약 없음)
+    if (_user != null) {
       return Column(
         children: [
           // 탭 바
@@ -192,7 +176,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ],
       );
     } else {
-      // 사업자인 경우 탭 없이 기본 프로필만 표시
+      // 사용자 정보가 없는 경우 기본 프로필만 표시
       return _buildProfileContent();
     }
   }
@@ -345,14 +329,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             ),
 
             const SizedBox(height: 16),
-
-            // 사용자 타입
-            _buildInfoRow('사용자 타입', _getUserTypeText()),
-
-            const SizedBox(height: 8),
-
-            // 사업자 인증 상태
-            if (_user?.companyId != null) _buildInfoRow('사업자 인증', '인증 완료'),
           ],
         ),
       ),
@@ -567,14 +543,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ),
       ],
     );
-  }
-
-  String _getUserTypeText() {
-    if (_user?.companyId != null) {
-      return '사업자';
-    } else {
-      return '리뷰어';
-    }
   }
 
   void _cancelEdit() {

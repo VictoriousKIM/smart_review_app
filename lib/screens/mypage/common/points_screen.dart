@@ -116,7 +116,15 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/mypage'),
+          onPressed: () {
+            if (widget.userType == 'advertiser') {
+              context.go('/mypage/advertiser');
+            } else if (widget.userType == 'reviewer') {
+              context.go('/mypage/reviewer');
+            } else {
+              context.go('/mypage');
+            }
+          },
         ),
       ),
       body: _isLoading

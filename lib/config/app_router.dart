@@ -27,9 +27,18 @@ import '../screens/mypage/advertiser/advertiser_participants_screen.dart';
 import '../screens/mypage/advertiser/advertiser_manager_screen.dart';
 import '../screens/mypage/advertiser/advertiser_company_screen.dart';
 import '../screens/mypage/advertiser/advertiser_penalties_screen.dart';
+import '../screens/mypage/admin/admin_dashboard_screen.dart';
+import '../screens/mypage/admin/admin_users_screen.dart';
+import '../screens/mypage/admin/admin_companies_screen.dart';
+import '../screens/mypage/admin/admin_campaigns_screen.dart';
+import '../screens/mypage/admin/admin_reviews_screen.dart';
+import '../screens/mypage/admin/admin_points_screen.dart';
+import '../screens/mypage/admin/admin_statistics_screen.dart';
+import '../screens/mypage/admin/admin_settings_screen.dart';
 import '../screens/settings/notification_settings_screen.dart';
 import '../screens/account_deletion_screen.dart';
 import '../widgets/loading_screen.dart';
+import '../models/user.dart' as app_user;
 
 // GoRouter Refresh Notifier
 class GoRouterRefreshStream extends ChangeNotifier {
@@ -173,12 +182,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/mypage',
             name: 'mypage',
             redirect: (context, state) async {
+              // 정확히 /mypage 경로일 때만 리다이렉트 (하위 경로는 유지)
+              final matchedLocation = state.matchedLocation;
+              if (matchedLocation != '/mypage') {
+                return null; // 하위 경로는 리다이렉트하지 않음
+              }
+
               // 현재 사용자 정보 가져오기
               final authService = ref.read(authServiceProvider);
               final user = await authService.currentUser;
 
               if (user == null) {
                 return '/login';
+              }
+
+              // 관리자인 경우 어드민 대시보드로 리다이렉트
+              if (user.userType == app_user.UserType.admin) {
+                return '/mypage/admin';
               }
 
               // 광고주 인증 여부에 따라 적절한 페이지로 리다이렉트
@@ -272,6 +292,48 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'advertiser-points',
             builder: (context, state) =>
                 const PointsScreen(userType: 'advertiser'),
+          ),
+
+          // 어드민 관련 라우트
+          GoRoute(
+            path: '/mypage/admin',
+            name: 'admin-dashboard',
+            builder: (context, state) => const AdminDashboardScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/admin/users',
+            name: 'admin-users',
+            builder: (context, state) => const AdminUsersScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/admin/companies',
+            name: 'admin-companies',
+            builder: (context, state) => const AdminCompaniesScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/admin/campaigns',
+            name: 'admin-campaigns',
+            builder: (context, state) => const AdminCampaignsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/admin/reviews',
+            name: 'admin-reviews',
+            builder: (context, state) => const AdminReviewsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/admin/points',
+            name: 'admin-points',
+            builder: (context, state) => const AdminPointsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/admin/statistics',
+            name: 'admin-statistics',
+            builder: (context, state) => const AdminStatisticsScreen(),
+          ),
+          GoRoute(
+            path: '/mypage/admin/settings',
+            name: 'admin-settings',
+            builder: (context, state) => const AdminSettingsScreen(),
           ),
 
           // 공통 라우트

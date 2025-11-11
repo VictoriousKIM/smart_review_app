@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class AdvertiserAnalyticsScreen extends ConsumerStatefulWidget {
   const AdvertiserAnalyticsScreen({super.key});
@@ -55,6 +56,10 @@ class _AdvertiserAnalyticsScreenState
         title: const Text('캠페인 분석'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage/advertiser'),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

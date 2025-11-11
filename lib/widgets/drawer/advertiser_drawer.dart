@@ -212,6 +212,21 @@ class AdvertiserDrawer extends ConsumerWidget {
                     context.go('/mypage/reviewer');
                   },
                 ),
+
+                // 관리자 모드로 전환 버튼 (관리자만)
+                if (user.userType == app_user.UserType.admin) ...[
+                  const Divider(),
+                  _buildMenuItem(
+                    context: context,
+                    icon: Icons.admin_panel_settings_outlined,
+                    title: '관리자 모드로 전환',
+                    routePath: '/mypage/admin',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/mypage/admin');
+                    },
+                  ),
+                ],
               ],
             ),
           ),

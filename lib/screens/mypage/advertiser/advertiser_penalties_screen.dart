@@ -80,7 +80,7 @@ class _AdvertiserPenaltiesScreenState
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/mypage'),
+          onPressed: () => context.go('/mypage/advertiser'),
         ),
       ),
       body: _isLoading

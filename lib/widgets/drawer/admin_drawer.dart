@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../models/user.dart' as app_user;
 import '../../providers/auth_provider.dart';
 
-class ReviewerDrawer extends ConsumerWidget {
-  const ReviewerDrawer({super.key});
+class AdminDrawer extends ConsumerWidget {
+  const AdminDrawer({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,123 +26,129 @@ class ReviewerDrawer extends ConsumerWidget {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                // 리뷰어 활동 섹션
-                _buildSectionHeader('리뷰어 활동'),
+                // 대시보드 섹션
+                _buildSectionHeader('관리자 대시보드'),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.dashboard_outlined,
+                  title: '대시보드',
+                  routePath: '/mypage/admin',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/mypage/admin');
+                  },
+                ),
+
+                const Divider(),
+
+                // 사용자 관리 섹션
+                _buildSectionHeader('사용자 관리'),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.people_outlined,
+                  title: '사용자 관리',
+                  routePath: '/mypage/admin/users',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/mypage/admin/users');
+                  },
+                ),
+
+                const Divider(),
+
+                // 회사 관리 섹션
+                _buildSectionHeader('회사 관리'),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.business_outlined,
+                  title: '회사 관리',
+                  routePath: '/mypage/admin/companies',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/mypage/admin/companies');
+                  },
+                ),
+
+                const Divider(),
+
+                // 캠페인 관리 섹션
+                _buildSectionHeader('캠페인 관리'),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.campaign_outlined,
-                  title: '나의 캠페인',
-                  routePath: '/mypage/reviewer/my-campaigns',
+                  title: '캠페인 관리',
+                  routePath: '/mypage/admin/campaigns',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/mypage/reviewer/my-campaigns');
+                    context.go('/mypage/admin/campaigns');
                   },
                 ),
+
+                const Divider(),
+
+                // 리뷰 관리 섹션
+                _buildSectionHeader('리뷰 관리'),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.star_outline,
-                  title: '내 리뷰',
-                  routePath: '/mypage/reviewer/reviews',
+                  title: '리뷰 관리',
+                  routePath: '/mypage/admin/reviews',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/mypage/reviewer/reviews');
+                    context.go('/mypage/admin/reviews');
                   },
                 ),
+
+                const Divider(),
+
+                // 포인트 관리 섹션
+                _buildSectionHeader('포인트 관리'),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.account_balance_wallet_outlined,
-                  title: '내 포인트',
-                  routePath: '/mypage/reviewer/points',
+                  title: '포인트 관리',
+                  routePath: '/mypage/admin/points',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/mypage/reviewer/points');
+                    context.go('/mypage/admin/points');
                   },
                 ),
 
                 const Divider(),
 
-                // 계정 관리 섹션
-                _buildSectionHeader('계정관리'),
+                // 통계 섹션
+                _buildSectionHeader('통계'),
                 _buildMenuItem(
                   context: context,
-                  icon: Icons.person_outline,
-                  title: '내 계정',
-                  routePath: '/mypage/profile',
+                  icon: Icons.bar_chart_outlined,
+                  title: '통계',
+                  routePath: '/mypage/admin/statistics',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/mypage/profile');
-                  },
-                ),
-                _buildMenuItem(
-                  context: context,
-                  icon: Icons.share_outlined,
-                  title: 'SNS 연결',
-                  routePath: '/mypage/reviewer/sns',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/mypage/reviewer/sns');
+                    context.go('/mypage/admin/statistics');
                   },
                 ),
 
                 const Divider(),
 
-                // 고객 센터 섹션
-                _buildSectionHeader('고객 센터'),
+                // 시스템 설정 섹션
+                _buildSectionHeader('시스템 설정'),
                 _buildMenuItem(
                   context: context,
-                  icon: Icons.notifications_outlined,
-                  title: '공지사항',
-                  routePath: '/notices',
+                  icon: Icons.settings_outlined,
+                  title: '시스템 설정',
+                  routePath: '/mypage/admin/settings',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/notices');
-                  },
-                ),
-                _buildMenuItem(
-                  context: context,
-                  icon: Icons.event_outlined,
-                  title: '이벤트',
-                  routePath: '/events',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/events');
-                  },
-                ),
-                _buildMenuItem(
-                  context: context,
-                  icon: Icons.help_outline,
-                  title: '1:1문의',
-                  routePath: '/inquiry',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/inquiry');
+                    context.go('/mypage/admin/settings');
                   },
                 ),
 
                 const Divider(),
 
-                // 설정 섹션
-                _buildSectionHeader('설정'),
-                _buildMenuItem(
-                  context: context,
-                  icon: Icons.notifications_active_outlined,
-                  title: '알림 설정',
-                  routePath: '/settings/notifications',
-                  trailing: Switch(
-                    value: true, // 임시 값 (향후 실제 알림 설정 상태와 연결 예정)
-                    onChanged: (value) {
-                      // 향후 알림 설정 토글 로직 구현 예정
-                    },
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/settings/notifications');
-                  },
-                ),
-
-                // 사업자 전환 버튼 (사업자 인증된 사용자만)
+                // 리뷰어/사업자 모드 전환 버튼
+                // 사업자 인증된 경우 사업자 모드로 전환 버튼 표시
                 if (user.companyId != null) ...[
-                  const Divider(),
                   _buildMenuItem(
                     context: context,
                     icon: Icons.business_outlined,
@@ -154,21 +160,17 @@ class ReviewerDrawer extends ConsumerWidget {
                     },
                   ),
                 ],
-
-                // 관리자 모드로 전환 버튼 (관리자만)
-                if (user.userType == app_user.UserType.admin) ...[
-                  const Divider(),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.admin_panel_settings_outlined,
-                    title: '관리자 모드로 전환',
-                    routePath: '/mypage/admin',
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.go('/mypage/admin');
-                    },
-                  ),
-                ],
+                // 리뷰어 모드로 전환 버튼 (항상 표시)
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.rate_review_outlined,
+                  title: '리뷰어 모드로 전환',
+                  routePath: '/mypage/reviewer',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/mypage/reviewer');
+                  },
+                ),
               ],
             ),
           ),
@@ -187,7 +189,7 @@ class ReviewerDrawer extends ConsumerWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)], // 녹색 그라데이션
+          colors: [Color(0xFF7B1FA2), Color(0xFF4A148C)], // 보라색 그라데이션 (어드민 전용)
         ),
       ),
       child: Column(
@@ -207,7 +209,7 @@ class ReviewerDrawer extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            user.displayName ?? '사용자',
+            user.displayName ?? '관리자',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -223,45 +225,20 @@ class ReviewerDrawer extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  '리뷰어',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              '관리자',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
               ),
-              if (user.companyId != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    '사업자 인증',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ],
       ),
@@ -269,7 +246,8 @@ class ReviewerDrawer extends ConsumerWidget {
   }
 
   Widget _buildSectionHeader(String title) {
-    return Padding(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         title,
@@ -297,28 +275,28 @@ class ReviewerDrawer extends ConsumerWidget {
     return ListTile(
       leading: Icon(
         icon,
-        color: isActive ? const Color(0xFF4CAF50) : const Color(0xFF333333),
+        color: isActive ? const Color(0xFF7B1FA2) : const Color(0xFF333333),
         size: 24,
       ),
       title: Text(
         title,
         style: TextStyle(
           fontSize: 16,
-          color: isActive ? const Color(0xFF4CAF50) : const Color(0xFF333333),
+          color: isActive ? const Color(0xFF7B1FA2) : const Color(0xFF333333),
           fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
       subtitle: isActive
           ? Text(
               routePath,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF4CAF50)),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF7B1FA2)),
             )
           : null,
       trailing:
           trailing ?? const Icon(Icons.chevron_right, color: Color(0xFF999999)),
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      tileColor: isActive ? const Color(0xFFE8F5E8) : null,
+      tileColor: isActive ? const Color(0xFFF3E5F5) : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     );
   }
