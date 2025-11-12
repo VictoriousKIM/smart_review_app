@@ -248,7 +248,7 @@ class ReviewService {
 
       // 리뷰 정보 조회
       final review = await _supabase
-          .from('campaign_events')
+          .from('campaign_action_logs')
           .select('campaign_id, campaigns!inner(user_id)')
           .eq('id', reviewId)
           .single();
@@ -293,7 +293,7 @@ class ReviewService {
 
       // 업데이트된 로그 조회
       final updatedLog = await _supabase
-          .from('campaign_events')
+          .from('campaign_action_logs')
           .select()
           .eq('id', reviewId)
           .single();
@@ -326,7 +326,7 @@ class ReviewService {
 
       // 리뷰 정보 조회 및 권한 확인
       final review = await _supabase
-          .from('campaign_events')
+          .from('campaign_action_logs')
           .select('user_id, status, data')
           .eq('id', reviewId)
           .single();
@@ -357,7 +357,7 @@ class ReviewService {
 
       // 로그 업데이트
       await _supabase
-          .from('campaign_events')
+          .from('campaign_action_logs')
           .update({
             'data': currentData,
             'updated_at': DateTime.now().toIso8601String(),
@@ -396,7 +396,7 @@ class ReviewService {
 
       // 리뷰 정보 조회 및 권한 확인
       final review = await _supabase
-          .from('campaign_events')
+          .from('campaign_action_logs')
           .select('user_id, status')
           .eq('id', reviewId)
           .single();
@@ -424,7 +424,7 @@ class ReviewService {
       }
 
       await _supabase
-          .from('campaign_events')
+          .from('campaign_action_logs')
           .update({
             'status': previousStatus,
             'data': currentData,

@@ -75,6 +75,11 @@ npx supabase db dump --local --data-only -f supabase/seed.sql
 npx supabase migration squash
 ```
 
+### 로컬대시보드 변경사항 마이그레이션 적용
+```bash
+npx supabase db diff -f <migration_name>
+```
+
 ### 스키마 변경 마이그레이션 추가
 ```bash
 # 현재 DB와 마이그레이션 파일 차이점 확인 후 새 마이그레이션 생성

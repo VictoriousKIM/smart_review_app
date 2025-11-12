@@ -88,6 +88,7 @@ class _EmailLoginFormState extends ConsumerState<EmailLoginForm> {
               if (_isSignUpMode) ...[
                 TextFormField(
                   controller: _displayNameController,
+                  autofocus: true,
                   decoration: const InputDecoration(
                     labelText: '이름',
                     hintText: '이름을 입력하세요',
@@ -107,6 +108,7 @@ class _EmailLoginFormState extends ConsumerState<EmailLoginForm> {
               // 이메일 입력 필드
               TextFormField(
                 controller: _emailController,
+                autofocus: !_isSignUpMode,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   labelText: '이메일',
@@ -131,6 +133,7 @@ class _EmailLoginFormState extends ConsumerState<EmailLoginForm> {
               // 비밀번호 입력 필드
               TextFormField(
                 controller: _passwordController,
+                autofocus: false,
                 obscureText: !_isPasswordVisible,
                 decoration: InputDecoration(
                   labelText: '비밀번호',

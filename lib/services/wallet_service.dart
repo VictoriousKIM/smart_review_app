@@ -1,4 +1,5 @@
 import '../models/wallet_models.dart';
+import '../models/point_transfer.dart';
 import '../config/supabase_config.dart';
 
 /// 지갑 및 포인트 관리 서비스 (완전 분리 버전)
@@ -96,18 +97,20 @@ class WalletService {
         );
         final company = walletData['companies'] as Map<String, dynamic>;
 
-        wallets.add(CompanyWallet.fromJson({
-          'wallet_id': walletData['id'],
-          'id': walletData['id'],
-          'company_id': companyId,
-          'company_name': company['business_name'],
-          'current_points': walletData['current_points'],
-          'user_role': companyUser['company_role'],
-          'status': companyUser['status'],
-          'withdraw_bank_name': walletData['withdraw_bank_name'],
-          'withdraw_account_number': walletData['withdraw_account_number'],
-          'withdraw_account_holder': walletData['withdraw_account_holder'],
-        }));
+        wallets.add(
+          CompanyWallet.fromJson({
+            'wallet_id': walletData['id'],
+            'id': walletData['id'],
+            'company_id': companyId,
+            'company_name': company['business_name'],
+            'current_points': walletData['current_points'],
+            'user_role': companyUser['company_role'],
+            'status': companyUser['status'],
+            'withdraw_bank_name': walletData['withdraw_bank_name'],
+            'withdraw_account_number': walletData['withdraw_account_number'],
+            'withdraw_account_holder': walletData['withdraw_account_holder'],
+          }),
+        );
       }
 
       print('✅ 회사 지갑 조회 성공: ${wallets.length}개');
@@ -136,8 +139,8 @@ class WalletService {
 
   // ==================== 포인트 내역 조회 ====================
 
-  /// 개인 포인트 내역 조회
-  static Future<List<UserPointLog>> getUserPointHistory({
+  /// 통합 포인트 내역 조회 (캠페인 + 현금 거래 모두)
+  static Future<List<UnifiedPointTransaction>> getUserPointHistoryUnified({
     int limit = 50,
     int offset = 0,
   }) async {
@@ -148,17 +151,78 @@ class WalletService {
         return [];
       }
 
-      final response = await _supabase.rpc(
-        'get_user_point_history',
-        params: {
-          'p_user_id': userId,
-          'p_limit': limit,
-          'p_offset': offset,
-        },
-      ) as List;
+      final response =
+          await _supabase.rpc(
+                'get_user_point_history_unified',
+                params: {
+                  'p_user_id': userId,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
 
-      final logs = response
-          .map((e) => UserPointLog.fromJson(e as Map<String, dynamic>))
+      final transactions = response
+          .map(
+            (e) => UnifiedPointTransaction.fromJson(e as Map<String, dynamic>),
+          )
+          .toList();
+
+      print('✅ 통합 포인트 내역 조회 성공: ${transactions.length}건');
+      return transactions;
+    } catch (e) {
+      print('❌ 통합 포인트 내역 조회 실패: $e');
+      return [];
+    }
+  }
+
+  /// 회사 통합 포인트 내역 조회
+  static Future<List<UnifiedPointTransaction>> getCompanyPointHistoryUnified({
+    required String companyId,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final response =
+          await _supabase.rpc(
+                'get_company_point_history_unified',
+                params: {
+                  'p_company_id': companyId,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
+
+      final transactions = response
+          .map(
+            (e) => UnifiedPointTransaction.fromJson(e as Map<String, dynamic>),
+          )
+          .toList();
+
+      print('✅ 회사 통합 포인트 내역 조회 성공: ${transactions.length}건');
+      return transactions;
+    } catch (e) {
+      print('❌ 회사 통합 포인트 내역 조회 실패: $e');
+      return [];
+    }
+  }
+
+  /// 개인 포인트 내역 조회 (하위 호환성 - 통합 함수 사용)
+  static Future<List<UserPointLog>> getUserPointHistory({
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final unified = await getUserPointHistoryUnified(
+        limit: limit,
+        offset: offset,
+      );
+
+      // UnifiedPointTransaction을 UserPointLog로 변환
+      final logs = unified
+          .where((t) => t.userId != null)
+          .map((t) => t.toUserPointLog())
           .toList();
 
       print('✅ 개인 포인트 내역 조회 성공: ${logs.length}건');
@@ -176,14 +240,16 @@ class WalletService {
     int offset = 0,
   }) async {
     try {
-      final response = await _supabase.rpc(
-        'get_company_point_history',
-        params: {
-          'p_company_id': companyId,
-          'p_limit': limit,
-          'p_offset': offset,
-        },
-      ) as List;
+      final response =
+          await _supabase.rpc(
+                'get_company_point_history',
+                params: {
+                  'p_company_id': companyId,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
 
       final logs = response
           .map((e) => CompanyPointLog.fromJson(e as Map<String, dynamic>))
@@ -193,12 +259,12 @@ class WalletService {
       return logs;
     } catch (e) {
       print('❌ 회사 포인트 내역 조회 실패: $e');
-      
+
       // 권한 없음 에러 처리
       if (e.toString().contains('Unauthorized')) {
         throw Exception('회사 포인트 내역을 조회할 권한이 없습니다');
       }
-      
+
       return [];
     }
   }
@@ -212,16 +278,17 @@ class WalletService {
   }) async {
     try {
       final logs = await getUserPointHistory(limit: 1000);
-      
+
       final stats = <String, int>{};
       for (final log in logs) {
-        if (log.createdAt.isAfter(startDate) && 
+        if (log.createdAt.isAfter(startDate) &&
             log.createdAt.isBefore(endDate)) {
-          final monthKey = '${log.createdAt.year}-${log.createdAt.month.toString().padLeft(2, '0')}';
+          final monthKey =
+              '${log.createdAt.year}-${log.createdAt.month.toString().padLeft(2, '0')}';
           stats[monthKey] = (stats[monthKey] ?? 0) + log.amount;
         }
       }
-      
+
       return stats;
     } catch (e) {
       print('❌ 월별 통계 조회 실패: $e');
@@ -238,15 +305,15 @@ class WalletService {
         companyId: companyId,
         limit: 1000,
       );
-      
+
       final stats = <String, int>{};
       for (final log in logs) {
         if (log.createdByUserName != null) {
-          stats[log.createdByUserName!] = 
+          stats[log.createdByUserName!] =
               (stats[log.createdByUserName!] ?? 0) + log.amount.abs();
         }
       }
-      
+
       return stats;
     } catch (e) {
       print('❌ 사용자별 통계 조회 실패: $e');
@@ -296,7 +363,7 @@ class WalletService {
         reviewReward: reviewReward,
         maxParticipants: maxParticipants,
       );
-      
+
       final shortage = required - wallet.currentPoints;
       return shortage > 0 ? shortage : 0;
     } catch (e) {
@@ -310,9 +377,9 @@ class WalletService {
   /// 포인트 포맷팅 (천단위 콤마)
   static String formatPoints(int points) {
     return points.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]},',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
   }
 
   /// 포인트 변화량 포맷팅 (+/- 표시)
@@ -348,12 +415,15 @@ class WalletService {
       bool rpcSuccess = false;
       try {
         print('🔄 RPC 함수 호출 시도...');
-        await _supabase.rpc('update_user_wallet_account', params: {
-          'p_wallet_id': wallet.id,
-          'p_bank_name': bankName,
-          'p_account_number': accountNumber,
-          'p_account_holder': accountHolder,
-        });
+        await _supabase.rpc(
+          'update_user_wallet_account',
+          params: {
+            'p_wallet_id': wallet.id,
+            'p_bank_name': bankName,
+            'p_account_number': accountNumber,
+            'p_account_holder': accountHolder,
+          },
+        );
         rpcSuccess = true;
         print('✅ 개인 지갑 계좌정보 업데이트 성공 (RPC)');
       } catch (rpcError) {
@@ -362,7 +432,7 @@ class WalletService {
         print('⚠️ RPC 에러 타입: ${rpcError.runtimeType}');
         rpcSuccess = false;
       }
-      
+
       if (!rpcSuccess) {
         try {
           print('🔄 직접 업데이트 시도...');
@@ -425,13 +495,16 @@ class WalletService {
       // RPC 함수 시도, 실패 시 직접 업데이트
       bool rpcSuccess = false;
       try {
-        await _supabase.rpc('update_company_wallet_account', params: {
-          'p_wallet_id': wallet.id,
-          'p_company_id': companyId,
-          'p_bank_name': bankName,
-          'p_account_number': accountNumber,
-          'p_account_holder': accountHolder,
-        });
+        await _supabase.rpc(
+          'update_company_wallet_account',
+          params: {
+            'p_wallet_id': wallet.id,
+            'p_company_id': companyId,
+            'p_bank_name': bankName,
+            'p_account_number': accountNumber,
+            'p_account_holder': accountHolder,
+          },
+        );
         rpcSuccess = true;
         print('✅ 회사 지갑 계좌정보 업데이트 성공 (RPC)');
       } catch (rpcError) {
@@ -439,7 +512,7 @@ class WalletService {
         print('⚠️ RPC 함수 실패, 직접 업데이트 시도: $rpcError');
         rpcSuccess = false;
       }
-      
+
       if (!rpcSuccess) {
         try {
           await _supabase
@@ -463,5 +536,161 @@ class WalletService {
       rethrow;
     }
   }
-}
 
+  // ==================== 포인트 거래 생성 ====================
+
+  /// 포인트 지갑 간 이동 (회사 소유자만 가능, point_transfers 테이블 사용)
+  static Future<Map<String, dynamic>> transferPointsBetweenWallets({
+    required String fromWalletId,
+    required String toWalletId,
+    required int amount,
+    String? description,
+  }) async {
+    try {
+      final response =
+          await _supabase.rpc(
+                'transfer_points_between_wallets',
+                params: {
+                  'p_from_wallet_id': fromWalletId,
+                  'p_to_wallet_id': toWalletId,
+                  'p_amount': amount,
+                  'p_description': description,
+                },
+              )
+              as Map<String, dynamic>;
+
+      print('✅ 포인트 이동 성공: $amount P');
+      return response;
+    } catch (e) {
+      print('❌ 포인트 이동 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 포인트 이동 내역 조회 (point_transfers 전용)
+  static Future<List<PointTransfer>> getUserTransfers({
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        print('❌ 로그인되지 않음');
+        return [];
+      }
+
+      final response =
+          await _supabase.rpc(
+                'get_user_transfers',
+                params: {
+                  'p_user_id': userId,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
+
+      final transfers = response
+          .map((e) => PointTransfer.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      print('✅ 포인트 이동 내역 조회 성공: ${transfers.length}건');
+      return transfers;
+    } catch (e) {
+      print('❌ 포인트 이동 내역 조회 실패: $e');
+      return [];
+    }
+  }
+
+  /// 캠페인 거래 생성
+  static Future<String> createPointTransaction({
+    required String walletId,
+    required String transactionType, // 'earn' or 'spend'
+    required int amount,
+    String? campaignId,
+    String? relatedEntityType,
+    String? relatedEntityId,
+    String? description,
+  }) async {
+    try {
+      final response = await _supabase.rpc(
+        'create_point_transaction',
+        params: {
+          'p_wallet_id': walletId,
+          'p_transaction_type': transactionType,
+          'p_amount': amount,
+          'p_campaign_id': campaignId,
+          'p_related_entity_type': relatedEntityType,
+          'p_related_entity_id': relatedEntityId,
+          'p_description': description,
+        },
+      );
+
+      print('✅ 캠페인 거래 생성 성공: $response');
+      return response as String;
+    } catch (e) {
+      print('❌ 캠페인 거래 생성 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 현금 거래 생성
+  static Future<String> createPointCashTransaction({
+    required String walletId,
+    required String transactionType, // 'deposit' or 'withdraw'
+    required int amount,
+    double? cashAmount,
+    String? paymentMethod,
+    String? bankName,
+    String? accountNumber,
+    String? accountHolder,
+    String? description,
+  }) async {
+    try {
+      final response = await _supabase.rpc(
+        'create_point_cash_transaction',
+        params: {
+          'p_wallet_id': walletId,
+          'p_transaction_type': transactionType,
+          'p_amount': amount,
+          'p_cash_amount': cashAmount,
+          'p_payment_method': paymentMethod,
+          'p_bank_name': bankName,
+          'p_account_number': accountNumber,
+          'p_account_holder': accountHolder,
+          'p_description': description,
+        },
+      );
+
+      print('✅ 현금 거래 생성 성공: $response');
+      return response as String;
+    } catch (e) {
+      print('❌ 현금 거래 생성 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 현금 거래 상태 업데이트 (Admin 전용)
+  static Future<bool> updatePointCashTransactionStatus({
+    required String transactionId,
+    required String status, // 'approved', 'rejected', 'completed'
+    String? rejectionReason,
+  }) async {
+    try {
+      final response = await _supabase.rpc(
+        'update_cash_transaction_status',
+        params: {
+          'p_transaction_id': transactionId,
+          'p_status': status,
+          'p_rejection_reason': rejectionReason,
+        },
+      );
+
+      print('✅ 현금 거래 상태 업데이트 성공: $status');
+      return response as bool;
+    } catch (e) {
+      print('❌ 현금 거래 상태 업데이트 실패: $e');
+      rethrow;
+    }
+  }
+}
