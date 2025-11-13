@@ -37,12 +37,11 @@ class CampaignApplicationService {
           .single();
 
       // CampaignLogService를 사용하여 신청
+      // 주의: rewardType, rewardAmount는 DB에 없으므로 제거됨
       final result = await _campaignLogService.applyToCampaign(
         campaignId: campaignId,
         userId: user.id,
         applicationMessage: applicationMessage,
-        rewardType: 'platform_points',
-        rewardAmount: campaign['review_reward'],
       );
 
       if (!result.success) {
@@ -110,10 +109,9 @@ class CampaignApplicationService {
               'campaign_id': log.campaignId,
               'user_id': log.userId,
               'status': log.status,
-              'applied_at': log.appliedAt?.toIso8601String(),
+              'applied_at': log.createdAt.toIso8601String(), // activityAt 대신 createdAt 사용
               'application_message': log.applicationMessage,
-              'reward_type': log.rewardType,
-              'reward_amount': log.rewardAmount,
+              // reward_type, reward_amount는 DB에 없으므로 제거
               'campaigns': log.campaign != null
                   ? {
                       'id': log.campaign!.id,
@@ -205,10 +203,9 @@ class CampaignApplicationService {
               'campaign_id': log.campaignId,
               'user_id': log.userId,
               'status': log.status,
-              'applied_at': log.appliedAt?.toIso8601String(),
+              'applied_at': log.createdAt.toIso8601String(), // activityAt 대신 createdAt 사용
               'application_message': log.applicationMessage,
-              'reward_type': log.rewardType,
-              'reward_amount': log.rewardAmount,
+              // reward_type, reward_amount는 DB에 없으므로 제거
               'users': log.user != null
                   ? {
                       'id': log.user!.uid,
@@ -271,25 +268,12 @@ class CampaignApplicationService {
         );
       }
 
-      // 상태별 추가 데이터 준비
-      Map<String, dynamic>? additionalData;
-      switch (status) {
-        case 'approved':
-          additionalData = {'approved_at': DateTime.now().toIso8601String()};
-          break;
-        case 'rejected':
-          additionalData = {
-            'rejected_at': DateTime.now().toIso8601String(),
-            'rejection_reason': rejectionReason,
-          };
-          break;
-      }
-
       // CampaignLogService를 사용하여 상태 업데이트
+      // 주의: additionalData는 현재 사용하지 않음 (data 필드 없음)
       final result = await _campaignLogService.updateStatus(
         campaignLogId: applicationId,
         status: status,
-        additionalData: additionalData,
+        additionalData: null, // data 필드가 없으므로 사용하지 않음
       );
 
       if (!result.success) {

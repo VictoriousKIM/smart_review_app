@@ -139,8 +139,8 @@ class WalletService {
 
   // ==================== 포인트 내역 조회 ====================
 
-  /// 통합 포인트 내역 조회 (캠페인 + 현금 거래 모두)
-  static Future<List<UnifiedPointTransaction>> getUserPointHistoryUnified({
+  /// 개인 포인트 내역 조회 (point_transactions 테이블)
+  static Future<List<UserPointLog>> getUserPointHistory({
     int limit = 50,
     int offset = 0,
   }) async {
@@ -151,78 +151,23 @@ class WalletService {
         return [];
       }
 
-      final response =
-          await _supabase.rpc(
-                'get_user_point_history_unified',
-                params: {
-                  'p_user_id': userId,
-                  'p_limit': limit,
-                  'p_offset': offset,
-                },
-              )
-              as List;
+      // 지갑 조회
+      final wallet = await getUserWallet();
+      if (wallet == null) {
+        print('ℹ️ 개인 지갑이 없습니다');
+        return [];
+      }
 
-      final transactions = response
-          .map(
-            (e) => UnifiedPointTransaction.fromJson(e as Map<String, dynamic>),
-          )
-          .toList();
+      // point_transactions 테이블에서 직접 조회
+      final response = await _supabase
+          .from('point_transactions')
+          .select('*')
+          .eq('wallet_id', wallet.id)
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
 
-      print('✅ 통합 포인트 내역 조회 성공: ${transactions.length}건');
-      return transactions;
-    } catch (e) {
-      print('❌ 통합 포인트 내역 조회 실패: $e');
-      return [];
-    }
-  }
-
-  /// 회사 통합 포인트 내역 조회
-  static Future<List<UnifiedPointTransaction>> getCompanyPointHistoryUnified({
-    required String companyId,
-    int limit = 50,
-    int offset = 0,
-  }) async {
-    try {
-      final response =
-          await _supabase.rpc(
-                'get_company_point_history_unified',
-                params: {
-                  'p_company_id': companyId,
-                  'p_limit': limit,
-                  'p_offset': offset,
-                },
-              )
-              as List;
-
-      final transactions = response
-          .map(
-            (e) => UnifiedPointTransaction.fromJson(e as Map<String, dynamic>),
-          )
-          .toList();
-
-      print('✅ 회사 통합 포인트 내역 조회 성공: ${transactions.length}건');
-      return transactions;
-    } catch (e) {
-      print('❌ 회사 통합 포인트 내역 조회 실패: $e');
-      return [];
-    }
-  }
-
-  /// 개인 포인트 내역 조회 (하위 호환성 - 통합 함수 사용)
-  static Future<List<UserPointLog>> getUserPointHistory({
-    int limit = 50,
-    int offset = 0,
-  }) async {
-    try {
-      final unified = await getUserPointHistoryUnified(
-        limit: limit,
-        offset: offset,
-      );
-
-      // UnifiedPointTransaction을 UserPointLog로 변환
-      final logs = unified
-          .where((t) => t.userId != null)
-          .map((t) => t.toUserPointLog())
+      final logs = response
+          .map((e) => UserPointLog.fromJson(e))
           .toList();
 
       print('✅ 개인 포인트 내역 조회 성공: ${logs.length}건');

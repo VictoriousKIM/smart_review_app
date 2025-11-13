@@ -23,7 +23,9 @@ class CampaignService {
       // 필요한 필드만 선택하여 성능 최적화
       dynamic query = _supabase
           .from('campaigns')
-          .select('id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at, end_date')
+          .select(
+            'id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at, end_date',
+          )
           .eq('status', 'active');
 
       if (campaignType != null) {
@@ -57,27 +59,33 @@ class CampaignService {
 
       return ApiResponse<List<Campaign>>(success: true, data: campaigns);
     } on TimeoutException {
-      ErrorHandler.handleNetworkError('Request timeout', context: {
-        'operation': 'get_campaigns',
-        'page': page,
-        'limit': limit,
-        'campaign_type': campaignType,
-        'sort_by': sortBy,
-      });
-      
+      ErrorHandler.handleNetworkError(
+        'Request timeout',
+        context: {
+          'operation': 'get_campaigns',
+          'page': page,
+          'limit': limit,
+          'campaign_type': campaignType,
+          'sort_by': sortBy,
+        },
+      );
+
       return ApiResponse<List<Campaign>>(
         success: false,
         error: '요청 시간이 초과되었습니다. 다시 시도해주세요.',
       );
     } catch (e) {
-      ErrorHandler.handleDatabaseError(e, context: {
-        'operation': 'get_campaigns',
-        'page': page,
-        'limit': limit,
-        'campaign_type': campaignType,
-        'sort_by': sortBy,
-      });
-      
+      ErrorHandler.handleDatabaseError(
+        e,
+        context: {
+          'operation': 'get_campaigns',
+          'page': page,
+          'limit': limit,
+          'campaign_type': campaignType,
+          'sort_by': sortBy,
+        },
+      );
+
       return ApiResponse<List<Campaign>>(
         success: false,
         error: '캠페인을 불러오는 중 오류가 발생했습니다: ${e.toString()}',
@@ -109,7 +117,9 @@ class CampaignService {
     try {
       final response = await _supabase
           .from('campaigns')
-          .select('id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at')
+          .select(
+            'id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at',
+          )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
           .order('current_participants', ascending: false)
@@ -130,7 +140,9 @@ class CampaignService {
     try {
       final response = await _supabase
           .from('campaigns')
-          .select('id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at')
+          .select(
+            'id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at',
+          )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
           .order('created_at', ascending: false)
@@ -156,7 +168,9 @@ class CampaignService {
     try {
       var searchQuery = _supabase
           .from('campaigns')
-          .select('id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at')
+          .select(
+            'id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at',
+          )
           .eq('status', 'active')
           .ilike('title', '%$query%');
 
@@ -181,7 +195,10 @@ class CampaignService {
   }
 
   // 캠페인 참여 (RPC 사용 - 비즈니스 로직)
-  Future<ApiResponse<Map<String, dynamic>>> joinCampaign(String campaignId, {String? applicationMessage}) async {
+  Future<ApiResponse<Map<String, dynamic>>> joinCampaign(
+    String campaignId, {
+    String? applicationMessage,
+  }) async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) {
@@ -192,10 +209,13 @@ class CampaignService {
       }
 
       // RPC 함수 호출로 안전한 캠페인 참여
-      final response = await _supabase.rpc('join_campaign_safe', params: {
-        'p_campaign_id': campaignId,
-        'p_application_message': applicationMessage,
-      });
+      final response = await _supabase.rpc(
+        'join_campaign_safe',
+        params: {
+          'p_campaign_id': campaignId,
+          'p_application_message': applicationMessage,
+        },
+      );
 
       return ApiResponse<Map<String, dynamic>>(
         success: true,
@@ -211,7 +231,9 @@ class CampaignService {
   }
 
   // 캠페인 참여 취소 (RPC 사용 - 비즈니스 로직)
-  Future<ApiResponse<Map<String, dynamic>>> leaveCampaign(String campaignId) async {
+  Future<ApiResponse<Map<String, dynamic>>> leaveCampaign(
+    String campaignId,
+  ) async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) {
@@ -222,9 +244,10 @@ class CampaignService {
       }
 
       // RPC 함수 호출로 안전한 캠페인 참여 취소
-      final response = await _supabase.rpc('leave_campaign_safe', params: {
-        'p_campaign_id': campaignId,
-      });
+      final response = await _supabase.rpc(
+        'leave_campaign_safe',
+        params: {'p_campaign_id': campaignId},
+      );
 
       return ApiResponse<Map<String, dynamic>>(
         success: true,
@@ -255,17 +278,17 @@ class CampaignService {
       }
 
       // RPC 함수 호출로 안전한 사용자 캠페인 조회
-      final response = await _supabase.rpc('get_user_campaigns_safe', params: {
-        'p_user_id': user.id,
-        'p_status': status,
-        'p_page': page,
-        'p_limit': limit,
-      });
-
-      return ApiResponse<Map<String, dynamic>>(
-        success: true,
-        data: response,
+      final response = await _supabase.rpc(
+        'get_user_campaigns_safe',
+        params: {
+          'p_user_id': user.id,
+          'p_status': status,
+          'p_page': page,
+          'p_limit': limit,
+        },
       );
+
+      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -290,17 +313,17 @@ class CampaignService {
       }
 
       // RPC 함수 호출로 안전한 참여 캠페인 조회
-      final response = await _supabase.rpc('get_user_participated_campaigns_safe', params: {
-        'p_user_id': user.id,
-        'p_status': status,
-        'p_page': page,
-        'p_limit': limit,
-      });
-
-      return ApiResponse<Map<String, dynamic>>(
-        success: true,
-        data: response,
+      final response = await _supabase.rpc(
+        'get_user_participated_campaigns_safe',
+        params: {
+          'p_user_id': user.id,
+          'p_status': status,
+          'p_page': page,
+          'p_limit': limit,
+        },
       );
+
+      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -405,20 +428,6 @@ class CampaignService {
           .select()
           .single();
 
-      // 이전 캠페인의 사용 횟수 업데이트
-      try {
-        await _supabase
-            .from('campaigns')
-            .update({
-              'last_used_at': DateTime.now().toIso8601String(),
-              'usage_count': (previousCampaign.usageCount + 1),
-            })
-            .eq('id', previousCampaign.id);
-      } catch (updateError) {
-        // 사용 횟수 업데이트 실패는 로그만 남기고 계속 진행
-        // print('Warning: Failed to update usage count: $updateError');
-      }
-
       final campaign = Campaign.fromJson(response);
       return ApiResponse<Campaign>(
         success: true,
@@ -507,7 +516,7 @@ class CampaignService {
             .single();
 
         final newCampaign = Campaign.fromJson(campaignData);
-        
+
         return ApiResponse<Campaign>(
           success: true,
           data: newCampaign,
@@ -515,13 +524,10 @@ class CampaignService {
         );
       }
 
-      return ApiResponse<Campaign>(
-        success: false,
-        error: '캠페인 생성에 실패했습니다.',
-      );
+      return ApiResponse<Campaign>(success: false, error: '캠페인 생성에 실패했습니다.');
     } catch (e) {
       final errorMessage = e.toString();
-      
+
       // 에러 메시지 파싱
       if (errorMessage.contains('포인트가 부족합니다')) {
         return ApiResponse<Campaign>(
@@ -539,7 +545,7 @@ class CampaignService {
           error: '회사 지갑이 생성되지 않았습니다. 관리자에게 문의하세요.',
         );
       }
-      
+
       print('❌ 캠페인 생성 실패: $e');
       return ApiResponse<Campaign>(
         success: false,
@@ -640,33 +646,36 @@ class CampaignService {
       }
 
       // RPC 함수 호출 (create_campaign_with_points_v2)
-      final response = await _supabase.rpc('create_campaign_with_points_v2', params: {
-        'p_title': title,
-        'p_description': description,
-        'p_campaign_type': campaignType,
-        'p_review_reward': reviewReward,
-        'p_max_participants': maxParticipants,
-        'p_start_date': startDate.toIso8601String(),
-        'p_end_date': endDate.toIso8601String(),
-        'p_platform': platform,
-        'p_platform_logo_url': platformLogoUrl,
-        'p_keyword': keyword,
-        'p_option': option,
-        'p_quantity': quantity ?? 1,
-        'p_seller': seller,
-        'p_product_number': productNumber,
-        'p_product_image_url': productImageUrl,
-        'p_payment_amount': paymentAmount ?? 0,
-        'p_purchase_method': 'mobile',
-        'p_product_description': description,
-        'p_review_type': reviewType ?? 'star_only',
-        'p_review_text_length': reviewTextLength ?? 100,
-        'p_review_image_count': reviewImageCount ?? 0,
-        'p_prevent_product_duplicate': preventProductDuplicate ?? false,
-        'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
-        'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
-        'p_payment_method': paymentMethod ?? 'platform',
-      });
+      final response = await _supabase.rpc(
+        'create_campaign_with_points_v2',
+        params: {
+          'p_title': title,
+          'p_description': description,
+          'p_campaign_type': campaignType,
+          'p_review_reward': reviewReward,
+          'p_max_participants': maxParticipants,
+          'p_start_date': startDate.toIso8601String(),
+          'p_end_date': endDate.toIso8601String(),
+          'p_platform': platform,
+          'p_platform_logo_url': platformLogoUrl,
+          'p_keyword': keyword,
+          'p_option': option,
+          'p_quantity': quantity ?? 1,
+          'p_seller': seller,
+          'p_product_number': productNumber,
+          'p_product_image_url': productImageUrl,
+          'p_payment_amount': paymentAmount ?? 0,
+          'p_purchase_method': 'mobile',
+          'p_product_description': description,
+          'p_review_type': reviewType ?? 'star_only',
+          'p_review_text_length': reviewTextLength ?? 100,
+          'p_review_image_count': reviewImageCount ?? 0,
+          'p_prevent_product_duplicate': preventProductDuplicate ?? false,
+          'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
+          'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
+          'p_payment_method': paymentMethod ?? 'platform',
+        },
+      );
 
       if (response['success'] == true) {
         // 생성된 캠페인 조회
@@ -678,7 +687,7 @@ class CampaignService {
             .single();
 
         final newCampaign = Campaign.fromJson(campaignData);
-        
+
         return ApiResponse<Campaign>(
           success: true,
           data: newCampaign,
@@ -692,7 +701,7 @@ class CampaignService {
       );
     } catch (e) {
       final errorMessage = e.toString();
-      
+
       // 에러 메시지 파싱
       if (errorMessage.contains('포인트가 부족합니다')) {
         return ApiResponse<Campaign>(
@@ -710,7 +719,7 @@ class CampaignService {
           error: '회사 지갑이 생성되지 않았습니다. 관리자에게 문의하세요.',
         );
       }
-      
+
       print('❌ 캠페인 생성 실패: $e');
       return ApiResponse<Campaign>(
         success: false,

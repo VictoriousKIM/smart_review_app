@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict cZVBKQs5ee2wel806rmVi2RtmC3EJR8K9Ui8TZZ7LI1d3sh1nJHJYuTrDWQGKDg
+-- \restrict I0HHdue5gDZfAEOUtbKtiuKTxmMiyV2eKUbYnbaXKak6wMCfB4Ge64UOBBtwJmM
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -45,7 +45,8 @@ INSERT INTO "auth"."audit_log_entries" ("instance_id", "id", "payload", "created
 	('00000000-0000-0000-0000-000000000000', '366c7760-546a-4677-b57d-8841e12bffdf', '{"action":"logout","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account"}', '2025-11-04 01:17:34.402905+00', ''),
 	('00000000-0000-0000-0000-000000000000', '60f68355-fc99-4c71-8435-a248aea78a26', '{"action":"login","actor_id":"201cf9ca-15f0-45a1-8033-b9fd08a99445","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-04 01:17:55.375767+00', ''),
 	('00000000-0000-0000-0000-000000000000', '107a426c-9a11-4ffc-a86e-8c14895fddb5', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-10 15:21:25.174954+00', ''),
-	('00000000-0000-0000-0000-000000000000', '81ce16f3-4199-40c5-a762-612e4b478627', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-11 01:29:19.482202+00', '');
+	('00000000-0000-0000-0000-000000000000', '81ce16f3-4199-40c5-a762-612e4b478627', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-11 01:29:19.482202+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'dda317d2-343c-4770-be5b-90b308b0c233', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-13 23:09:32.454052+00', '');
 
 
 --
@@ -63,7 +64,7 @@ INSERT INTO "auth"."users" ("instance_id", "id", "aud", "role", "email", "encryp
 	('00000000-0000-0000-0000-000000000000', '201cf9ca-15f0-45a1-8033-b9fd08a99445', 'authenticated', 'authenticated', 'company_manger@example.com', '$2a$10$3etwD1cLy8EIiKTa2pwT5eAJarYxqlH7DTDcdutKEL0UTAcUEPBpy', '2025-11-04 01:13:32.607995+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-04 01:17:55.376237+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "201cf9ca-15f0-45a1-8033-b9fd08a99445", "email": "company_manger@example.com", "display_name": "company_manger@example.com", "email_verified": true, "phone_verified": false}', NULL, '2025-11-04 01:13:32.604686+00', '2025-11-04 01:17:55.377096+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
 	('00000000-0000-0000-0000-000000000000', '420e4945-845a-4e93-849c-3fba45632cf3', 'authenticated', 'authenticated', 'company_owner@example.com', '$2a$10$NonQqcIVL.6mRkS3KW9Mc.bAR1zyAZatI3CtdIZ4xGwvsifRIlRCW', '2025-11-04 01:12:09.050715+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-04 01:12:09.054102+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "420e4945-845a-4e93-849c-3fba45632cf3", "email": "company_owner@example.com", "display_name": "company_owner@example.com", "email_verified": true, "phone_verified": false}', NULL, '2025-11-04 01:12:09.047403+00', '2025-11-04 01:12:09.054832+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
 	('00000000-0000-0000-0000-000000000000', '2eb8c022-92d6-4c42-988c-166e83050e09', 'authenticated', 'authenticated', 'test@example.com', '$2a$10$tV2fNK8QNnzLkzY51Spw8eqBjBnoTo5r/TbwYQRxYgobMiy9dqu/a', '2025-11-04 01:11:36.749428+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-04 01:11:36.753281+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "2eb8c022-92d6-4c42-988c-166e83050e09", "email": "test@example.com", "display_name": "test@example.com", "email_verified": true, "phone_verified": false}', NULL, '2025-11-04 01:11:36.742448+00', '2025-11-04 01:11:36.754278+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
-	('00000000-0000-0000-0000-000000000000', '2234639c-59f0-4861-8448-103febfa612f', 'authenticated', 'authenticated', 'dev@example.com', '$2a$10$wdT8PoxcJHcfFNvdWQk.DunYNajFsIHYF17kpOF2/JihT184tfIze', '2025-11-03 08:11:32.927618+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-11 01:29:19.483108+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "2234639c-59f0-4861-8448-103febfa612f", "email": "dev@example.com", "display_name": "dev", "email_verified": true, "phone_verified": false}', NULL, '2025-11-03 08:11:32.920969+00', '2025-11-11 01:29:19.485621+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+	('00000000-0000-0000-0000-000000000000', '2234639c-59f0-4861-8448-103febfa612f', 'authenticated', 'authenticated', 'dev@example.com', '$2a$10$wdT8PoxcJHcfFNvdWQk.DunYNajFsIHYF17kpOF2/JihT184tfIze', '2025-11-03 08:11:32.927618+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-13 23:09:32.455821+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "2234639c-59f0-4861-8448-103febfa612f", "email": "dev@example.com", "display_name": "dev", "email_verified": true, "phone_verified": false}', NULL, '2025-11-03 08:11:32.920969+00', '2025-11-13 23:09:32.460222+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 
 
 --
@@ -85,15 +86,22 @@ INSERT INTO "auth"."identities" ("provider_id", "user_id", "identity_data", "pro
 
 
 --
+-- Data for Name: oauth_clients; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
+--
+
+
+
+--
 -- Data for Name: sessions; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
-INSERT INTO "auth"."sessions" ("id", "user_id", "created_at", "updated_at", "factor_id", "aal", "not_after", "refreshed_at", "user_agent", "ip", "tag") VALUES
-	('5e9c22ba-3b38-444f-8476-d8f69ebde5de', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-03 08:11:32.931341+00', '2025-11-03 08:11:32.931341+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '172.18.0.1', NULL),
-	('de049b11-c334-4a4f-a086-d53f42b70e38', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-04 00:42:53.399236+00', '2025-11-04 00:42:53.399236+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '172.18.0.1', NULL),
-	('33dbcef9-d7d2-4b95-a368-38b9d6a93c8d', '201cf9ca-15f0-45a1-8033-b9fd08a99445', '2025-11-04 01:17:55.376314+00', '2025-11-04 01:17:55.376314+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '172.18.0.1', NULL),
-	('f2dbe689-ca4a-46a8-a76c-d0aa761cd089', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-10 15:21:25.176122+00', '2025-11-10 15:21:25.176122+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL),
-	('e781d008-1f05-4a81-ac59-49d284fdb091', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-11 01:29:19.483197+00', '2025-11-11 01:29:19.483197+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL);
+INSERT INTO "auth"."sessions" ("id", "user_id", "created_at", "updated_at", "factor_id", "aal", "not_after", "refreshed_at", "user_agent", "ip", "tag", "oauth_client_id", "refresh_token_hmac_key", "refresh_token_counter") VALUES
+	('5e9c22ba-3b38-444f-8476-d8f69ebde5de', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-03 08:11:32.931341+00', '2025-11-03 08:11:32.931341+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('de049b11-c334-4a4f-a086-d53f42b70e38', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-04 00:42:53.399236+00', '2025-11-04 00:42:53.399236+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('33dbcef9-d7d2-4b95-a368-38b9d6a93c8d', '201cf9ca-15f0-45a1-8033-b9fd08a99445', '2025-11-04 01:17:55.376314+00', '2025-11-04 01:17:55.376314+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('f2dbe689-ca4a-46a8-a76c-d0aa761cd089', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-10 15:21:25.176122+00', '2025-11-10 15:21:25.176122+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('e781d008-1f05-4a81-ac59-49d284fdb091', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-11 01:29:19.483197+00', '2025-11-11 01:29:19.483197+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('e1a52437-b8bc-4fdd-b496-364d9e5ffd87', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-13 23:09:32.455867+00', '2025-11-13 23:09:32.455867+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL);
 
 
 --
@@ -105,7 +113,8 @@ INSERT INTO "auth"."mfa_amr_claims" ("session_id", "created_at", "updated_at", "
 	('de049b11-c334-4a4f-a086-d53f42b70e38', '2025-11-04 00:42:53.405274+00', '2025-11-04 00:42:53.405274+00', 'password', '556bca3f-7459-4cb0-89c7-cc0de778e708'),
 	('33dbcef9-d7d2-4b95-a368-38b9d6a93c8d', '2025-11-04 01:17:55.377231+00', '2025-11-04 01:17:55.377231+00', 'password', '58275151-f7c7-4823-9494-79b18096b019'),
 	('f2dbe689-ca4a-46a8-a76c-d0aa761cd089', '2025-11-10 15:21:25.178136+00', '2025-11-10 15:21:25.178136+00', 'password', '7dce76fa-49e3-4107-84b0-618c829ead68'),
-	('e781d008-1f05-4a81-ac59-49d284fdb091', '2025-11-11 01:29:19.486226+00', '2025-11-11 01:29:19.486226+00', 'password', 'd2d23f8d-1d4c-4066-aedc-4949a78a8702');
+	('e781d008-1f05-4a81-ac59-49d284fdb091', '2025-11-11 01:29:19.486226+00', '2025-11-11 01:29:19.486226+00', 'password', 'd2d23f8d-1d4c-4066-aedc-4949a78a8702'),
+	('e1a52437-b8bc-4fdd-b496-364d9e5ffd87', '2025-11-13 23:09:32.46062+00', '2025-11-13 23:09:32.46062+00', 'password', '572b5e0e-2739-4993-bd2b-247a0293fc1a');
 
 
 --
@@ -121,7 +130,13 @@ INSERT INTO "auth"."mfa_amr_claims" ("session_id", "created_at", "updated_at", "
 
 
 --
--- Data for Name: oauth_clients; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
+-- Data for Name: oauth_authorizations; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
+--
+
+
+
+--
+-- Data for Name: oauth_consents; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
 
@@ -141,7 +156,8 @@ INSERT INTO "auth"."refresh_tokens" ("instance_id", "id", "token", "user_id", "r
 	('00000000-0000-0000-0000-000000000000', 2, 'htm3ev5uafnn', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-04 00:42:53.401416+00', '2025-11-04 00:42:53.401416+00', NULL, 'de049b11-c334-4a4f-a086-d53f42b70e38'),
 	('00000000-0000-0000-0000-000000000000', 8, 'sv75k4db265a', '201cf9ca-15f0-45a1-8033-b9fd08a99445', false, '2025-11-04 01:17:55.376694+00', '2025-11-04 01:17:55.376694+00', NULL, '33dbcef9-d7d2-4b95-a368-38b9d6a93c8d'),
 	('00000000-0000-0000-0000-000000000000', 9, 'spoydu75muf7', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-10 15:21:25.177032+00', '2025-11-10 15:21:25.177032+00', NULL, 'f2dbe689-ca4a-46a8-a76c-d0aa761cd089'),
-	('00000000-0000-0000-0000-000000000000', 10, 'efqbhkqllb7p', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-11 01:29:19.484692+00', '2025-11-11 01:29:19.484692+00', NULL, 'e781d008-1f05-4a81-ac59-49d284fdb091');
+	('00000000-0000-0000-0000-000000000000', 10, 'efqbhkqllb7p', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-11 01:29:19.484692+00', '2025-11-11 01:29:19.484692+00', NULL, 'e781d008-1f05-4a81-ac59-49d284fdb091'),
+	('00000000-0000-0000-0000-000000000000', 11, '3vd77ad37t5g', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-13 23:09:32.457841+00', '2025-11-13 23:09:32.457841+00', NULL, 'e1a52437-b8bc-4fdd-b496-364d9e5ffd87');
 
 
 --
@@ -195,19 +211,38 @@ INSERT INTO "public"."companies" ("id", "business_name", "business_number", "con
 
 
 --
--- Data for Name: campaign_events; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: campaign_action_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 
 
 --
--- Data for Name: campaign_user_status; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: campaign_actions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 
 
 --
--- Data for Name: company_point_logs; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: wallets; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+INSERT INTO "public"."wallets" ("id", "company_id", "user_id", "current_points", "withdraw_bank_name", "withdraw_account_number", "withdraw_account_holder", "created_at", "updated_at") VALUES
+	('8827b875-1eeb-4067-a3ca-dbcd65ad83e1', NULL, '2eb8c022-92d6-4c42-988c-166e83050e09', 0, NULL, NULL, NULL, '2025-11-04 01:11:36.8133+00', '2025-11-04 01:11:36.8133+00'),
+	('2e36b811-87ed-4c19-91bb-7524501a849e', NULL, 'f0214704-7b33-4168-829c-c1e0fcb96ce9', 0, NULL, NULL, NULL, '2025-11-04 01:11:54.281747+00', '2025-11-04 01:11:54.281747+00'),
+	('9e4b706a-92ca-4f35-851e-d38a56078b73', NULL, '420e4945-845a-4e93-849c-3fba45632cf3', 0, NULL, NULL, NULL, '2025-11-04 01:12:09.087909+00', '2025-11-04 01:12:09.087909+00'),
+	('9d90e6ef-bdfd-42e9-ae5b-eed0997682f5', NULL, '201cf9ca-15f0-45a1-8033-b9fd08a99445', 0, NULL, NULL, NULL, '2025-11-04 01:13:32.651223+00', '2025-11-04 01:13:32.651223+00'),
+	('da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', '3aa3545b-ed63-40e9-8735-576686170346', NULL, 0, '농협은행1', '312-0172-8650-12', '김동익', '2025-11-06 06:19:13.099002+00', '2025-11-11 00:49:26.627725+00'),
+	('314af2ba-ae38-4eb6-9d28-545abeddf488', NULL, '2234639c-59f0-4861-8448-103febfa612f', 0, '농협은행2', '312-0172-8650-01', '김동익', '2025-11-03 08:11:33.033199+00', '2025-11-11 00:49:32.13134+00');
+
+
+--
+-- Data for Name: cash_transactions; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: cash_transaction_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 
@@ -233,28 +268,27 @@ INSERT INTO "public"."company_users" ("company_id", "user_id", "company_role", "
 
 
 --
+-- Data for Name: point_transactions; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: point_transaction_logs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
+-- Data for Name: point_transfers; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+
+--
 -- Data for Name: sns_connections; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-
-
---
--- Data for Name: user_point_logs; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
--- Data for Name: wallets; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO "public"."wallets" ("id", "company_id", "user_id", "current_points", "withdraw_bank_name", "withdraw_account_number", "withdraw_account_holder", "created_at", "updated_at") VALUES
-	('8827b875-1eeb-4067-a3ca-dbcd65ad83e1', NULL, '2eb8c022-92d6-4c42-988c-166e83050e09', 0, NULL, NULL, NULL, '2025-11-04 01:11:36.8133+00', '2025-11-04 01:11:36.8133+00'),
-	('2e36b811-87ed-4c19-91bb-7524501a849e', NULL, 'f0214704-7b33-4168-829c-c1e0fcb96ce9', 0, NULL, NULL, NULL, '2025-11-04 01:11:54.281747+00', '2025-11-04 01:11:54.281747+00'),
-	('9e4b706a-92ca-4f35-851e-d38a56078b73', NULL, '420e4945-845a-4e93-849c-3fba45632cf3', 0, NULL, NULL, NULL, '2025-11-04 01:12:09.087909+00', '2025-11-04 01:12:09.087909+00'),
-	('9d90e6ef-bdfd-42e9-ae5b-eed0997682f5', NULL, '201cf9ca-15f0-45a1-8033-b9fd08a99445', 0, NULL, NULL, NULL, '2025-11-04 01:13:32.651223+00', '2025-11-04 01:13:32.651223+00'),
-	('da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', '3aa3545b-ed63-40e9-8735-576686170346', NULL, 0, '농협은행1', '312-0172-8650-12', '김동익', '2025-11-06 06:19:13.099002+00', '2025-11-11 00:49:26.627725+00'),
-	('314af2ba-ae38-4eb6-9d28-545abeddf488', NULL, '2234639c-59f0-4861-8448-103febfa612f', 0, '농협은행2', '312-0172-8650-01', '김동익', '2025-11-03 08:11:33.033199+00', '2025-11-11 00:49:32.13134+00');
 
 
 --
@@ -292,7 +326,7 @@ INSERT INTO "public"."wallet_logs" ("id", "wallet_id", "old_bank_name", "old_acc
 -- Name: refresh_tokens_id_seq; Type: SEQUENCE SET; Schema: auth; Owner: supabase_auth_admin
 --
 
-SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 10, true);
+SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 11, true);
 
 
 --
@@ -306,6 +340,6 @@ SELECT pg_catalog.setval('"supabase_functions"."hooks_id_seq"', 1, false);
 -- PostgreSQL database dump complete
 --
 
--- \unrestrict cZVBKQs5ee2wel806rmVi2RtmC3EJR8K9Ui8TZZ7LI1d3sh1nJHJYuTrDWQGKDg
+-- \unrestrict I0HHdue5gDZfAEOUtbKtiuKTxmMiyV2eKUbYnbaXKak6wMCfB4Ge64UOBBtwJmM
 
 RESET ALL;

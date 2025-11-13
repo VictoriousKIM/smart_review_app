@@ -20,10 +20,15 @@ class AdminService {
     int offset = 0,
   }) async {
     try {
-      // users 테이블과 auth.users 조인하여 이메일 가져오기
+      // users 테이블과 auth.users, company_users, sns_connections 조인
       var query = _supabase
           .from('users')
-          .select('*, auth.users!inner(email)');
+          .select('''
+            *,
+            auth.users!inner(email),
+            company_users!left(company_id, company_role, status),
+            sns_connections!left(*)
+          ''');
 
       // 검색 (이메일, display_name)
       if (searchQuery != null && searchQuery.isNotEmpty) {
@@ -50,6 +55,30 @@ class AdminService {
         final authUser = (data['auth.users'] as List?)?.first;
         final email = authUser?['email'] as String? ?? '';
         
+        // company_users에서 company_id, company_role 추출 (JOIN된 경우)
+        final companyUser = data['company_users'] as List?;
+        String? companyId;
+        app_user.CompanyRole? companyRole;
+        if (companyUser != null && companyUser.isNotEmpty) {
+          final cu = companyUser.first as Map<String, dynamic>;
+          companyId = cu['company_id'] as String?;
+          if (cu['company_role'] != null) {
+            companyRole = app_user.CompanyRole.values.firstWhere(
+              (e) => e.name == cu['company_role'],
+              orElse: () => app_user.CompanyRole.manager,
+            );
+          }
+        }
+        
+        // sns_connections 추출 (JOIN된 경우)
+        final snsConnectionsList = data['sns_connections'] as List?;
+        app_user.SNSConnections? snsConnections;
+        if (snsConnectionsList != null && snsConnectionsList.isNotEmpty) {
+          snsConnections = app_user.SNSConnections.fromJson(
+            snsConnectionsList.map((e) => e as Map<String, dynamic>).toList(),
+          );
+        }
+        
         // User 객체 생성 (이메일 포함)
         return app_user.User(
           uid: data['id'] as String,
@@ -57,27 +86,23 @@ class AdminService {
           displayName: data['display_name'] as String?,
           createdAt: DateTime.parse(data['created_at'] as String),
           updatedAt: DateTime.parse(data['updated_at'] as String? ?? data['created_at'] as String),
-          level: data['level'] as int? ?? 1,
-          reviewCount: data['review_count'] as int? ?? 0,
+          level: data['level'], // nullable로 변경됨
+          reviewCount: data['review_count'], // nullable로 변경됨
           userType: app_user.UserType.values.firstWhere(
             (e) => e.name == (data['user_type'] as String?)?.toLowerCase(),
             orElse: () => app_user.UserType.user,
           ),
-          companyId: data['company_id'] as String?,
-          companyRole: data['company_role'] != null
-              ? app_user.CompanyRole.values.firstWhere(
-                  (e) => e.name == data['company_role'],
-                  orElse: () => app_user.CompanyRole.manager,
-                )
-              : null,
+          companyId: companyId,
+          companyRole: companyRole,
+          snsConnections: snsConnections,
           status: data['status'] as String?,
         );
       }).toList();
     } catch (e) {
       debugPrint('사용자 목록 조회 실패: $e');
-      // 조인 실패 시 간단한 쿼리로 재시도
-      try {
-        var query = _supabase.from('users').select();
+        // 조인 실패 시 간단한 쿼리로 재시도 (JOIN 없이)
+        try {
+          var query = _supabase.from('users').select('*');
         
         if (userTypeFilter != null && userTypeFilter.isNotEmpty) {
           query = query.eq('user_type', userTypeFilter);
@@ -95,19 +120,45 @@ class AdminService {
         for (final data in response) {
           final userId = data['id'] as String;
           
+          // company_users에서 company_id, company_role 추출
+          final companyUser = data['company_users'] as List?;
+          String? companyId;
+          app_user.CompanyRole? companyRole;
+          if (companyUser != null && companyUser.isNotEmpty) {
+            final cu = companyUser.first as Map<String, dynamic>;
+            companyId = cu['company_id'] as String?;
+            if (cu['company_role'] != null) {
+              companyRole = app_user.CompanyRole.values.firstWhere(
+                (e) => e.name == cu['company_role'],
+                orElse: () => app_user.CompanyRole.manager,
+              );
+            }
+          }
+          
+          // sns_connections 추출
+          final snsConnectionsList = data['sns_connections'] as List?;
+          app_user.SNSConnections? snsConnections;
+          if (snsConnectionsList != null && snsConnectionsList.isNotEmpty) {
+            snsConnections = app_user.SNSConnections.fromJson(
+              snsConnectionsList.map((e) => e as Map<String, dynamic>).toList(),
+            );
+          }
+          
           users.add(app_user.User(
             uid: userId,
             email: '', // TODO: auth.users에서 이메일 조회 필요 (RPC 함수 권장)
             displayName: data['display_name'] as String?,
             createdAt: DateTime.parse(data['created_at'] as String),
             updatedAt: DateTime.parse(data['updated_at'] as String? ?? data['created_at'] as String),
-            level: data['level'] as int? ?? 1,
-            reviewCount: data['review_count'] as int? ?? 0,
+            level: data['level'], // nullable로 변경됨
+            reviewCount: data['review_count'], // nullable로 변경됨
             userType: app_user.UserType.values.firstWhere(
               (e) => e.name == (data['user_type'] as String?)?.toLowerCase(),
               orElse: () => app_user.UserType.user,
             ),
-            companyId: data['company_id'] as String?,
+            companyId: companyId,
+            companyRole: companyRole,
+            snsConnections: snsConnections,
             status: data['status'] as String?,
           ));
         }

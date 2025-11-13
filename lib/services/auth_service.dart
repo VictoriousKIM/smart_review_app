@@ -6,6 +6,7 @@ import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart' as kakao;
 import '../models/user.dart' as app_user;
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
+import 'user_service.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -13,6 +14,7 @@ class AuthService {
   AuthService._internal();
 
   final SupabaseClient _supabase = SupabaseConfig.client;
+  final UserService _userService = UserService();
   // GoogleSignIn 인스턴스 생성 방식 변경 (v7 API)
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
@@ -28,7 +30,15 @@ class AuthService {
         );
 
         // 데이터베이스 프로필 정보로 User 객체 생성
-        return app_user.User.fromDatabaseProfile(profileResponse, session.user);
+        final user = app_user.User.fromDatabaseProfile(profileResponse, session.user);
+        
+        // 사용자 통계 계산 (level, reviewCount)
+        final stats = await _userService.getUserStats(user.uid);
+        
+        return user.copyWith(
+          level: stats['level'],
+          reviewCount: stats['reviewCount'],
+        );
       } catch (e) {
         // 프로필이 없으면 null 반환 (자동 생성하지 않음)
         // 프로필은 회원가입 시에만 생성됨
@@ -53,7 +63,15 @@ class AuthService {
           );
 
           // 데이터베이스 프로필 정보로 User 객체 생성
-          return app_user.User.fromDatabaseProfile(profileResponse, user);
+          final userProfile = app_user.User.fromDatabaseProfile(profileResponse, user);
+          
+          // 사용자 통계 계산 (level, reviewCount)
+          final stats = await _userService.getUserStats(user.id);
+          
+          return userProfile.copyWith(
+            level: stats['level'],
+            reviewCount: stats['reviewCount'],
+          );
         } catch (e) {
           // 프로필이 없으면 null 반환 (자동 생성하지 않음)
           // 프로필은 회원가입 시에만 생성됨

@@ -121,8 +121,10 @@ class ReviewService {
       }
 
       // 리뷰가 있는 로그만 필터링
+      // 주의: DB에 data 필드가 없으므로 title, reviewContent는 항상 빈 값
+      // status로만 필터링
       final reviews = result.data!
-          .where((log) => log.title.isNotEmpty || log.reviewContent.isNotEmpty)
+          .where((log) => log.status == 'review_submitted' || log.status == 'review_approved')
           .map(
             (log) => {
               'id': log.id,
@@ -189,8 +191,10 @@ class ReviewService {
       }
 
       // 리뷰가 있는 로그만 필터링
+      // 주의: DB에 data 필드가 없으므로 title, reviewContent는 항상 빈 값
+      // status로만 필터링
       final reviews = result.data!
-          .where((log) => log.title.isNotEmpty || log.reviewContent.isNotEmpty)
+          .where((log) => log.status == 'review_submitted' || log.status == 'review_approved')
           .map(
             (log) => {
               'id': log.id,
@@ -261,27 +265,12 @@ class ReviewService {
         );
       }
 
-      // 상태별 추가 데이터 준비
-      Map<String, dynamic>? additionalData;
-      switch (status) {
-        case 'review_approved':
-          additionalData = {
-            'review_approved_at': DateTime.now().toIso8601String(),
-          };
-          break;
-        case 'rejected':
-          additionalData = {
-            'rejected_at': DateTime.now().toIso8601String(),
-            'rejection_reason': rejectionReason,
-          };
-          break;
-      }
-
       // CampaignLogService를 사용하여 상태 업데이트
+      // 주의: additionalData는 현재 사용하지 않음 (data 필드 없음)
       final result = await _campaignLogService.updateStatus(
         campaignLogId: reviewId,
         status: status,
-        additionalData: additionalData,
+        additionalData: null, // data 필드가 없으므로 사용하지 않음
       );
 
       if (!result.success) {
@@ -327,7 +316,7 @@ class ReviewService {
       // 리뷰 정보 조회 및 권한 확인
       final review = await _supabase
           .from('campaign_action_logs')
-          .select('user_id, status, data')
+          .select('user_id, status')
           .eq('id', reviewId)
           .single();
 
@@ -345,21 +334,12 @@ class ReviewService {
         );
       }
 
-      // 리뷰 데이터 업데이트
-      final currentData = Map<String, dynamic>.from(review['data'] ?? {});
-      currentData.addAll({
-        'title': title,
-        'review_content': content,
-        'rating': rating,
-        'review_url': reviewUrl,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
-
-      // 로그 업데이트
+      // 주의: DB에 data 필드가 없으므로 리뷰 내용은 저장하지 않음
+      // 리뷰 내용 저장이 필요하면 별도 reviews 테이블 생성 또는 data JSONB 컬럼 추가 필요
+      // 현재는 상태만 업데이트
       await _supabase
           .from('campaign_action_logs')
           .update({
-            'data': currentData,
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', reviewId);
@@ -409,15 +389,8 @@ class ReviewService {
         return ApiResponse<void>(success: false, error: '승인된 리뷰는 삭제할 수 없습니다.');
       }
 
-      // 리뷰 데이터만 삭제 (로그는 유지)
-      final currentData = Map<String, dynamic>.from(review['data'] ?? {});
-      currentData.remove('title');
-      currentData.remove('review_content');
-      currentData.remove('rating');
-      currentData.remove('review_url');
-      currentData.remove('review_submitted_at');
-
-      // 상태를 이전 단계로 되돌리기
+      // 주의: DB에 data 필드가 없으므로 리뷰 데이터 삭제는 불가
+      // 상태만 이전 단계로 되돌리기
       String previousStatus = 'approved'; // 기본적으로 approved로 되돌림
       if (review['status'] == 'review_submitted') {
         previousStatus = 'approved';
@@ -427,7 +400,7 @@ class ReviewService {
           .from('campaign_action_logs')
           .update({
             'status': previousStatus,
-            'data': currentData,
+            'action': '진행상황_저장',
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', reviewId);

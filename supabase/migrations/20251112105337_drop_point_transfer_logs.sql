@@ -1488,7 +1488,7 @@ BEGIN
     AND cu.status = 'active'
   LIMIT 1;
   
-  -- 프로필 조회 및 company_role, company_id 추가
+  -- 프로필 조회 및 company_role, company_id, sns_connections 추가
   SELECT jsonb_build_object(
     'id', u.id,
     'created_at', u.created_at,
@@ -1497,7 +1497,26 @@ BEGIN
     'user_type', u.user_type,
     'status', u.status,
     'company_id', v_company_id,
-    'company_role', v_company_role
+    'company_role', v_company_role,
+    'sns_connections', COALESCE(
+      (SELECT jsonb_agg(
+        jsonb_build_object(
+          'id', sc.id,
+          'user_id', sc.user_id,
+          'platform', sc.platform,
+          'platform_account_id', sc.platform_account_id,
+          'platform_account_name', sc.platform_account_name,
+          'phone', sc.phone,
+          'address', sc.address,
+          'return_address', sc.return_address,
+          'created_at', sc.created_at,
+          'updated_at', sc.updated_at
+        )
+      )
+      FROM public.sns_connections sc
+      WHERE sc.user_id = v_target_user_id),
+      '[]'::jsonb
+    )
   ) INTO v_profile
   FROM public.users u
   WHERE u.id = v_target_user_id;
@@ -2564,12 +2583,11 @@ BEGIN
     "last_updated_at" = EXCLUDED."last_updated_at";
 
   -- 2. 이벤트가 '완료' 또는 'complete'이고 status가 'completed'인 경우 completed_applicants_count 증가
-  -- 중복 카운트 방지: 이전 상태가 '완료'가 아닌 경우에만 증가
-  IF (NEW."action" IN ('완료', 'complete') AND NEW."status" = 'completed') THEN
-    -- campaign_actions에서 해당 사용자의 이전 상태 확인
-    -- 이전 상태가 '완료'가 아니었다면 카운트 증가 (중복 방지)
-    -- 주의: campaign_actions는 위에서 이미 업데이트되었으므로, 
-    -- OLD 상태를 확인하기 위해 별도의 서브쿼리 필요
+  -- jsonb 필드에서 type 값을 추출하여 비교
+  IF (
+    (NEW."action"->>'type' IN ('완료', 'complete')) 
+    AND NEW."status" = 'completed'
+  ) THEN
     UPDATE "public"."campaigns"
     SET "completed_applicants_count" = "completed_applicants_count" + 1
     WHERE "id" = NEW."campaign_id"
@@ -2579,7 +2597,7 @@ BEGIN
         FROM "public"."campaign_action_logs" ce
         WHERE ce."campaign_id" = NEW."campaign_id"
           AND ce."user_id" = NEW."user_id"
-          AND ce."action" IN ('완료', 'complete')
+          AND ce."action"->>'type' IN ('완료', 'complete')
           AND ce."status" = 'completed'
           AND ce."created_at" < NEW."created_at"
       );
@@ -3206,12 +3224,11 @@ CREATE TABLE IF NOT EXISTS "public"."campaign_action_logs" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "campaign_id" "uuid" NOT NULL,
     "user_id" "uuid" NOT NULL,
-    "action" "text" NOT NULL,
+    "action" "jsonb" NOT NULL,
     "application_message" "text",
     "status" "text" DEFAULT 'pending'::"text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "campaign_action_logs_action_check" CHECK (("action" = ANY (ARRAY['join'::"text", 'leave'::"text", 'complete'::"text", 'cancel'::"text", '시작'::"text", '진행상황_저장'::"text", '완료'::"text"]))),
     CONSTRAINT "campaign_action_logs_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'rejected'::"text", 'completed'::"text", 'cancelled'::"text"])))
 );
 
@@ -3219,13 +3236,18 @@ CREATE TABLE IF NOT EXISTS "public"."campaign_action_logs" (
 ALTER TABLE "public"."campaign_action_logs" OWNER TO "postgres";
 
 
+COMMENT ON TABLE "public"."campaign_action_logs" IS '캠페인 액션 로그 테이블';
+
+
+COMMENT ON COLUMN "public"."campaign_action_logs"."action" IS '행동 정보 (JSONB). 예: {"type": "join", "data": {...}}';
+
+
 CREATE TABLE IF NOT EXISTS "public"."campaign_actions" (
     "campaign_id" "uuid" NOT NULL,
     "user_id" "uuid" NOT NULL,
-    "current_action" "text" NOT NULL,
+    "current_action" "jsonb" NOT NULL,
     "last_updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "campaign_actions_action_check" CHECK (("current_action" = ANY (ARRAY['join'::"text", 'leave'::"text", 'complete'::"text", 'cancel'::"text", '시작'::"text", '진행상황_저장'::"text", '완료'::"text"])))
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -3244,7 +3266,7 @@ COMMENT ON COLUMN "public"."campaign_actions"."user_id" IS '사용자 ID';
 
 
 
-COMMENT ON COLUMN "public"."campaign_actions"."current_action" IS '현재 행동 상태';
+COMMENT ON COLUMN "public"."campaign_actions"."current_action" IS '현재 행동 상태 (JSONB). 예: {"type": "join", "data": {...}}';
 
 
 

@@ -1,19 +1,31 @@
 import 'campaign.dart';
 import 'user.dart';
 
+/// campaign_action_logs 테이블 모델 (Supabase 스키마 기반)
+/// 
+/// 참고: 이 모델은 campaign_action_logs 테이블을 나타냅니다.
+/// 모델명은 CampaignLog이지만 실제 DB 테이블명은 campaign_action_logs입니다.
+/// 
+/// DB 스키마:
+/// - id: uuid
+/// - campaign_id: uuid
+/// - user_id: uuid
+/// - action: jsonb (예: {"type": "join", "data": {...}})
+/// - application_message: text (nullable)
+/// - status: text ('pending', 'approved', 'rejected', 'completed', 'cancelled')
+/// - created_at: timestamp
+/// - updated_at: timestamp
 class CampaignLog {
   final String id;
   final String campaignId;
   final String userId;
+  final Map<String, dynamic> action; // DB에 있는 필드 (JSONB)
+  final String? applicationMessage; // DB에 있는 필드
   final String status;
-  final DateTime activityAt;
-  final Map<String, dynamic> data;
-  final String? rewardType;
-  final int? rewardAmount;
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  // 관계 데이터
+  // 관계 데이터 (JOIN으로 가져옴)
   final Campaign? campaign;
   final User? user;
 
@@ -21,11 +33,9 @@ class CampaignLog {
     required this.id,
     required this.campaignId,
     required this.userId,
+    required this.action,
+    this.applicationMessage,
     required this.status,
-    required this.activityAt,
-    required this.data,
-    this.rewardType,
-    this.rewardAmount,
     required this.createdAt,
     required this.updatedAt,
     this.campaign,
@@ -33,17 +43,26 @@ class CampaignLog {
   });
 
   factory CampaignLog.fromJson(Map<String, dynamic> json) {
+    // action 필드 처리 (JSONB)
+    Map<String, dynamic> actionData;
+    if (json['action'] is Map) {
+      actionData = Map<String, dynamic>.from(json['action'] as Map);
+    } else if (json['action'] is String) {
+      // 하위 호환성: 문자열인 경우 {"type": "문자열"} 형식으로 변환
+      actionData = {'type': json['action'] as String};
+    } else {
+      actionData = {'type': ''};
+    }
+
     return CampaignLog(
-      id: json['id'],
-      campaignId: json['campaign_id'],
-      userId: json['user_id'],
-      status: json['status'],
-      activityAt: DateTime.parse(json['activity_at']),
-      data: Map<String, dynamic>.from(json['data'] ?? {}),
-      rewardType: json['reward_type'],
-      rewardAmount: json['reward_amount'],
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      id: json['id'] ?? '',
+      campaignId: json['campaign_id'] ?? '',
+      userId: json['user_id'] ?? '',
+      action: actionData,
+      applicationMessage: json['application_message'],
+      status: json['status'] ?? 'pending',
+      createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(json['updated_at'] ?? DateTime.now().toIso8601String()),
       campaign: json['campaigns'] != null
           ? Campaign.fromJson(json['campaigns'])
           : null,
@@ -56,53 +75,68 @@ class CampaignLog {
       'id': id,
       'campaign_id': campaignId,
       'user_id': userId,
+      'action': action,
+      'application_message': applicationMessage,
       'status': status,
-      'activity_at': activityAt.toIso8601String(),
-      'data': data,
-      'reward_type': rewardType,
-      'reward_amount': rewardAmount,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
   }
 
-  // 편의 메서드들
-  String get title => data['title'] ?? '';
-  int get rating => data['rating'] ?? 0;
-  String get applicationMessage => data['application_message'] ?? '';
-  String get reviewContent => data['review_content'] ?? '';
-  String get reviewUrl => data['review_url'] ?? '';
-  String get rejectionReason => data['rejection_reason'] ?? '';
+  // 편의 getter: action.type 반환
+  String get actionType => action['type'] as String? ?? '';
 
-  // 날짜 관련 편의 메서드들
-  DateTime? get appliedAt =>
-      data['applied_at'] != null ? DateTime.parse(data['applied_at']) : null;
-  DateTime? get approvedAt =>
-      data['approved_at'] != null ? DateTime.parse(data['approved_at']) : null;
-  DateTime? get purchaseDate => data['purchase_date'] != null
-      ? DateTime.parse(data['purchase_date'])
-      : null;
-  DateTime? get reviewSubmittedAt => data['review_submitted_at'] != null
-      ? DateTime.parse(data['review_submitted_at'])
-      : null;
-  DateTime? get reviewApprovedAt => data['review_approved_at'] != null
-      ? DateTime.parse(data['review_approved_at'])
-      : null;
-  DateTime? get visitCompletedAt => data['visit_completed_at'] != null
-      ? DateTime.parse(data['visit_completed_at'])
-      : null;
-  DateTime? get visitVerifiedAt => data['visit_verified_at'] != null
-      ? DateTime.parse(data['visit_verified_at'])
-      : null;
-  DateTime? get articleSubmittedAt => data['article_submitted_at'] != null
-      ? DateTime.parse(data['article_submitted_at'])
-      : null;
-  DateTime? get articleApprovedAt => data['article_approved_at'] != null
-      ? DateTime.parse(data['article_approved_at'])
-      : null;
-  DateTime? get paymentCompletedAt => data['payment_completed_at'] != null
-      ? DateTime.parse(data['payment_completed_at'])
-      : null;
+  // 편의 getter: action.data 반환
+  Map<String, dynamic>? get actionData => action['data'] as Map<String, dynamic>?;
+
+  // 편의 메서드들 (action.data에서 가져옴)
+  // action 필드가 JSONB로 변경되어 action.data에서 리뷰 상세 정보를 가져올 수 있습니다.
+  String get title => actionData?['title'] as String? ?? '';
+  
+  int get rating => actionData?['rating'] as int? ?? 0;
+  
+  String get reviewContent => actionData?['content'] as String? ?? '';
+  
+  String get reviewUrl => actionData?['reviewUrl'] as String? ?? '';
+  
+  String get rejectionReason => actionData?['rejectionReason'] as String? ?? '';
+
+  // 날짜 관련 편의 메서드들 (하위 호환성)
+  // 
+  // ⚠️ 주의: 이 메서드들은 DB에 data 필드가 없으므로 항상 null을 반환합니다.
+  // 날짜 정보가 필요한 경우 status와 created_at, updated_at 필드를 사용하세요.
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get appliedAt => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get approvedAt => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get purchaseDate => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get reviewSubmittedAt => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get reviewApprovedAt => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get visitCompletedAt => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get visitVerifiedAt => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get articleSubmittedAt => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get articleApprovedAt => null;
+  
+  @Deprecated('DB에 data 필드가 없습니다. status와 created_at, updated_at 필드를 사용하세요.')
+  DateTime? get paymentCompletedAt => null;
+  
+  // activityAt은 createdAt을 사용
+  DateTime get activityAt => createdAt;
 
   // 상태별 진행률 계산
   double get progress {
@@ -148,17 +182,26 @@ class CampaignLog {
     }
   }
 
-  // 리워드 타입별 한국어 이름 반환
-  String get rewardTypeDisplayName {
-    switch (rewardType) {
-      case 'platform_points':
-        return '플랫폼 포인트';
-      case 'direct_payment':
-        return '직접 지급';
-      case 'mixed':
-        return '혼합 지급';
+  // action 필드의 한국어 이름 반환
+  String get actionDisplayName {
+    final type = actionType;
+    switch (type) {
+      case 'join':
+        return '참여';
+      case 'leave':
+        return '탈퇴';
+      case 'complete':
+        return '완료';
+      case 'cancel':
+        return '취소';
+      case '시작':
+        return '시작';
+      case '진행상황_저장':
+        return '진행상황 저장';
+      case '완료':
+        return '완료';
       default:
-        return rewardType ?? '';
+        return type;
     }
   }
 
@@ -224,11 +267,9 @@ class CampaignLog {
     String? id,
     String? campaignId,
     String? userId,
+    Map<String, dynamic>? action,
+    String? applicationMessage,
     String? status,
-    DateTime? activityAt,
-    Map<String, dynamic>? data,
-    String? rewardType,
-    int? rewardAmount,
     DateTime? createdAt,
     DateTime? updatedAt,
     Campaign? campaign,
@@ -238,11 +279,9 @@ class CampaignLog {
       id: id ?? this.id,
       campaignId: campaignId ?? this.campaignId,
       userId: userId ?? this.userId,
+      action: action ?? this.action,
+      applicationMessage: applicationMessage ?? this.applicationMessage,
       status: status ?? this.status,
-      activityAt: activityAt ?? this.activityAt,
-      data: data ?? this.data,
-      rewardType: rewardType ?? this.rewardType,
-      rewardAmount: rewardAmount ?? this.rewardAmount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       campaign: campaign ?? this.campaign,
@@ -252,7 +291,7 @@ class CampaignLog {
 
   @override
   String toString() {
-    return 'CampaignLog(id: $id, campaignId: $campaignId, userId: $userId, status: $status, rewardType: $rewardType, rewardAmount: $rewardAmount)';
+    return 'CampaignLog(id: $id, campaignId: $campaignId, userId: $userId, action: $action, status: $status)';
   }
 
   @override

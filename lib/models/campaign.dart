@@ -1,25 +1,24 @@
+/// campaigns 테이블 모델 (Supabase 스키마 기반)
 class Campaign {
   final String id;
   final String title;
   final String description;
+  final String companyId; // DB에 있는 필드 추가
+  final String? productName; // DB에 있는 필드 추가
   final String productImageUrl;
   final String platform;
   final String platformLogoUrl;
   final CampaignCategory campaignType;
-  final int productPrice;
-  final int reviewReward;
+  final int? productPrice;
+  final int reviewCost; // DB에 있는 필드 (review_cost)
+  final int? reviewReward;
   final DateTime? startDate;
   final DateTime? endDate;
   final int currentParticipants;
   final int? maxParticipants;
   final CampaignStatus status;
   final DateTime createdAt;
-
-  // 템플릿 기능을 위한 새로운 필드들
-  final bool isTemplate;
-  final String? templateName;
-  final DateTime? lastUsedAt;
-  final int usageCount;
+  final String? userId; // DB에 있는 필드 추가
 
   // 상품 상세 정보
   final String? keyword;
@@ -30,7 +29,7 @@ class Campaign {
   final int paymentAmount;
   final String purchaseMethod;
   final String? productDescription;
-  
+
   // 리뷰 설정
   final String reviewType; // 'star_only', 'star_text', 'star_text_image'
   final int reviewTextLength;
@@ -49,23 +48,22 @@ class Campaign {
     required this.id,
     required this.title,
     required this.description,
+    required this.companyId,
+    this.productName,
     required this.productImageUrl,
     required this.platform,
     required this.platformLogoUrl,
     required this.campaignType,
-    required this.productPrice,
-    required this.reviewReward,
+    this.productPrice,
+    required this.reviewCost,
+    this.reviewReward,
     this.startDate,
     this.endDate,
     this.currentParticipants = 0,
     this.maxParticipants,
     this.status = CampaignStatus.active,
     required this.createdAt,
-    // 템플릿 필드들
-    this.isTemplate = false,
-    this.templateName,
-    this.lastUsedAt,
-    this.usageCount = 0,
+    this.userId,
     // 상품 상세 정보
     this.keyword,
     this.option,
@@ -89,19 +87,33 @@ class Campaign {
   });
 
   factory Campaign.fromJson(Map<String, dynamic> json) {
+    // DB의 campaign_type 값 매핑: 'journalist' -> 'press', 'reviewer' -> 'reviewer', 'visit' -> 'visit'
+    CampaignCategory mapCampaignType(String? type) {
+      switch (type) {
+        case 'journalist':
+          return CampaignCategory.press;
+        case 'reviewer':
+          return CampaignCategory.reviewer;
+        case 'visit':
+          return CampaignCategory.visit;
+        default:
+          return CampaignCategory.reviewer; // 기본값
+      }
+    }
+
     return Campaign(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
       description: json['description'] ?? '',
+      companyId: json['company_id'] ?? '',
+      productName: json['product_name'],
       productImageUrl: json['product_image_url'] ?? '',
       platform: json['platform'] ?? '',
       platformLogoUrl: json['platform_logo_url'] ?? '',
-      campaignType: CampaignCategory.values.firstWhere(
-        (e) => e.name == (json['campaign_type'] ?? 'all'),
-        orElse: () => CampaignCategory.all,
-      ),
-      productPrice: json['product_price'] ?? 0,
-      reviewReward: json['review_reward'] ?? 0,
+      campaignType: mapCampaignType(json['campaign_type']),
+      productPrice: json['product_price'],
+      reviewCost: json['review_cost'] ?? 0,
+      reviewReward: json['review_reward'],
       startDate: json['start_date'] != null
           ? DateTime.parse(json['start_date'])
           : null,
@@ -117,13 +129,7 @@ class Campaign {
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),
-      // 템플릿 필드들
-      isTemplate: json['is_template'] ?? false,
-      templateName: json['template_name'],
-      lastUsedAt: json['last_used_at'] != null
-          ? DateTime.parse(json['last_used_at'])
-          : null,
-      usageCount: json['usage_count'] ?? 0,
+      userId: json['user_id'],
       // 상품 상세 정보
       keyword: json['keyword'],
       option: json['option'],
@@ -148,15 +154,32 @@ class Campaign {
   }
 
   Map<String, dynamic> toJson() {
+    // Flutter enum을 DB 값으로 변환: 'press' -> 'journalist'
+    String mapCampaignTypeToDb(CampaignCategory type) {
+      switch (type) {
+        case CampaignCategory.press:
+          return 'journalist';
+        case CampaignCategory.reviewer:
+          return 'reviewer';
+        case CampaignCategory.visit:
+          return 'visit';
+        case CampaignCategory.all:
+          return 'reviewer'; // 기본값
+      }
+    }
+
     return {
       'id': id,
       'title': title,
       'description': description,
+      'company_id': companyId,
+      'product_name': productName,
       'product_image_url': productImageUrl,
       'platform': platform,
       'platform_logo_url': platformLogoUrl,
-      'campaign_type': campaignType.name,
+      'campaign_type': mapCampaignTypeToDb(campaignType),
       'product_price': productPrice,
+      'review_cost': reviewCost,
       'review_reward': reviewReward,
       'start_date': startDate?.toIso8601String(),
       'end_date': endDate?.toIso8601String(),
@@ -164,11 +187,7 @@ class Campaign {
       'max_participants': maxParticipants,
       'status': status.name,
       'created_at': createdAt.toIso8601String(),
-      // 템플릿 필드들
-      'is_template': isTemplate,
-      'template_name': templateName,
-      'last_used_at': lastUsedAt?.toIso8601String(),
-      'usage_count': usageCount,
+      'user_id': userId,
       // 상품 상세 정보
       'keyword': keyword,
       'option': option,
@@ -196,11 +215,14 @@ class Campaign {
     String? id,
     String? title,
     String? description,
+    String? companyId,
+    String? productName,
     String? productImageUrl,
     String? platform,
     String? platformLogoUrl,
     CampaignCategory? campaignType,
     int? productPrice,
+    int? reviewCost,
     int? reviewReward,
     DateTime? startDate,
     DateTime? endDate,
@@ -208,11 +230,7 @@ class Campaign {
     int? maxParticipants,
     CampaignStatus? status,
     DateTime? createdAt,
-    // 템플릿 필드들
-    bool? isTemplate,
-    String? templateName,
-    DateTime? lastUsedAt,
-    int? usageCount,
+    String? userId,
     // 상품 상세 정보
     String? keyword,
     String? option,
@@ -238,11 +256,14 @@ class Campaign {
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
+      companyId: companyId ?? this.companyId,
+      productName: productName ?? this.productName,
       productImageUrl: productImageUrl ?? this.productImageUrl,
       platform: platform ?? this.platform,
       platformLogoUrl: platformLogoUrl ?? this.platformLogoUrl,
       campaignType: campaignType ?? this.campaignType,
       productPrice: productPrice ?? this.productPrice,
+      reviewCost: reviewCost ?? this.reviewCost,
       reviewReward: reviewReward ?? this.reviewReward,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
@@ -250,11 +271,7 @@ class Campaign {
       maxParticipants: maxParticipants ?? this.maxParticipants,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
-      // 템플릿 필드들
-      isTemplate: isTemplate ?? this.isTemplate,
-      templateName: templateName ?? this.templateName,
-      lastUsedAt: lastUsedAt ?? this.lastUsedAt,
-      usageCount: usageCount ?? this.usageCount,
+      userId: userId ?? this.userId,
       // 상품 상세 정보
       keyword: keyword ?? this.keyword,
       option: option ?? this.option,
@@ -281,6 +298,13 @@ class Campaign {
   }
 }
 
+/// 캠페인 카테고리
+///
+/// DB 값 매핑:
+/// - reviewer -> 'reviewer'
+/// - press -> 'journalist' (DB에서는 'journalist' 사용)
+/// - visit -> 'visit'
+/// - all -> Flutter 전용 (DB에는 없음, 기본값으로 'reviewer' 사용)
 enum CampaignCategory { all, reviewer, press, visit }
 
 enum CampaignStatus { active, completed, upcoming }

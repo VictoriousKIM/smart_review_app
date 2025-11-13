@@ -12,8 +12,7 @@ class CampaignLogService {
     required String campaignId,
     required String userId,
     String? applicationMessage,
-    String rewardType = 'platform_points',
-    int? rewardAmount,
+    // rewardType, rewardAmount는 DB에 없으므로 제거
   }) async {
     try {
       // 이미 신청했는지 확인
@@ -29,18 +28,15 @@ class CampaignLogService {
       }
 
       // 새 로그 생성
+      // action 필드는 JSONB 형식: {"type": "join", "data": {...}}
       final response = await _supabase
           .from('campaign_action_logs')
           .insert({
             'campaign_id': campaignId,
             'user_id': userId,
-            'status': 'applied',
-            'reward_type': rewardType,
-            'reward_amount': rewardAmount,
-            'data': {
-              'application_message': applicationMessage,
-              'applied_at': DateTime.now().toIso8601String(),
-            },
+            'action': {'type': 'join'}, // JSONB 필드
+            'application_message': applicationMessage,
+            'status': 'pending', // DB 기본값
           })
           .select('id')
           .single();
@@ -52,16 +48,18 @@ class CampaignLogService {
   }
 
   // 상태 업데이트 (단계별 진행)
+  // 주의: DB에 data 필드가 없으므로 status와 action만 업데이트
+  // data 필드가 필요하면 마이그레이션으로 추가 필요
   Future<ApiResponse<void>> updateStatus({
     required String campaignLogId,
     required String status,
-    Map<String, dynamic>? additionalData,
+    Map<String, dynamic>? additionalData, // 현재는 사용하지 않음 (data 필드 없음)
   }) async {
     try {
       // 현재 로그 조회
       final currentLog = await _supabase
           .from('campaign_action_logs')
-          .select('data, campaign_id, campaigns!inner(campaign_type)')
+          .select('status, campaign_id, campaigns!inner(campaign_type)')
           .eq('id', campaignLogId)
           .single();
 
@@ -74,21 +72,16 @@ class CampaignLogService {
         return ApiResponse<void>(success: false, error: '유효하지 않은 상태 전환입니다.');
       }
 
-      // 데이터 병합 (기존 데이터 + 새 데이터)
-      final currentData = Map<String, dynamic>.from(currentLog['data'] ?? {});
-      if (additionalData != null) {
-        currentData.addAll(additionalData);
-      }
+      // action 필드 결정 (status에 따라)
+      String actionType = _getActionFromStatus(status);
 
-      // 상태별 추가 처리
-      await _handleStatusSpecificLogic(status, campaignLogId, currentData);
-
-      // 로그 업데이트
+      // 로그 업데이트 (status와 action만)
+      // action 필드는 JSONB 형식: {"type": "join", "data": {...}}
       await _supabase
           .from('campaign_action_logs')
           .update({
             'status': status,
-            'data': currentData,
+            'action': {'type': actionType},
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', campaignLogId);
@@ -96,6 +89,25 @@ class CampaignLogService {
       return ApiResponse<void>(success: true);
     } catch (e) {
       return ApiResponse<void>(success: false, error: '상태 업데이트 실패: $e');
+    }
+  }
+
+  // status에 따른 action 값 반환
+  String _getActionFromStatus(String status) {
+    switch (status) {
+      case 'applied':
+        return 'join';
+      case 'approved':
+        return 'join';
+      case 'rejected':
+        return 'leave';
+      case 'completed':
+      case 'payment_completed':
+        return 'complete';
+      case 'cancelled':
+        return 'cancel';
+      default:
+        return '진행상황_저장';
     }
   }
 
@@ -138,37 +150,17 @@ class CampaignLogService {
   }
 
   // 상태별 특수 로직 처리
+  // 주의: 이 메서드는 현재 사용하지 않음
+  // action 필드가 JSONB로 변경되어 action.data에 데이터를 저장할 수 있습니다.
+  // ignore: unused_element
+  @Deprecated('현재 사용하지 않음. action 필드가 JSONB로 변경되어 action.data에 데이터 저장 가능')
   Future<void> _handleStatusSpecificLogic(
     String status,
     String campaignLogId,
     Map<String, dynamic> data,
   ) async {
-    switch (status) {
-      case 'purchased':
-        data['purchase_date'] = DateTime.now().toIso8601String();
-        break;
-      case 'review_submitted':
-        data['review_submitted_at'] = DateTime.now().toIso8601String();
-        break;
-      case 'review_approved':
-        data['review_approved_at'] = DateTime.now().toIso8601String();
-        break;
-      case 'visit_completed':
-        data['visit_completed_at'] = DateTime.now().toIso8601String();
-        break;
-      case 'visit_verified':
-        data['visit_verified_at'] = DateTime.now().toIso8601String();
-        break;
-      case 'article_submitted':
-        data['article_submitted_at'] = DateTime.now().toIso8601String();
-        break;
-      case 'article_approved':
-        data['article_approved_at'] = DateTime.now().toIso8601String();
-        break;
-      case 'payment_completed':
-        data['payment_completed_at'] = DateTime.now().toIso8601String();
-        break;
-    }
+    // action 필드가 JSONB로 변경되어 action.data에 데이터를 저장할 수 있습니다.
+    // 필요시 이 메서드를 활성화하여 사용 가능
   }
 
   // 사용자 캠페인 로그 조회
@@ -294,6 +286,8 @@ class CampaignLogService {
   }
 
   // 리뷰 작성/수정
+  // 주의: DB에 data 필드가 없으므로 리뷰 내용은 저장하지 않음
+  // 리뷰 내용 저장이 필요하면 별도 reviews 테이블 생성 또는 data JSONB 컬럼 추가 필요
   Future<ApiResponse<void>> submitReview({
     required String campaignLogId,
     required String title,
@@ -305,7 +299,7 @@ class CampaignLogService {
       // 현재 로그 조회
       final currentLog = await _supabase
           .from('campaign_action_logs')
-          .select('data, status')
+          .select('status')
           .eq('id', campaignLogId)
           .single();
 
@@ -315,22 +309,21 @@ class CampaignLogService {
         return ApiResponse<void>(success: false, error: '리뷰를 작성할 수 없는 상태입니다.');
       }
 
-      // 리뷰 데이터 추가
-      final currentData = Map<String, dynamic>.from(currentLog['data'] ?? {});
-      currentData.addAll({
-        'title': title,
-        'review_content': content,
-        'rating': rating,
-        'review_url': reviewUrl,
-        'review_submitted_at': DateTime.now().toIso8601String(),
-      });
-
-      // 상태를 review_submitted로 업데이트
+      // 리뷰 내용을 action.data에 저장 (JSONB)
+      // action 필드는 JSONB 형식: {"type": "진행상황_저장", "data": {"title": "...", "content": "...", "rating": 5, "reviewUrl": "..."}}
       await _supabase
           .from('campaign_action_logs')
           .update({
             'status': 'review_submitted',
-            'data': currentData,
+            'action': {
+              'type': '진행상황_저장',
+              'data': {
+                'title': title,
+                'content': content,
+                'rating': rating,
+                if (reviewUrl != null) 'reviewUrl': reviewUrl,
+              },
+            },
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', campaignLogId);
@@ -342,6 +335,7 @@ class CampaignLogService {
   }
 
   // 방문 체험 완료
+  // 주의: DB에 data 필드가 없으므로 방문 상세 정보는 저장하지 않음
   Future<ApiResponse<void>> completeVisit({
     required String campaignLogId,
     required String location,
@@ -353,7 +347,7 @@ class CampaignLogService {
       // 현재 로그 조회
       final currentLog = await _supabase
           .from('campaign_action_logs')
-          .select('data, status')
+          .select('status')
           .eq('id', campaignLogId)
           .single();
 
@@ -362,22 +356,21 @@ class CampaignLogService {
         return ApiResponse<void>(success: false, error: '방문을 완료할 수 없는 상태입니다.');
       }
 
-      // 방문 데이터 추가
-      final currentData = Map<String, dynamic>.from(currentLog['data'] ?? {});
-      currentData.addAll({
-        'location': location,
-        'visit_duration': duration,
-        'visit_notes': notes,
-        'photos': photos,
-        'visit_completed_at': DateTime.now().toIso8601String(),
-      });
-
-      // 상태를 visit_completed로 업데이트
+      // 방문 상세 정보를 action.data에 저장 (JSONB)
+      // action 필드는 JSONB 형식: {"type": "진행상황_저장", "data": {"location": "...", "duration": 30, ...}}
       await _supabase
           .from('campaign_action_logs')
           .update({
             'status': 'visit_completed',
-            'data': currentData,
+            'action': {
+              'type': '진행상황_저장',
+              'data': {
+                'location': location,
+                'duration': duration,
+                if (notes != null) 'notes': notes,
+                if (photos != null) 'photos': photos,
+              },
+            },
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', campaignLogId);
@@ -389,6 +382,7 @@ class CampaignLogService {
   }
 
   // 기사 작성 완료
+  // 주의: DB에 data 필드가 없으므로 기사 내용은 저장하지 않음
   Future<ApiResponse<void>> submitArticle({
     required String campaignLogId,
     required String title,
@@ -399,7 +393,7 @@ class CampaignLogService {
       // 현재 로그 조회
       final currentLog = await _supabase
           .from('campaign_action_logs')
-          .select('data, status')
+          .select('status')
           .eq('id', campaignLogId)
           .single();
 
@@ -408,21 +402,20 @@ class CampaignLogService {
         return ApiResponse<void>(success: false, error: '기사를 작성할 수 없는 상태입니다.');
       }
 
-      // 기사 데이터 추가
-      final currentData = Map<String, dynamic>.from(currentLog['data'] ?? {});
-      currentData.addAll({
-        'title': title,
-        'article_content': content,
-        'article_url': articleUrl,
-        'article_submitted_at': DateTime.now().toIso8601String(),
-      });
-
-      // 상태를 article_submitted로 업데이트
+      // 기사 내용을 action.data에 저장 (JSONB)
+      // action 필드는 JSONB 형식: {"type": "진행상황_저장", "data": {"title": "...", "content": "...", "articleUrl": "..."}}
       await _supabase
           .from('campaign_action_logs')
           .update({
             'status': 'article_submitted',
-            'data': currentData,
+            'action': {
+              'type': '진행상황_저장',
+              'data': {
+                'title': title,
+                'content': content,
+                if (articleUrl != null) 'articleUrl': articleUrl,
+              },
+            },
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', campaignLogId);
