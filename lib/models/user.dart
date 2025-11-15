@@ -193,8 +193,9 @@ enum UserType {
 }
 
 enum CompanyRole {
-  owner, // 회사 소유자
-  manager, // 회사 관리자
+  owner, // 회사 소유자 (광고주)
+  manager, // 회사 관리자 (광고주)
+  reviewer, // 리뷰어 (회사에 속한 리뷰어)
 }
 
 /// sns_connections 테이블의 리스트를 플랫폼별로 그룹화한 모델

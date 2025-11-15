@@ -166,9 +166,7 @@ class WalletService {
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
-      final logs = response
-          .map((e) => UserPointLog.fromJson(e))
-          .toList();
+      final logs = response.map((e) => UserPointLog.fromJson(e)).toList();
 
       print('✅ 개인 포인트 내역 조회 성공: ${logs.length}건');
       return logs;
@@ -178,7 +176,41 @@ class WalletService {
     }
   }
 
-  /// 회사 포인트 내역 조회
+  /// 회사 포인트 내역 조회 (통합: 캠페인 + 현금 거래)
+  static Future<List<Map<String, dynamic>>> getCompanyPointHistoryUnified({
+    required String companyId,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final response =
+          await _supabase.rpc(
+                'get_company_point_history_unified',
+                params: {
+                  'p_company_id': companyId,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
+
+      final logs = response.map((e) => e as Map<String, dynamic>).toList();
+
+      print('✅ 회사 포인트 내역 조회 성공: ${logs.length}건');
+      return logs;
+    } catch (e) {
+      print('❌ 회사 포인트 내역 조회 실패: $e');
+
+      // 권한 없음 에러 처리
+      if (e.toString().contains('Unauthorized')) {
+        throw Exception('회사 포인트 내역을 조회할 권한이 없습니다');
+      }
+
+      return [];
+    }
+  }
+
+  /// 회사 포인트 내역 조회 (기존 메서드 - 호환성 유지)
   static Future<List<CompanyPointLog>> getCompanyPointHistory({
     required String companyId,
     int limit = 50,
@@ -583,8 +615,8 @@ class WalletService {
   static Future<String> createPointCashTransaction({
     required String walletId,
     required String transactionType, // 'deposit' or 'withdraw'
-    required int amount,
-    double? cashAmount,
+    required int pointAmount,
+    required int cashAmount,
     String? paymentMethod,
     String? bankName,
     String? accountNumber,
@@ -593,11 +625,11 @@ class WalletService {
   }) async {
     try {
       final response = await _supabase.rpc(
-        'create_point_cash_transaction',
+        'create_cash_transaction',
         params: {
           'p_wallet_id': walletId,
           'p_transaction_type': transactionType,
-          'p_amount': amount,
+          'p_point_amount': pointAmount,
           'p_cash_amount': cashAmount,
           'p_payment_method': paymentMethod,
           'p_bank_name': bankName,

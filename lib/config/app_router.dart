@@ -15,6 +15,9 @@ import '../screens/campaign/campaign_creation_screen.dart';
 import '../screens/mypage/reviewer/reviewer_reviews_screen.dart';
 import '../screens/mypage/reviewer/my_campaigns_screen.dart';
 import '../screens/mypage/common/points_screen.dart';
+import '../screens/mypage/common/point_charge_screen.dart';
+import '../screens/mypage/common/point_refund_screen.dart';
+import '../screens/mypage/common/point_transaction_detail_screen.dart';
 import '../screens/mypage/common/profile_screen.dart';
 import '../screens/mypage/reviewer/sns_connection_screen.dart';
 import '../screens/mypage/advertiser/advertiser_my_campaigns_screen.dart';
@@ -239,6 +242,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'reviewer-points',
             builder: (context, state) =>
                 const PointsScreen(userType: 'reviewer'),
+            routes: [
+              GoRoute(
+                path: 'charge',
+                name: 'reviewer-points-charge',
+                builder: (context, state) =>
+                    const PointChargeScreen(userType: 'reviewer'),
+              ),
+              GoRoute(
+                path: 'refund',
+                name: 'reviewer-points-refund',
+                builder: (context, state) =>
+                    const PointRefundScreen(userType: 'reviewer'),
+              ),
+              GoRoute(
+                path: ':id',
+                name: 'reviewer-points-detail',
+                builder: (context, state) {
+                  final transactionId = state.pathParameters['id']!;
+                  final transactionData = state.extra as Map<String, dynamic>?;
+                  return PointTransactionDetailScreen(
+                    transactionId: transactionId,
+                    transactionData: transactionData,
+                  );
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: '/mypage/reviewer/sns',
@@ -292,6 +321,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'advertiser-points',
             builder: (context, state) =>
                 const PointsScreen(userType: 'advertiser'),
+            routes: [
+              GoRoute(
+                path: 'charge',
+                name: 'advertiser-points-charge',
+                builder: (context, state) =>
+                    const PointChargeScreen(userType: 'advertiser'),
+              ),
+              GoRoute(
+                path: 'refund',
+                name: 'advertiser-points-refund',
+                builder: (context, state) =>
+                    const PointRefundScreen(userType: 'advertiser'),
+              ),
+              GoRoute(
+                path: ':id',
+                name: 'advertiser-points-detail',
+                builder: (context, state) {
+                  final transactionId = state.pathParameters['id']!;
+                  final transactionData = state.extra as Map<String, dynamic>?;
+                  return PointTransactionDetailScreen(
+                    transactionId: transactionId,
+                    transactionData: transactionData,
+                  );
+                },
+              ),
+            ],
           ),
 
           // 어드민 관련 라우트

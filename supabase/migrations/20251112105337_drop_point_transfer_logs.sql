@@ -424,7 +424,7 @@ DECLARE
     v_wallet_id UUID;
 BEGIN
     -- wallets 테이블에 지갑 생성
-    INSERT INTO wallets (company_id, user_id, current_points, created_at, updated_at)
+    INSERT INTO public.wallets (company_id, user_id, current_points, created_at, updated_at)
     VALUES (NEW.id, NULL, 0, NOW(), NOW())
     ON CONFLICT DO NOTHING
     RETURNING id INTO v_wallet_id;
@@ -447,7 +447,7 @@ DECLARE
     v_transaction_id UUID;
 BEGIN
     -- wallet 존재 확인
-    IF NOT EXISTS (SELECT 1 FROM wallets WHERE id = p_wallet_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM public.wallets WHERE id = p_wallet_id) THEN
         RAISE EXCEPTION 'Wallet not found';
     END IF;
     
@@ -465,7 +465,7 @@ BEGIN
     END IF;
     
     -- 거래 생성 (status는 기본값 'pending')
-    INSERT INTO cash_transactions (
+    INSERT INTO public.cash_transactions (
         wallet_id,
         transaction_type,
         amount,
@@ -508,7 +508,7 @@ DECLARE
 BEGIN
     -- wallet 정보 조회
     SELECT user_id, company_id INTO v_wallet
-    FROM wallets
+    FROM public.wallets
     WHERE id = p_wallet_id;
     
     IF v_wallet IS NULL THEN
@@ -525,7 +525,7 @@ BEGIN
     END IF;
     
     -- 거래 생성
-    INSERT INTO point_transactions (
+    INSERT INTO public.point_transactions (
         wallet_id,
         transaction_type,
         amount,
@@ -684,7 +684,7 @@ DECLARE
     v_wallet_id UUID;
 BEGIN
     -- wallets 테이블에 지갑 생성
-    INSERT INTO wallets (company_id, user_id, current_points, created_at, updated_at)
+    INSERT INTO public.wallets (company_id, user_id, current_points, created_at, updated_at)
     VALUES (NULL, NEW.id, 0, NOW(), NOW())
     ON CONFLICT DO NOTHING
     RETURNING id INTO v_wallet_id;
@@ -858,12 +858,12 @@ DECLARE
 BEGIN
     -- 기존 지갑 확인
     SELECT id INTO v_wallet_id
-    FROM wallets
+    FROM public.wallets
     WHERE company_id = p_company_id;
     
     -- 없으면 생성
     IF v_wallet_id IS NULL THEN
-        INSERT INTO wallets (company_id, user_id, current_points, created_at, updated_at)
+        INSERT INTO public.wallets (company_id, user_id, current_points, created_at, updated_at)
         VALUES (p_company_id, NULL, 0, NOW(), NOW())
         RETURNING id INTO v_wallet_id;
         
@@ -887,12 +887,12 @@ DECLARE
 BEGIN
     -- 기존 지갑 확인
     SELECT id INTO v_wallet_id
-    FROM wallets
+    FROM public.wallets
     WHERE user_id = p_user_id;
     
     -- 없으면 생성
     IF v_wallet_id IS NULL THEN
-        INSERT INTO wallets (company_id, user_id, current_points, created_at, updated_at)
+        INSERT INTO public.wallets (company_id, user_id, current_points, created_at, updated_at)
         VALUES (NULL, p_user_id, 0, NOW(), NOW())
         RETURNING id INTO v_wallet_id;
         
@@ -1074,8 +1074,8 @@ BEGIN
             NULL AS bank_name,
             NULL AS account_number,
             NULL AS account_holder
-        FROM point_transactions pt
-        JOIN wallets w ON w.id = pt.wallet_id
+        FROM public.point_transactions pt
+        JOIN public.wallets w ON w.id = pt.wallet_id
         
         UNION ALL
         
@@ -1105,8 +1105,8 @@ BEGIN
             pt.bank_name,
             pt.account_number,
             pt.account_holder
-        FROM cash_transactions pt
-        JOIN wallets w ON w.id = pt.wallet_id
+        FROM public.cash_transactions pt
+        JOIN public.wallets w ON w.id = pt.wallet_id
     ) AS all_transactions
     WHERE company_id = p_company_id
     ORDER BY created_at DESC
@@ -1350,8 +1350,8 @@ BEGIN
             NULL AS bank_name,
             NULL AS account_number,
             NULL AS account_holder
-        FROM point_transactions pt
-        JOIN wallets w ON w.id = pt.wallet_id
+        FROM public.point_transactions pt
+        JOIN public.wallets w ON w.id = pt.wallet_id
         
         UNION ALL
         
@@ -1381,8 +1381,8 @@ BEGIN
             pt.bank_name,
             pt.account_number,
             pt.account_holder
-        FROM cash_transactions pt
-        JOIN wallets w ON w.id = pt.wallet_id
+        FROM public.cash_transactions pt
+        JOIN public.wallets w ON w.id = pt.wallet_id
     ) AS all_transactions
     WHERE user_id = p_user_id
     ORDER BY created_at DESC
@@ -1568,8 +1568,8 @@ BEGIN
     )
     INTO v_result
     FROM point_transfers pt
-    JOIN wallets w1 ON w1.id = pt.from_wallet_id
-    JOIN wallets w2 ON w2.id = pt.to_wallet_id
+    JOIN public.wallets w1 ON w1.id = pt.from_wallet_id
+    JOIN public.wallets w2 ON w2.id = pt.to_wallet_id
     WHERE (w1.user_id = p_user_id OR w2.user_id = p_user_id OR
            (w1.company_id IS NOT NULL AND EXISTS (
                SELECT 1 FROM company_users cu
@@ -1714,7 +1714,7 @@ BEGIN
         w.withdraw_account_holder,
         w.created_at,
         w.updated_at
-    FROM wallets w
+    FROM public.wallets w
     WHERE w.company_id = p_company_id;
 END;
 $$;
@@ -1738,7 +1738,7 @@ BEGIN
         w.withdraw_account_holder,
         w.created_at,
         w.updated_at
-    FROM wallets w
+    FROM public.wallets w
     WHERE w.user_id = p_user_id;
 END;
 $$;
@@ -1963,7 +1963,7 @@ CREATE OR REPLACE FUNCTION "public"."log_cash_transaction_change"() RETURNS "tri
     AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
-        INSERT INTO cash_transaction_logs (
+        INSERT INTO public.cash_transaction_logs (
             transaction_id,
             action,
             changed_by
@@ -1976,7 +1976,7 @@ BEGIN
     ELSIF TG_OP = 'UPDATE' THEN
         -- 상태 변경 추적 (action에 상태 정보 포함)
         IF OLD.status IS DISTINCT FROM NEW.status THEN
-            INSERT INTO cash_transaction_logs (
+            INSERT INTO public.cash_transaction_logs (
                 transaction_id,
                 action,
                 changed_by,
@@ -1991,7 +1991,7 @@ BEGIN
                 END
             );
         ELSE
-            INSERT INTO cash_transaction_logs (
+            INSERT INTO public.cash_transaction_logs (
                 transaction_id,
                 action,
                 changed_by,
@@ -2019,7 +2019,7 @@ CREATE OR REPLACE FUNCTION "public"."log_point_transaction_change"() RETURNS "tr
     AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
-        INSERT INTO point_transaction_logs (
+        INSERT INTO public.point_transaction_logs (
             transaction_id,
             action,
             changed_by
@@ -2030,7 +2030,7 @@ BEGIN
         );
         RETURN NEW;
     ELSIF TG_OP = 'UPDATE' THEN
-        INSERT INTO point_transaction_logs (
+        INSERT INTO public.point_transaction_logs (
             transaction_id,
             action,
             changed_by,
@@ -2706,7 +2706,7 @@ BEGIN
     RETURNING id INTO v_transfer_id;
     
     -- 출발 지갑 거래 생성 (point_transactions에 차감 기록)
-    INSERT INTO point_transactions (
+    INSERT INTO public.point_transactions (
         wallet_id,
         transaction_type,
         amount,
@@ -2727,7 +2727,7 @@ BEGIN
     );
     
     -- 도착 지갑 거래 생성 (point_transactions에 증가 기록)
-    INSERT INTO point_transactions (
+    INSERT INTO public.point_transactions (
         wallet_id,
         transaction_type,
         amount,
@@ -2876,7 +2876,7 @@ DECLARE
 BEGIN
     -- 현재 상태 확인
     SELECT status INTO v_current_status
-    FROM cash_transactions
+    FROM public.cash_transactions
     WHERE id = p_transaction_id;
     
     IF v_current_status IS NULL THEN
@@ -2888,7 +2888,7 @@ BEGIN
     END IF;
     
     -- 상태 업데이트
-    UPDATE cash_transactions
+    UPDATE public.cash_transactions
     SET 
         status = p_status,
         approved_by = CASE WHEN p_status = 'approved' THEN COALESCE(p_updated_by_user_id, auth.uid()) ELSE approved_by END,
@@ -3173,7 +3173,7 @@ CREATE OR REPLACE FUNCTION "public"."update_wallet_balance_on_cash_transaction"(
 BEGIN
     -- completed 상태로 변경될 때만 잔액 업데이트
     IF NEW.status = 'completed' AND (OLD.status IS NULL OR OLD.status != 'completed') THEN
-        UPDATE wallets
+        UPDATE public.wallets
         SET current_points = current_points + NEW.amount,
             updated_at = NOW()
         WHERE id = NEW.wallet_id;
@@ -3191,7 +3191,7 @@ CREATE OR REPLACE FUNCTION "public"."update_wallet_balance_on_transaction"() RET
     SET "search_path" TO ''
     AS $$
 BEGIN
-    UPDATE wallets
+    UPDATE public.wallets
     SET current_points = current_points + NEW.amount,
         updated_at = NOW()
     WHERE id = NEW.wallet_id;
