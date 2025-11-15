@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../models/user.dart' as app_user;
+import '../utils/date_time_utils.dart';
 
 class AdminService {
   static final AdminService _instance = AdminService._internal();
@@ -200,7 +201,7 @@ class AdminService {
     try {
       await _supabase
           .from('users')
-          .update({'status': status, 'updated_at': DateTime.now().toIso8601String()})
+          .update({'status': status, 'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST())})
           .eq('id', userId);
       
       debugPrint('사용자 상태 변경 성공: $userId -> $status');

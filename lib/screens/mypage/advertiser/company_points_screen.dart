@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/wallet_models.dart';
 import '../../../services/wallet_service.dart';
+import '../../../utils/date_time_utils.dart';
 
 /// 회사 포인트 화면 (광고주용)
 class CompanyPointsScreen extends StatefulWidget {
@@ -340,7 +341,7 @@ class _CompanyPointsScreenState extends State<CompanyPointsScreen> {
                 const Icon(Icons.access_time, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
                 Text(
-                  _formatDateTime(log.createdAt),
+                  DateTimeUtils.formatKST(DateTimeUtils.toKST(log.createdAt)),
                   style: const TextStyle(
                     fontSize: 12,
                     color: Colors.grey,
@@ -354,9 +355,5 @@ class _CompanyPointsScreenState extends State<CompanyPointsScreen> {
     );
   }
 
-  String _formatDateTime(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
-        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/review_service.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../utils/date_time_utils.dart';
 
 class ReviewerReviewsScreen extends ConsumerStatefulWidget {
   const ReviewerReviewsScreen({super.key});
@@ -133,7 +134,7 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
     if (campaign == null) return const SizedBox.shrink();
 
     final status = review['status'] as String;
-    final createdAt = DateTime.parse(review['created_at'] as String);
+    final createdAt = DateTimeUtils.parseKST(review['created_at'] as String);
 
     Color statusColor;
     String statusText;

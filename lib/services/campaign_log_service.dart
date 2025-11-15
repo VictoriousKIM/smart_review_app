@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/campaign_log.dart';
 import '../models/api_response.dart';
+import '../utils/date_time_utils.dart';
 
 class CampaignLogService {
   final SupabaseClient _supabase;
@@ -82,7 +83,7 @@ class CampaignLogService {
           .update({
             'status': status,
             'action': {'type': actionType},
-            'updated_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
           })
           .eq('id', campaignLogId);
 
@@ -324,7 +325,7 @@ class CampaignLogService {
                 if (reviewUrl != null) 'reviewUrl': reviewUrl,
               },
             },
-            'updated_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
           })
           .eq('id', campaignLogId);
 
@@ -371,7 +372,7 @@ class CampaignLogService {
                 if (photos != null) 'photos': photos,
               },
             },
-            'updated_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
           })
           .eq('id', campaignLogId);
 
@@ -416,7 +417,7 @@ class CampaignLogService {
                 if (articleUrl != null) 'articleUrl': articleUrl,
               },
             },
-            'updated_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
           })
           .eq('id', campaignLogId);
 

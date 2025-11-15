@@ -7,6 +7,7 @@ import '../models/user.dart' as app_user;
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
 import 'user_service.dart';
+import '../utils/date_time_utils.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -330,7 +331,7 @@ class AuthService {
             .from('users')
             .update({
               'display_name': displayName,
-              'updated_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
             })
             .eq('id', user.id);
         

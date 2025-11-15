@@ -416,30 +416,7 @@ $$;
 ALTER FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_company_wallet_on_registration"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-DECLARE
-    v_wallet_id UUID;
-BEGIN
-    -- wallets 테이블에 지갑 생성
-    INSERT INTO public.wallets (company_id, user_id, current_points, created_at, updated_at)
-    VALUES (NEW.id, NULL, 0, NOW(), NOW())
-    ON CONFLICT DO NOTHING
-    RETURNING id INTO v_wallet_id;
-    
-    -- 누적 로그 방식에서는 초기 기록을 생성하지 않음 (첫 변경 시 기록됨)
-    
-    RETURN NEW;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."create_company_wallet_on_registration"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_amount" integer, "p_cash_amount" numeric DEFAULT NULL::numeric, "p_payment_method" "text" DEFAULT NULL::"text", "p_bank_name" "text" DEFAULT NULL::"text", "p_account_number" "text" DEFAULT NULL::"text", "p_account_holder" "text" DEFAULT NULL::"text", "p_description" "text" DEFAULT NULL::"text", "p_created_by_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "uuid"
+CREATE OR REPLACE FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_point_amount" integer, "p_cash_amount" numeric DEFAULT NULL::numeric, "p_payment_method" "text" DEFAULT NULL::"text", "p_bank_name" "text" DEFAULT NULL::"text", "p_account_number" "text" DEFAULT NULL::"text", "p_account_holder" "text" DEFAULT NULL::"text", "p_description" "text" DEFAULT NULL::"text", "p_created_by_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -468,7 +445,7 @@ BEGIN
     INSERT INTO public.cash_transactions (
         wallet_id,
         transaction_type,
-        amount,
+        point_amount,
         cash_amount,
         payment_method,
         bank_name,
@@ -479,7 +456,7 @@ BEGIN
     ) VALUES (
         p_wallet_id,
         p_transaction_type,
-        p_amount,
+        p_point_amount,
         p_cash_amount,
         p_payment_method,
         p_bank_name,
@@ -495,7 +472,30 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_amount" integer, "p_cash_amount" numeric, "p_payment_method" "text", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text", "p_description" "text", "p_created_by_user_id" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_point_amount" integer, "p_cash_amount" numeric, "p_payment_method" "text", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text", "p_description" "text", "p_created_by_user_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_company_wallet_on_registration"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_wallet_id UUID;
+BEGIN
+    -- wallets 테이블에 지갑 생성
+    INSERT INTO public.wallets (company_id, user_id, current_points, created_at, updated_at)
+    VALUES (NEW.id, NULL, 0, NOW(), NOW())
+    ON CONFLICT DO NOTHING
+    RETURNING id INTO v_wallet_id;
+    
+    -- 누적 로그 방식에서는 초기 기록을 생성하지 않음 (첫 변경 시 기록됨)
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_company_wallet_on_registration"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."create_point_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_amount" integer, "p_campaign_id" "uuid" DEFAULT NULL::"uuid", "p_related_entity_type" "text" DEFAULT NULL::"text", "p_related_entity_id" "uuid" DEFAULT NULL::"uuid", "p_description" "text" DEFAULT NULL::"text", "p_created_by_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "uuid"
@@ -1000,7 +1000,7 @@ CREATE OR REPLACE FUNCTION "public"."get_company_point_history_unified"("p_compa
     SET "search_path" TO ''
     AS $$
 DECLARE
-    v_result JSONB;
+    v_result jsonb;
     v_user_id UUID;
 BEGIN
     -- 권한 확인: 회사 멤버만 조회 가능
@@ -1010,7 +1010,7 @@ BEGIN
     END IF;
     
     IF NOT EXISTS (
-        SELECT 1 FROM company_users
+        SELECT 1 FROM public.company_users
         WHERE company_id = p_company_id
         AND user_id = v_user_id
         AND status = 'active'
@@ -1018,6 +1018,76 @@ BEGIN
         RAISE EXCEPTION 'You do not have permission to view this company point history';
     END IF;
     
+    WITH sorted_transactions AS (
+        -- 캠페인 거래
+        SELECT 
+            pt.id,
+            w.user_id,
+            w.company_id,
+            pt.wallet_id,
+            pt.transaction_type,
+            pt.amount,
+            pt.campaign_id,
+            pt.related_entity_type,
+            pt.related_entity_id,
+            pt.description,
+            'completed' AS status,
+            NULL::uuid AS approved_by,
+            NULL::uuid AS rejected_by,
+            NULL::text AS rejection_reason,
+            pt.created_by_user_id,
+            pt.created_at,
+            pt.updated_at,
+            pt.completed_at,
+            'campaign' AS transaction_category,
+            NULL::numeric AS cash_amount,
+            NULL::text AS payment_method,
+            NULL::text AS bank_name,
+            NULL::text AS account_number,
+            NULL::text AS account_holder
+        FROM public.point_transactions pt
+        JOIN public.wallets w ON w.id = pt.wallet_id
+        WHERE w.company_id = p_company_id
+        
+        UNION ALL
+        
+        -- 현금 거래 (completed_at 제거)
+        SELECT 
+            pt.id,
+            w.user_id,
+            w.company_id,
+            pt.wallet_id,
+            pt.transaction_type,
+            pt.point_amount AS amount,
+            NULL::uuid AS campaign_id,
+            NULL::text AS related_entity_type,
+            NULL::uuid AS related_entity_id,
+            pt.description,
+            pt.status,
+            pt.approved_by,
+            pt.rejected_by,
+            pt.rejection_reason,
+            pt.created_by_user_id,
+            pt.created_at,
+            pt.updated_at,
+            NULL::timestamp with time zone AS completed_at,
+            'cash' AS transaction_category,
+            pt.cash_amount,
+            pt.payment_method,
+            pt.bank_name,
+            pt.account_number,
+            pt.account_holder
+        FROM public.cash_transactions pt
+        JOIN public.wallets w ON w.id = pt.wallet_id
+        WHERE w.company_id = p_company_id
+    ),
+    limited_transactions AS (
+        SELECT *
+        FROM sorted_transactions
+        ORDER BY created_at DESC
+        LIMIT p_limit
+        OFFSET p_offset
+    )
     SELECT jsonb_agg(
         jsonb_build_object(
             'id', id,
@@ -1047,71 +1117,7 @@ BEGIN
         )
     )
     INTO v_result
-    FROM (
-        -- 캠페인 거래
-        SELECT 
-            pt.id,
-            w.user_id,
-            w.company_id,
-            pt.wallet_id,
-            pt.transaction_type,
-            pt.amount,
-            pt.campaign_id,
-            pt.related_entity_type,
-            pt.related_entity_id,
-            pt.description,
-            'completed' AS status,
-            NULL AS approved_by,
-            NULL AS rejected_by,
-            NULL AS rejection_reason,
-            pt.created_by_user_id,
-            pt.created_at,
-            pt.updated_at,
-            pt.completed_at,
-            'campaign' AS transaction_category,
-            NULL AS cash_amount,
-            NULL AS payment_method,
-            NULL AS bank_name,
-            NULL AS account_number,
-            NULL AS account_holder
-        FROM public.point_transactions pt
-        JOIN public.wallets w ON w.id = pt.wallet_id
-        
-        UNION ALL
-        
-        -- 현금 거래
-        SELECT 
-            pt.id,
-            w.user_id,
-            w.company_id,
-            pt.wallet_id,
-            pt.transaction_type,
-            pt.amount,
-            NULL AS campaign_id,
-            NULL AS related_entity_type,
-            NULL AS related_entity_id,
-            pt.description,
-            pt.status,
-            pt.approved_by,
-            pt.rejected_by,
-            pt.rejection_reason,
-            pt.created_by_user_id,
-            pt.created_at,
-            pt.updated_at,
-            pt.completed_at,
-            'cash' AS transaction_category,
-            pt.cash_amount,
-            pt.payment_method,
-            pt.bank_name,
-            pt.account_number,
-            pt.account_holder
-        FROM public.cash_transactions pt
-        JOIN public.wallets w ON w.id = pt.wallet_id
-    ) AS all_transactions
-    WHERE company_id = p_company_id
-    ORDER BY created_at DESC
-    LIMIT p_limit
-    OFFSET p_offset;
+    FROM limited_transactions;
     
     RETURN COALESCE(v_result, '[]'::jsonb);
 END;
@@ -1119,6 +1125,140 @@ $$;
 
 
 ALTER FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_pending_cash_transactions"("p_status" "text" DEFAULT 'pending'::"text", "p_transaction_type" "text" DEFAULT NULL::"text", "p_user_type" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT 50, "p_offset" integer DEFAULT 0) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_result JSONB;
+    v_user_id UUID;
+    v_user_type TEXT;
+BEGIN
+    -- 권한 확인: 관리자만 조회 가능
+    v_user_id := auth.uid();
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized';
+    END IF;
+    
+    -- 사용자 타입 확인
+    SELECT user_type INTO v_user_type
+    FROM public.users
+    WHERE id = v_user_id;
+    
+    IF v_user_type != 'admin' THEN
+        RAISE EXCEPTION 'Unauthorized: Only admins can view pending cash transactions';
+    END IF;
+    
+    -- 상태 유효성 검사 (completed 제거)
+    IF p_status IS NOT NULL AND p_status NOT IN ('pending', 'approved', 'rejected', 'cancelled') THEN
+        RAISE EXCEPTION 'Invalid status. Must be one of: pending, approved, rejected, cancelled';
+    END IF;
+    
+    -- 거래 타입 유효성 검사
+    IF p_transaction_type IS NOT NULL AND p_transaction_type NOT IN ('deposit', 'withdraw') THEN
+        RAISE EXCEPTION 'Invalid transaction_type. Must be deposit or withdraw';
+    END IF;
+    
+    -- 사용자 타입 유효성 검사
+    IF p_user_type IS NOT NULL AND p_user_type NOT IN ('advertiser', 'reviewer') THEN
+        RAISE EXCEPTION 'Invalid user_type. Must be advertiser or reviewer';
+    END IF;
+    
+    -- 거래 목록 조회 (completed_at 필드 제거)
+    WITH filtered_transactions AS (
+        SELECT 
+            ct.id,
+            ct.wallet_id,
+            ct.transaction_type,
+            ct.point_amount AS amount,
+            ct.cash_amount,
+            ct.payment_method,
+            ct.bank_name,
+            ct.account_number,
+            ct.account_holder,
+            ct.status,
+            ct.description,
+            ct.approved_by,
+            ct.rejected_by,
+            ct.rejection_reason,
+            ct.created_by_user_id,
+            ct.created_at,
+            ct.updated_at,
+            w.user_id,
+            w.company_id,
+            u.display_name AS user_name,
+            au.email AS user_email,
+            NULL::text AS user_phone,
+            c.business_name AS company_name,
+            c.business_number AS company_business_number
+        FROM public.cash_transactions ct
+        JOIN public.wallets w ON w.id = ct.wallet_id
+        LEFT JOIN public.users u ON u.id = w.user_id
+        LEFT JOIN auth.users au ON au.id = w.user_id
+        LEFT JOIN public.companies c ON c.id = w.company_id
+        WHERE 
+            (p_status IS NULL OR ct.status = p_status)
+            AND (p_transaction_type IS NULL OR ct.transaction_type = p_transaction_type)
+            AND (
+                p_user_type IS NULL 
+                OR (p_user_type = 'advertiser' AND w.company_id IS NOT NULL)
+                OR (p_user_type = 'reviewer' AND w.company_id IS NULL)
+            )
+    ),
+    limited_transactions AS (
+        SELECT *
+        FROM filtered_transactions
+        ORDER BY created_at DESC
+        LIMIT p_limit
+        OFFSET p_offset
+    )
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'id', id,
+            'wallet_id', wallet_id,
+            'transaction_type', transaction_type,
+            'amount', amount,
+            'cash_amount', cash_amount,
+            'payment_method', payment_method,
+            'bank_name', bank_name,
+            'account_number', account_number,
+            'account_holder', account_holder,
+            'status', status,
+            'description', description,
+            'approved_by', approved_by,
+            'rejected_by', rejected_by,
+            'rejection_reason', rejection_reason,
+            'created_by_user_id', created_by_user_id,
+            'created_at', created_at,
+            'updated_at', updated_at,
+            'user_id', user_id,
+            'company_id', company_id,
+            'user_name', user_name,
+            'user_email', user_email,
+            'user_phone', user_phone,
+            'company_name', company_name,
+            'company_business_number', company_business_number,
+            'user_type', CASE 
+                WHEN company_id IS NOT NULL THEN 'advertiser'
+                ELSE 'reviewer'
+            END
+        )
+    )
+    INTO v_result
+    FROM limited_transactions;
+    
+    RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) IS '관리자용: 대기중인 현금 거래 목록 조회 (필터링 지원)';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text" DEFAULT 'all'::"text", "p_limit" integer DEFAULT 20, "p_offset" integer DEFAULT 0) RETURNS "jsonb"
@@ -1287,13 +1427,78 @@ CREATE OR REPLACE FUNCTION "public"."get_user_point_history_unified"("p_user_id"
     SET "search_path" TO ''
     AS $$
 DECLARE
-    v_result JSONB;
+    v_result jsonb;
 BEGIN
-    -- 권한 확인: 본인만 조회 가능
-    IF p_user_id != auth.uid() THEN
-        RAISE EXCEPTION 'You can only view your own point history';
-    END IF;
-    
+    WITH sorted_transactions AS (
+        -- 캠페인 거래
+        SELECT 
+            pt.id,
+            w.user_id,
+            w.company_id,
+            pt.wallet_id,
+            pt.transaction_type,
+            pt.amount,
+            pt.campaign_id,
+            pt.related_entity_type,
+            pt.related_entity_id,
+            pt.description,
+            'completed' AS status,
+            NULL::uuid AS approved_by,
+            NULL::uuid AS rejected_by,
+            NULL::text AS rejection_reason,
+            pt.created_by_user_id,
+            pt.created_at,
+            pt.updated_at,
+            pt.completed_at,
+            'campaign' AS transaction_category,
+            NULL::numeric AS cash_amount,
+            NULL::text AS payment_method,
+            NULL::text AS bank_name,
+            NULL::text AS account_number,
+            NULL::text AS account_holder
+        FROM public.point_transactions pt
+        JOIN public.wallets w ON w.id = pt.wallet_id
+        WHERE w.user_id = p_user_id
+        
+        UNION ALL
+        
+        -- 현금 거래 (completed_at 제거)
+        SELECT 
+            pt.id,
+            w.user_id,
+            w.company_id,
+            pt.wallet_id,
+            pt.transaction_type,
+            pt.point_amount AS amount,
+            NULL::uuid AS campaign_id,
+            NULL::text AS related_entity_type,
+            NULL::uuid AS related_entity_id,
+            pt.description,
+            pt.status,
+            pt.approved_by,
+            pt.rejected_by,
+            pt.rejection_reason,
+            pt.created_by_user_id,
+            pt.created_at,
+            pt.updated_at,
+            NULL::timestamp with time zone AS completed_at,
+            'cash' AS transaction_category,
+            pt.cash_amount,
+            pt.payment_method,
+            pt.bank_name,
+            pt.account_number,
+            pt.account_holder
+        FROM public.cash_transactions pt
+        JOIN public.wallets w ON w.id = pt.wallet_id
+        WHERE w.user_id = p_user_id
+    ),
+    limited_transactions AS (
+        SELECT *
+        FROM sorted_transactions
+        ORDER BY created_at DESC
+        LIMIT p_limit
+        OFFSET p_offset
+    )
     SELECT jsonb_agg(
         jsonb_build_object(
             'id', id,
@@ -1323,71 +1528,7 @@ BEGIN
         )
     )
     INTO v_result
-    FROM (
-        -- 캠페인 거래
-        SELECT 
-            pt.id,
-            w.user_id,
-            w.company_id,
-            pt.wallet_id,
-            pt.transaction_type,
-            pt.amount,
-            pt.campaign_id,
-            pt.related_entity_type,
-            pt.related_entity_id,
-            pt.description,
-            'completed' AS status,
-            NULL AS approved_by,
-            NULL AS rejected_by,
-            NULL AS rejection_reason,
-            pt.created_by_user_id,
-            pt.created_at,
-            pt.updated_at,
-            pt.completed_at,
-            'campaign' AS transaction_category,
-            NULL AS cash_amount,
-            NULL AS payment_method,
-            NULL AS bank_name,
-            NULL AS account_number,
-            NULL AS account_holder
-        FROM public.point_transactions pt
-        JOIN public.wallets w ON w.id = pt.wallet_id
-        
-        UNION ALL
-        
-        -- 현금 거래
-        SELECT 
-            pt.id,
-            w.user_id,
-            w.company_id,
-            pt.wallet_id,
-            pt.transaction_type,
-            pt.amount,
-            NULL AS campaign_id,
-            NULL AS related_entity_type,
-            NULL AS related_entity_id,
-            pt.description,
-            pt.status,
-            pt.approved_by,
-            pt.rejected_by,
-            pt.rejection_reason,
-            pt.created_by_user_id,
-            pt.created_at,
-            pt.updated_at,
-            pt.completed_at,
-            'cash' AS transaction_category,
-            pt.cash_amount,
-            pt.payment_method,
-            pt.bank_name,
-            pt.account_number,
-            pt.account_holder
-        FROM public.cash_transactions pt
-        JOIN public.wallets w ON w.id = pt.wallet_id
-    ) AS all_transactions
-    WHERE user_id = p_user_id
-    ORDER BY created_at DESC
-    LIMIT p_limit
-    OFFSET p_offset;
+    FROM limited_transactions;
     
     RETURN COALESCE(v_result, '[]'::jsonb);
 END;
@@ -1963,46 +2104,36 @@ CREATE OR REPLACE FUNCTION "public"."log_cash_transaction_change"() RETURNS "tri
     AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
+        -- 거래 생성 시: pending 상태로 로그 생성
         INSERT INTO public.cash_transaction_logs (
             transaction_id,
-            action,
+            status,
             changed_by
         ) VALUES (
             NEW.id,
-            'created',
+            NEW.status, -- 거래 생성 시점의 상태 (보통 'pending')
             NEW.created_by_user_id
         );
         RETURN NEW;
     ELSIF TG_OP = 'UPDATE' THEN
-        -- 상태 변경 추적 (action에 상태 정보 포함)
+        -- 상태 변경 추적: 상태가 변경될 때만 로그 생성
         IF OLD.status IS DISTINCT FROM NEW.status THEN
             INSERT INTO public.cash_transaction_logs (
                 transaction_id,
-                action,
+                status,
                 changed_by,
                 change_reason
             ) VALUES (
                 NEW.id,
-                NEW.status, -- 상태를 action으로 사용 (approved, rejected, completed 등)
+                NEW.status, -- 새로운 상태 값
                 COALESCE(NEW.approved_by, NEW.rejected_by, NEW.created_by_user_id),
                 CASE 
                     WHEN NEW.status = 'rejected' THEN NEW.rejection_reason
                     ELSE 'Status changed to ' || NEW.status
                 END
             );
-        ELSE
-            INSERT INTO public.cash_transaction_logs (
-                transaction_id,
-                action,
-                changed_by,
-                change_reason
-            ) VALUES (
-                NEW.id,
-                'updated',
-                NEW.created_by_user_id,
-                'Transaction updated'
-            );
         END IF;
+        -- 상태가 변경되지 않은 경우 로그를 생성하지 않음
         RETURN NEW;
     END IF;
     RETURN NULL;
@@ -2767,6 +2898,40 @@ COMMENT ON FUNCTION "public"."transfer_points_between_wallets"("p_from_wallet_id
 
 
 
+CREATE OR REPLACE FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text" DEFAULT NULL::"text", "p_updated_by_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_current_status TEXT;
+BEGIN
+    -- 현재 상태 확인
+    SELECT status INTO v_current_status
+    FROM public.cash_transactions
+    WHERE id = p_transaction_id;
+    
+    IF v_current_status IS NULL THEN
+        RAISE EXCEPTION 'Transaction not found';
+    END IF;
+    
+    -- 상태 업데이트
+    UPDATE public.cash_transactions
+    SET 
+        status = p_status,
+        approved_by = CASE WHEN p_status = 'approved' THEN COALESCE(p_updated_by_user_id, auth.uid()) ELSE approved_by END,
+        rejected_by = CASE WHEN p_status = 'rejected' THEN COALESCE(p_updated_by_user_id, auth.uid()) ELSE rejected_by END,
+        rejection_reason = CASE WHEN p_status = 'rejected' THEN p_rejection_reason ELSE rejection_reason END,
+        updated_at = NOW()
+    WHERE id = p_transaction_id;
+    
+    RETURN TRUE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -2865,45 +3030,6 @@ ALTER FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p
 
 COMMENT ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") IS '회사 지갑 계좌정보 업데이트 및 이력 기록을 트랜잭션으로 처리합니다. owner만 수정 가능하며, wallet_histories 테이블이 없어도 계좌정보 업데이트는 성공합니다.';
 
-
-
-CREATE OR REPLACE FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text" DEFAULT NULL::"text", "p_updated_by_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS boolean
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-DECLARE
-    v_current_status TEXT;
-BEGIN
-    -- 현재 상태 확인
-    SELECT status INTO v_current_status
-    FROM public.cash_transactions
-    WHERE id = p_transaction_id;
-    
-    IF v_current_status IS NULL THEN
-        RAISE EXCEPTION 'Transaction not found';
-    END IF;
-    
-    IF v_current_status = 'completed' THEN
-        RAISE EXCEPTION 'Cannot update completed transaction';
-    END IF;
-    
-    -- 상태 업데이트
-    UPDATE public.cash_transactions
-    SET 
-        status = p_status,
-        approved_by = CASE WHEN p_status = 'approved' THEN COALESCE(p_updated_by_user_id, auth.uid()) ELSE approved_by END,
-        rejected_by = CASE WHEN p_status = 'rejected' THEN COALESCE(p_updated_by_user_id, auth.uid()) ELSE rejected_by END,
-        rejection_reason = CASE WHEN p_status = 'rejected' THEN p_rejection_reason ELSE rejection_reason END,
-        completed_at = CASE WHEN p_status = 'completed' THEN NOW() ELSE completed_at END,
-        updated_at = NOW()
-    WHERE id = p_transaction_id;
-    
-    RETURN TRUE;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_sns_connection"("p_id" "uuid", "p_user_id" "uuid", "p_platform_account_name" "text" DEFAULT NULL::"text", "p_phone" "text" DEFAULT NULL::"text", "p_address" "text" DEFAULT NULL::"text", "p_return_address" "text" DEFAULT NULL::"text") RETURNS "jsonb"
@@ -3171,12 +3297,37 @@ CREATE OR REPLACE FUNCTION "public"."update_wallet_balance_on_cash_transaction"(
     SET "search_path" TO ''
     AS $$
 BEGIN
-    -- completed 상태로 변경될 때만 잔액 업데이트
-    IF NEW.status = 'completed' AND (OLD.status IS NULL OR OLD.status != 'completed') THEN
-        UPDATE public.wallets
-        SET current_points = current_points + NEW.amount,
-            updated_at = NOW()
-        WHERE id = NEW.wallet_id;
+    -- 입금(deposit)과 출금(withdraw) 모두 approved 상태일 때만 잔액 변경
+    IF NEW.transaction_type = 'deposit' THEN
+        -- 입금: approved 상태로 변경될 때 잔액 증가
+        IF NEW.status = 'approved' 
+           AND (OLD.status IS NULL OR OLD.status != 'approved') THEN
+            UPDATE public.wallets
+            SET current_points = current_points + NEW.point_amount,
+                updated_at = NOW()
+            WHERE id = NEW.wallet_id;
+        -- 입금: approved에서 다른 상태로 변경될 때 잔액 차감 (롤백)
+        ELSIF OLD.status = 'approved' AND NEW.status != 'approved' THEN
+            UPDATE public.wallets
+            SET current_points = current_points - OLD.point_amount,
+                updated_at = NOW()
+            WHERE id = NEW.wallet_id;
+        END IF;
+    ELSIF NEW.transaction_type = 'withdraw' THEN
+        -- 출금: approved 상태로 변경될 때 잔액 차감
+        IF NEW.status = 'approved' 
+           AND (OLD.status IS NULL OR OLD.status != 'approved') THEN
+            UPDATE public.wallets
+            SET current_points = current_points - NEW.point_amount,
+                updated_at = NOW()
+            WHERE id = NEW.wallet_id;
+        -- 출금: approved에서 다른 상태로 변경될 때 잔액 증가 (롤백)
+        ELSIF OLD.status = 'approved' AND NEW.status != 'approved' THEN
+            UPDATE public.wallets
+            SET current_points = current_points + OLD.point_amount,
+                updated_at = NOW()
+            WHERE id = NEW.wallet_id;
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -3239,7 +3390,9 @@ ALTER TABLE "public"."campaign_action_logs" OWNER TO "postgres";
 COMMENT ON TABLE "public"."campaign_action_logs" IS '캠페인 액션 로그 테이블';
 
 
+
 COMMENT ON COLUMN "public"."campaign_action_logs"."action" IS '행동 정보 (JSONB). 예: {"type": "join", "data": {...}}';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."campaign_actions" (
@@ -3380,6 +3533,68 @@ COMMENT ON COLUMN "public"."campaigns"."total_cost" IS '총 비용';
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."cash_transaction_logs" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "transaction_id" "uuid" NOT NULL,
+    "status" "text" NOT NULL,
+    "changed_by" "uuid",
+    "change_reason" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "cash_transaction_logs_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'rejected'::"text", 'cancelled'::"text"])))
+);
+
+
+ALTER TABLE "public"."cash_transaction_logs" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."cash_transaction_logs" IS '현금 입출금 거래 진행 이력 로그 (상태 변경 이력)';
+
+
+
+COMMENT ON COLUMN "public"."cash_transaction_logs"."status" IS '거래 상태: pending(대기), approved(승인), rejected(거절), cancelled(취소)';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."cash_transactions" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "wallet_id" "uuid" NOT NULL,
+    "transaction_type" "text" NOT NULL,
+    "cash_amount" integer,
+    "payment_method" "text",
+    "bank_name" "text",
+    "account_number" "text",
+    "account_holder" "text",
+    "status" "text" DEFAULT 'pending'::"text",
+    "approved_by" "uuid",
+    "rejected_by" "uuid",
+    "rejection_reason" "text",
+    "description" "text",
+    "created_by_user_id" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "point_amount" integer NOT NULL,
+    CONSTRAINT "cash_transactions_point_amount_check" CHECK (("point_amount" <> 0)),
+    CONSTRAINT "cash_transactions_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'rejected'::"text", 'cancelled'::"text"]))),
+    CONSTRAINT "cash_transactions_transaction_type_check" CHECK (("transaction_type" = ANY (ARRAY['deposit'::"text", 'withdraw'::"text"]))),
+    CONSTRAINT "cash_transactions_withdraw_account_check" CHECK (((("transaction_type" = 'withdraw'::"text") AND ("bank_name" IS NOT NULL) AND ("account_number" IS NOT NULL) AND ("account_holder" IS NOT NULL)) OR ("transaction_type" <> 'withdraw'::"text")))
+);
+
+
+ALTER TABLE "public"."cash_transactions" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."cash_transactions" IS '현금 입출금 거래 테이블 (deposit, withdraw)';
+
+
+
+COMMENT ON COLUMN "public"."cash_transactions"."wallet_id" IS '지갑 ID (wallets 테이블 참조, user_id/company_id는 wallets를 통해 조회)';
+
+
+
+COMMENT ON COLUMN "public"."cash_transactions"."status" IS '거래 상태: pending(대기) → approved(승인)';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."companies" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "business_name" "text" NOT NULL,
@@ -3413,7 +3628,7 @@ CREATE TABLE IF NOT EXISTS "public"."company_users" (
     "company_role" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "status" "text" DEFAULT 'active'::"text" NOT NULL,
-    CONSTRAINT "company_users_company_role_check" CHECK (("company_role" = ANY (ARRAY['owner'::"text", 'manager'::"text"]))),
+    CONSTRAINT "company_users_company_role_check" CHECK (("company_role" = ANY (ARRAY['owner'::"text", 'manager'::"text", 'reviewer'::"text"]))),
     CONSTRAINT "company_users_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'pending'::"text", 'suspended'::"text", 'rejected'::"text"])))
 );
 
@@ -3426,6 +3641,10 @@ COMMENT ON TABLE "public"."company_users" IS '회사-사용자 관계 테이블 
 
 
 COMMENT ON COLUMN "public"."company_users"."status" IS '회사-사용자 관계 상태: active(활성), inactive(비활성), pending(대기), suspended(정지), rejected(거절)';
+
+
+
+COMMENT ON CONSTRAINT "company_users_company_role_check" ON "public"."company_users" IS 'company_role은 owner(회사 소유자), manager(회사 관리자), reviewer(리뷰어) 중 하나여야 합니다. owner와 manager는 광고주, reviewer는 리뷰어입니다.';
 
 
 
@@ -3454,65 +3673,6 @@ CREATE TABLE IF NOT EXISTS "public"."notifications" (
 
 
 ALTER TABLE "public"."notifications" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."cash_transaction_logs" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "transaction_id" "uuid" NOT NULL,
-    "action" "text" NOT NULL,
-    "changed_by" "uuid",
-    "change_reason" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "cash_transaction_logs_action_check" CHECK (("action" = ANY (ARRAY['created'::"text", 'updated'::"text", 'status_changed'::"text", 'approved'::"text", 'rejected'::"text", 'cancelled'::"text", 'completed'::"text"])))
-);
-
-
-ALTER TABLE "public"."cash_transaction_logs" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."cash_transaction_logs" IS '현금 입출금 거래 진행 이력 로그 (적산 방식, 상태 정보는 action에 포함)';
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."cash_transactions" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "wallet_id" "uuid" NOT NULL,
-    "transaction_type" "text" NOT NULL,
-    "amount" integer NOT NULL,
-    "cash_amount" numeric(10,2),
-    "payment_method" "text",
-    "bank_name" "text",
-    "account_number" "text",
-    "account_holder" "text",
-    "status" "text" DEFAULT 'pending'::"text",
-    "approved_by" "uuid",
-    "rejected_by" "uuid",
-    "rejection_reason" "text",
-    "description" "text",
-    "created_by_user_id" "uuid",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "completed_at" timestamp with time zone,
-    CONSTRAINT "cash_transactions_amount_check" CHECK (("amount" <> 0)),
-    CONSTRAINT "cash_transactions_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'rejected'::"text", 'completed'::"text", 'cancelled'::"text"]))),
-    CONSTRAINT "cash_transactions_transaction_type_check" CHECK (("transaction_type" = ANY (ARRAY['deposit'::"text", 'withdraw'::"text"]))),
-    CONSTRAINT "cash_transactions_withdraw_account_check" CHECK (((("transaction_type" = 'withdraw'::"text") AND ("bank_name" IS NOT NULL) AND ("account_number" IS NOT NULL) AND ("account_holder" IS NOT NULL)) OR ("transaction_type" <> 'withdraw'::"text")))
-);
-
-
-ALTER TABLE "public"."cash_transactions" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."cash_transactions" IS '현금 입출금 거래 테이블 (deposit, withdraw)';
-
-
-
-COMMENT ON COLUMN "public"."cash_transactions"."wallet_id" IS '지갑 ID (wallets 테이블 참조, user_id/company_id는 wallets를 통해 조회)';
-
-
-
-COMMENT ON COLUMN "public"."cash_transactions"."status" IS '거래 상태: pending(대기) → approved(승인) → completed(완료)';
-
 
 
 CREATE TABLE IF NOT EXISTS "public"."point_transaction_logs" (
@@ -3725,6 +3885,16 @@ ALTER TABLE ONLY "public"."campaigns"
 
 
 
+ALTER TABLE ONLY "public"."cash_transaction_logs"
+    ADD CONSTRAINT "cash_transaction_logs_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."cash_transactions"
+    ADD CONSTRAINT "cash_transactions_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."companies"
     ADD CONSTRAINT "companies_pkey" PRIMARY KEY ("id");
 
@@ -3742,16 +3912,6 @@ ALTER TABLE ONLY "public"."deleted_users"
 
 ALTER TABLE ONLY "public"."notifications"
     ADD CONSTRAINT "notifications_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."cash_transaction_logs"
-    ADD CONSTRAINT "cash_transaction_logs_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."cash_transactions"
-    ADD CONSTRAINT "cash_transactions_pkey" PRIMARY KEY ("id");
 
 
 
@@ -3911,6 +4071,42 @@ CREATE INDEX "idx_campaigns_user_id" ON "public"."campaigns" USING "btree" ("use
 
 
 
+CREATE INDEX "idx_cash_transaction_logs_changed_by" ON "public"."cash_transaction_logs" USING "btree" ("changed_by");
+
+
+
+CREATE INDEX "idx_cash_transaction_logs_created_at" ON "public"."cash_transaction_logs" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_cash_transaction_logs_status" ON "public"."cash_transaction_logs" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_cash_transaction_logs_transaction_id" ON "public"."cash_transaction_logs" USING "btree" ("transaction_id");
+
+
+
+CREATE INDEX "idx_cash_transactions_created_at" ON "public"."cash_transactions" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_cash_transactions_pending" ON "public"."cash_transactions" USING "btree" ("status") WHERE ("status" = 'pending'::"text");
+
+
+
+CREATE INDEX "idx_cash_transactions_status" ON "public"."cash_transactions" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_cash_transactions_type" ON "public"."cash_transactions" USING "btree" ("transaction_type");
+
+
+
+CREATE INDEX "idx_cash_transactions_wallet_id" ON "public"."cash_transactions" USING "btree" ("wallet_id");
+
+
+
 CREATE INDEX "idx_companies_business_name" ON "public"."companies" USING "gin" ("to_tsvector"('"english"'::"regconfig", "business_name"));
 
 
@@ -3952,42 +4148,6 @@ CREATE INDEX "idx_notifications_user_read" ON "public"."notifications" USING "bt
 
 
 CREATE INDEX "idx_notifications_user_type" ON "public"."notifications" USING "btree" ("user_id", "type");
-
-
-
-CREATE INDEX "idx_cash_transaction_logs_action" ON "public"."cash_transaction_logs" USING "btree" ("action");
-
-
-
-CREATE INDEX "idx_cash_transaction_logs_changed_by" ON "public"."cash_transaction_logs" USING "btree" ("changed_by");
-
-
-
-CREATE INDEX "idx_cash_transaction_logs_created_at" ON "public"."cash_transaction_logs" USING "btree" ("created_at" DESC);
-
-
-
-CREATE INDEX "idx_cash_transaction_logs_transaction_id" ON "public"."cash_transaction_logs" USING "btree" ("transaction_id");
-
-
-
-CREATE INDEX "idx_cash_transactions_created_at" ON "public"."cash_transactions" USING "btree" ("created_at" DESC);
-
-
-
-CREATE INDEX "idx_cash_transactions_pending" ON "public"."cash_transactions" USING "btree" ("status") WHERE ("status" = 'pending'::"text");
-
-
-
-CREATE INDEX "idx_cash_transactions_status" ON "public"."cash_transactions" USING "btree" ("status");
-
-
-
-CREATE INDEX "idx_cash_transactions_type" ON "public"."cash_transactions" USING "btree" ("transaction_type");
-
-
-
-CREATE INDEX "idx_cash_transactions_wallet_id" ON "public"."cash_transactions" USING "btree" ("wallet_id");
 
 
 
@@ -4083,19 +4243,25 @@ CREATE INDEX "idx_wallets_user_id" ON "public"."wallets" USING "btree" ("user_id
 
 
 
+CREATE OR REPLACE TRIGGER "cash_transactions_log_trigger" AFTER INSERT OR UPDATE ON "public"."cash_transactions" FOR EACH ROW EXECUTE FUNCTION "public"."log_cash_transaction_change"();
+
+
+
+CREATE OR REPLACE TRIGGER "cash_transactions_wallet_balance_trigger" AFTER INSERT OR UPDATE ON "public"."cash_transactions" FOR EACH ROW EXECUTE FUNCTION "public"."update_wallet_balance_on_cash_transaction"();
+
+
+
+COMMENT ON TRIGGER "cash_transactions_wallet_balance_trigger" ON "public"."cash_transactions" IS '입금(deposit)과 출금(withdraw) 거래 모두 approved 상태로 변경될 때 지갑 잔액을 업데이트합니다.
+입금은 approved 상태일 때 잔액 증가, 출금은 approved 상태일 때 잔액 차감.
+함수 내에서 OLD와 NEW 상태를 비교하여 필요한 경우에만 잔액을 업데이트합니다.';
+
+
+
 CREATE OR REPLACE TRIGGER "create_company_wallet_trigger" AFTER INSERT ON "public"."companies" FOR EACH ROW EXECUTE FUNCTION "public"."create_company_wallet_on_registration"();
 
 
 
 CREATE OR REPLACE TRIGGER "create_user_wallet_trigger" AFTER INSERT ON "public"."users" FOR EACH ROW EXECUTE FUNCTION "public"."create_user_wallet_on_signup"();
-
-
-
-CREATE OR REPLACE TRIGGER "cash_transactions_log_trigger" AFTER INSERT OR UPDATE ON "public"."cash_transactions" FOR EACH ROW EXECUTE FUNCTION "public"."log_cash_transaction_change"();
-
-
-
-CREATE OR REPLACE TRIGGER "cash_transactions_wallet_balance_trigger" AFTER INSERT OR UPDATE ON "public"."cash_transactions" FOR EACH ROW WHEN (("new"."status" = 'completed'::"text")) EXECUTE FUNCTION "public"."update_wallet_balance_on_cash_transaction"();
 
 
 
@@ -4165,31 +4331,6 @@ ALTER TABLE ONLY "public"."campaigns"
 
 
 
-ALTER TABLE ONLY "public"."companies"
-    ADD CONSTRAINT "companies_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."company_users"
-    ADD CONSTRAINT "company_users_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."company_users"
-    ADD CONSTRAINT "company_users_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."deleted_users"
-    ADD CONSTRAINT "deleted_users_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON UPDATE CASCADE ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."notifications"
-    ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."cash_transaction_logs"
     ADD CONSTRAINT "cash_transaction_logs_changed_by_fkey" FOREIGN KEY ("changed_by") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
@@ -4217,6 +4358,31 @@ ALTER TABLE ONLY "public"."cash_transactions"
 
 ALTER TABLE ONLY "public"."cash_transactions"
     ADD CONSTRAINT "cash_transactions_wallet_id_fkey" FOREIGN KEY ("wallet_id") REFERENCES "public"."wallets"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."companies"
+    ADD CONSTRAINT "companies_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."company_users"
+    ADD CONSTRAINT "company_users_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."company_users"
+    ADD CONSTRAINT "company_users_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."deleted_users"
+    ADD CONSTRAINT "deleted_users_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."notifications"
+    ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -4557,6 +4723,12 @@ ALTER TABLE "public"."campaign_actions" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."campaigns" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."cash_transaction_logs" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."cash_transactions" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."companies" ENABLE ROW LEVEL SECURITY;
 
 
@@ -4567,12 +4739,6 @@ ALTER TABLE "public"."deleted_users" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."notifications" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."cash_transaction_logs" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."cash_transactions" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."point_transaction_logs" ENABLE ROW LEVEL SECURITY;
@@ -4803,15 +4969,15 @@ GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text"
 
 
 
+GRANT ALL ON FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_point_amount" integer, "p_cash_amount" numeric, "p_payment_method" "text", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text", "p_description" "text", "p_created_by_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_point_amount" integer, "p_cash_amount" numeric, "p_payment_method" "text", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text", "p_description" "text", "p_created_by_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_point_amount" integer, "p_cash_amount" numeric, "p_payment_method" "text", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text", "p_description" "text", "p_created_by_user_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."create_company_wallet_on_registration"() TO "anon";
 GRANT ALL ON FUNCTION "public"."create_company_wallet_on_registration"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_company_wallet_on_registration"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_amount" integer, "p_cash_amount" numeric, "p_payment_method" "text", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text", "p_description" "text", "p_created_by_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_amount" integer, "p_cash_amount" numeric, "p_payment_method" "text", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text", "p_description" "text", "p_created_by_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_amount" integer, "p_cash_amount" numeric, "p_payment_method" "text", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text", "p_description" "text", "p_created_by_user_id" "uuid") TO "service_role";
 
 
 
@@ -4884,6 +5050,12 @@ GRANT ALL ON FUNCTION "public"."get_company_point_history"("p_company_id" "uuid"
 GRANT ALL ON FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "anon";
 GRANT ALL ON FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) TO "service_role";
 
 
 
@@ -5061,15 +5233,15 @@ GRANT ALL ON FUNCTION "public"."transfer_points_between_wallets"("p_from_wallet_
 
 
 
-GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") TO "service_role";
 
 
 
@@ -5166,6 +5338,18 @@ GRANT ALL ON TABLE "public"."campaigns" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."cash_transaction_logs" TO "anon";
+GRANT ALL ON TABLE "public"."cash_transaction_logs" TO "authenticated";
+GRANT ALL ON TABLE "public"."cash_transaction_logs" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."cash_transactions" TO "anon";
+GRANT ALL ON TABLE "public"."cash_transactions" TO "authenticated";
+GRANT ALL ON TABLE "public"."cash_transactions" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."companies" TO "anon";
 GRANT ALL ON TABLE "public"."companies" TO "authenticated";
 GRANT ALL ON TABLE "public"."companies" TO "service_role";
@@ -5187,18 +5371,6 @@ GRANT ALL ON TABLE "public"."deleted_users" TO "service_role";
 GRANT ALL ON TABLE "public"."notifications" TO "anon";
 GRANT ALL ON TABLE "public"."notifications" TO "authenticated";
 GRANT ALL ON TABLE "public"."notifications" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."cash_transaction_logs" TO "anon";
-GRANT ALL ON TABLE "public"."cash_transaction_logs" TO "authenticated";
-GRANT ALL ON TABLE "public"."cash_transaction_logs" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."cash_transactions" TO "anon";
-GRANT ALL ON TABLE "public"."cash_transactions" TO "authenticated";
-GRANT ALL ON TABLE "public"."cash_transactions" TO "service_role";
 
 
 

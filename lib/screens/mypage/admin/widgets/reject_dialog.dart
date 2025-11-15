@@ -27,7 +27,7 @@ class _RejectDialogState extends State<RejectDialog> {
     final transactionType = widget.transaction['transaction_type'] as String? ?? '';
     final amount = widget.transaction['amount'] as int? ?? 0;
     final cashAmount = widget.transaction['cash_amount'] as num?;
-    final userName = widget.transaction['user_name'] as String? ?? '알 수 없음';
+    final userName = widget.transaction['user_name'] as String? ?? '';
     final isDeposit = transactionType == 'deposit';
 
     return AlertDialog(
@@ -60,14 +60,16 @@ class _RejectDialogState extends State<RejectDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '사용자: $userName',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                  if (userName.isNotEmpty) ...[
+                    Text(
+                      '사용자: $userName',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
+                  ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../services/company_user_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../utils/date_time_utils.dart';
 
 class AdvertiserManagerScreen extends ConsumerStatefulWidget {
   const AdvertiserManagerScreen({super.key});
@@ -469,9 +470,9 @@ class _AdvertiserManagerScreenState
       
       DateTime date;
       if (dateValue is String) {
-        date = DateTime.parse(dateValue);
+        date = DateTimeUtils.parseKST(dateValue);
       } else if (dateValue is DateTime) {
-        date = dateValue;
+        date = DateTimeUtils.toKST(dateValue);
       } else {
         return '';
       }

@@ -6,6 +6,7 @@ import '../../../services/wallet_service.dart';
 import '../../../services/company_user_service.dart';
 import '../../../utils/user_type_helper.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../utils/date_time_utils.dart';
 
 class PointsScreen extends ConsumerStatefulWidget {
   final String userType;
@@ -64,7 +65,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
                 'type': log.amount > 0 ? 'earned' : 'spent',
                 'amount': log.amount,
                 'description': log.description ?? '포인트 거래',
-                'date': _formatDate(log.createdAt),
+                'date': _formatDate(DateTimeUtils.toKST(log.createdAt)),
                 'transaction_category': 'campaign',
                 'transaction_type': log.transactionType,
                 'raw_data': {
@@ -119,8 +120,8 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
                                   ? '포인트 충전'
                                   : '포인트 출금')
                             : '포인트 거래'),
-                    'date': _formatDate(DateTime.parse(log['created_at'])),
-                    'status': log['status'] ?? 'completed',
+                    'date': _formatDate(DateTimeUtils.parseKST(log['created_at'])),
+                    'status': log['status'],
                     'transaction_category':
                         log['transaction_category'] ?? 'campaign',
                     'transaction_type': log['transaction_type'] ?? '',
@@ -150,7 +151,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
                   'type': log.amount > 0 ? 'earned' : 'spent',
                   'amount': log.amount,
                   'description': log.description ?? '포인트 거래',
-                  'date': _formatDate(log.createdAt),
+                  'date': _formatDate(DateTimeUtils.toKST(log.createdAt)),
                   'transaction_category': 'campaign',
                   'transaction_type': log.transactionType,
                   'raw_data': {
@@ -185,7 +186,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
+    final now = DateTimeUtils.nowKST();
     final difference = now.difference(date);
 
     if (difference.inDays == 0) {
@@ -415,7 +416,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         ? -rawAmount
         : rawAmount;
     final isPositive = amount > 0;
-    final status = history['status'] as String? ?? 'completed';
+    final status = history['status'] as String?;
 
     return InkWell(
       onTap: () {
@@ -480,7 +481,8 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
                     style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
                   if (transactionCategory == 'cash' &&
-                      status != 'completed') ...[
+                      status != null &&
+                      status != 'approved') ...[
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(

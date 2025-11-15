@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/campaign_application_service.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../utils/date_time_utils.dart';
 
 class ReviewerApplicationsScreen extends ConsumerStatefulWidget {
   const ReviewerApplicationsScreen({super.key});
@@ -135,7 +136,7 @@ class _ReviewerApplicationsScreenState
     if (campaign == null) return const SizedBox.shrink();
 
     final status = application['status'] as String;
-    final appliedAt = DateTime.parse(application['applied_at'] as String);
+    final appliedAt = DateTimeUtils.parseKST(application['applied_at'] as String);
 
     Color statusColor;
     String statusText;

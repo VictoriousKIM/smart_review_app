@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../utils/date_time_utils.dart';
 
 class PointTransactionDetailScreen extends StatefulWidget {
   final String transactionId;
@@ -81,11 +82,15 @@ class _PointTransactionDetailScreenState
                   _buildTransactionInfoCard(),
                   const SizedBox(height: 16),
                   _buildAmountCard(),
-                  if (_transaction!['transaction_category'] == 'cash') ...[
+                  if (_transaction!['transaction_category'] == 'cash' ||
+                      _transaction!['transaction_type'] == 'deposit' ||
+                      _transaction!['transaction_type'] == 'withdraw') ...[
                     const SizedBox(height: 16),
                     _buildCashInfoCard(),
                   ],
-                  if (_transaction!['transaction_category'] == 'cash' &&
+                  if ((_transaction!['transaction_category'] == 'cash' ||
+                          _transaction!['transaction_type'] == 'deposit' ||
+                          _transaction!['transaction_type'] == 'withdraw') &&
                       _transaction!['status'] == 'pending') ...[
                     const SizedBox(height: 16),
                     _buildPendingInfoCard(),
@@ -97,16 +102,24 @@ class _PointTransactionDetailScreenState
   }
 
   Widget _buildStatusCard() {
-    final status = _transaction!['status'] as String? ?? 'completed';
+    final status = _transaction!['status'] as String?;
     final transactionCategory =
-        _transaction!['transaction_category'] as String? ?? 'campaign';
+        _transaction!['transaction_category'] as String?;
     final transactionType = _transaction!['transaction_type'] as String? ?? '';
+
+    // transaction_category가 없으면 transaction_type으로 판단
+    // 'deposit' 또는 'withdraw'는 cash 거래
+    final isCashTransaction =
+        transactionCategory == 'cash' ||
+        transactionType == 'deposit' ||
+        transactionType == 'withdraw';
 
     Color statusColor;
     String statusText;
     IconData statusIcon;
 
-    if (transactionCategory == 'cash') {
+    if (isCashTransaction) {
+      // cash 거래는 status를 확인
       switch (status) {
         case 'pending':
           statusColor = Colors.orange;
@@ -123,17 +136,14 @@ class _PointTransactionDetailScreenState
           statusText = '거절됨';
           statusIcon = Icons.cancel;
           break;
-        case 'completed':
-          statusColor = Colors.green;
-          statusText = '완료됨';
-          statusIcon = Icons.check_circle;
-          break;
         default:
-          statusColor = Colors.grey;
-          statusText = status;
-          statusIcon = Icons.info;
+          // status가 null이거나 알 수 없는 경우 기본값으로 '대기중' 표시
+          statusColor = Colors.orange;
+          statusText = '대기중';
+          statusIcon = Icons.pending;
       }
     } else {
+      // campaign 거래는 항상 완료로 표시
       statusColor = Colors.green;
       statusText = '완료됨';
       statusIcon = Icons.check_circle;
@@ -235,14 +245,17 @@ class _PointTransactionDetailScreenState
           ],
           if (createdAt != null) ...[
             const SizedBox(height: 12),
-            _buildInfoRow('거래 일시', _formatDateTime(DateTime.parse(createdAt))),
+            _buildInfoRow(
+              '거래 일시',
+              DateTimeUtils.formatKST(DateTimeUtils.parseKST(createdAt)),
+            ),
           ],
-          if (_transaction!['completed_at'] != null) ...[
+          if (_transaction!['updated_at'] != null) ...[
             const SizedBox(height: 12),
             _buildInfoRow(
-              '완료 일시',
-              _formatDateTime(
-                DateTime.parse(_transaction!['completed_at'] as String),
+              '수정 일시',
+              DateTimeUtils.formatKST(
+                DateTimeUtils.parseKST(_transaction!['updated_at'] as String),
               ),
             ),
           ],
@@ -455,9 +468,5 @@ class _PointTransactionDetailScreenState
         ),
       ],
     );
-  }
-
-  String _formatDateTime(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }

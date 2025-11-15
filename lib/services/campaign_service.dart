@@ -4,6 +4,7 @@ import '../models/campaign.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
+import '../utils/date_time_utils.dart';
 
 class CampaignService {
   static final CampaignService _instance = CampaignService._internal();
@@ -418,7 +419,7 @@ class CampaignService {
         'user_id': user.id,
         'is_template': false,
         'template_name': null,
-        'last_used_at': DateTime.now().toIso8601String(),
+        'last_used_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
         'usage_count': 0,
       };
 

@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict O0rw834EjnHsRdbrBBo0V7xqqyxHdJkK4xDDlyRxzrHzzBeO2HIZs2lMSvDWsA2
+-- \restrict lGH1JpwYlE0s44fWWEdDO7E0y2DWEheV7MAYFHnk7slP0rwBizS20qxHWCKdSOd
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -46,7 +46,11 @@ INSERT INTO "auth"."audit_log_entries" ("instance_id", "id", "payload", "created
 	('00000000-0000-0000-0000-000000000000', '60f68355-fc99-4c71-8435-a248aea78a26', '{"action":"login","actor_id":"201cf9ca-15f0-45a1-8033-b9fd08a99445","actor_username":"company_manger@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-04 01:17:55.375767+00', ''),
 	('00000000-0000-0000-0000-000000000000', '107a426c-9a11-4ffc-a86e-8c14895fddb5', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-10 15:21:25.174954+00', ''),
 	('00000000-0000-0000-0000-000000000000', '81ce16f3-4199-40c5-a762-612e4b478627', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-11 01:29:19.482202+00', ''),
-	('00000000-0000-0000-0000-000000000000', 'dda317d2-343c-4770-be5b-90b308b0c233', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-13 23:09:32.454052+00', '');
+	('00000000-0000-0000-0000-000000000000', 'dda317d2-343c-4770-be5b-90b308b0c233', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-13 23:09:32.454052+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'a82534c9-d4d6-4815-9236-8e3e23d0d1d4', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-15 03:29:11.860642+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'c13376fe-f35e-4e7b-be6e-ab2779f7e413', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-15 08:15:28.945422+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'b13a44eb-a579-420d-ab9a-186f9abecc17', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-15 11:09:35.130535+00', ''),
+	('00000000-0000-0000-0000-000000000000', 'dde878b8-263a-48fc-b4ce-0bb2a58b8a12', '{"action":"login","actor_id":"2234639c-59f0-4861-8448-103febfa612f","actor_username":"dev@example.com","actor_via_sso":false,"log_type":"account","traits":{"provider":"email"}}', '2025-11-15 11:10:55.496795+00', '');
 
 
 --
@@ -64,7 +68,7 @@ INSERT INTO "auth"."users" ("instance_id", "id", "aud", "role", "email", "encryp
 	('00000000-0000-0000-0000-000000000000', '201cf9ca-15f0-45a1-8033-b9fd08a99445', 'authenticated', 'authenticated', 'company_manger@example.com', '$2a$10$3etwD1cLy8EIiKTa2pwT5eAJarYxqlH7DTDcdutKEL0UTAcUEPBpy', '2025-11-04 01:13:32.607995+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-04 01:17:55.376237+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "201cf9ca-15f0-45a1-8033-b9fd08a99445", "email": "company_manger@example.com", "display_name": "company_manger@example.com", "email_verified": true, "phone_verified": false}', NULL, '2025-11-04 01:13:32.604686+00', '2025-11-04 01:17:55.377096+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
 	('00000000-0000-0000-0000-000000000000', '420e4945-845a-4e93-849c-3fba45632cf3', 'authenticated', 'authenticated', 'company_owner@example.com', '$2a$10$NonQqcIVL.6mRkS3KW9Mc.bAR1zyAZatI3CtdIZ4xGwvsifRIlRCW', '2025-11-04 01:12:09.050715+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-04 01:12:09.054102+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "420e4945-845a-4e93-849c-3fba45632cf3", "email": "company_owner@example.com", "display_name": "company_owner@example.com", "email_verified": true, "phone_verified": false}', NULL, '2025-11-04 01:12:09.047403+00', '2025-11-04 01:12:09.054832+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
 	('00000000-0000-0000-0000-000000000000', '2eb8c022-92d6-4c42-988c-166e83050e09', 'authenticated', 'authenticated', 'test@example.com', '$2a$10$tV2fNK8QNnzLkzY51Spw8eqBjBnoTo5r/TbwYQRxYgobMiy9dqu/a', '2025-11-04 01:11:36.749428+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-04 01:11:36.753281+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "2eb8c022-92d6-4c42-988c-166e83050e09", "email": "test@example.com", "display_name": "test@example.com", "email_verified": true, "phone_verified": false}', NULL, '2025-11-04 01:11:36.742448+00', '2025-11-04 01:11:36.754278+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
-	('00000000-0000-0000-0000-000000000000', '2234639c-59f0-4861-8448-103febfa612f', 'authenticated', 'authenticated', 'dev@example.com', '$2a$10$wdT8PoxcJHcfFNvdWQk.DunYNajFsIHYF17kpOF2/JihT184tfIze', '2025-11-03 08:11:32.927618+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-13 23:09:32.455821+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "2234639c-59f0-4861-8448-103febfa612f", "email": "dev@example.com", "display_name": "dev", "email_verified": true, "phone_verified": false}', NULL, '2025-11-03 08:11:32.920969+00', '2025-11-13 23:09:32.460222+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+	('00000000-0000-0000-0000-000000000000', '2234639c-59f0-4861-8448-103febfa612f', 'authenticated', 'authenticated', 'dev@example.com', '$2a$10$wdT8PoxcJHcfFNvdWQk.DunYNajFsIHYF17kpOF2/JihT184tfIze', '2025-11-03 08:11:32.927618+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-11-15 11:10:55.497362+00', '{"provider": "email", "providers": ["email"]}', '{"sub": "2234639c-59f0-4861-8448-103febfa612f", "email": "dev@example.com", "display_name": "dev", "email_verified": true, "phone_verified": false}', NULL, '2025-11-03 08:11:32.920969+00', '2025-11-15 11:10:55.498295+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 
 
 --
@@ -101,7 +105,11 @@ INSERT INTO "auth"."sessions" ("id", "user_id", "created_at", "updated_at", "fac
 	('33dbcef9-d7d2-4b95-a368-38b9d6a93c8d', '201cf9ca-15f0-45a1-8033-b9fd08a99445', '2025-11-04 01:17:55.376314+00', '2025-11-04 01:17:55.376314+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
 	('f2dbe689-ca4a-46a8-a76c-d0aa761cd089', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-10 15:21:25.176122+00', '2025-11-10 15:21:25.176122+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
 	('e781d008-1f05-4a81-ac59-49d284fdb091', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-11 01:29:19.483197+00', '2025-11-11 01:29:19.483197+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
-	('e1a52437-b8bc-4fdd-b496-364d9e5ffd87', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-13 23:09:32.455867+00', '2025-11-13 23:09:32.455867+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL);
+	('e1a52437-b8bc-4fdd-b496-364d9e5ffd87', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-13 23:09:32.455867+00', '2025-11-13 23:09:32.455867+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('7063f576-681a-4d92-b995-064445d66f67', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 03:29:11.861642+00', '2025-11-15 03:29:11.861642+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('246bc426-addd-41d7-bd4f-7ae541ba30b2', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 08:15:28.946009+00', '2025-11-15 08:15:28.946009+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('e62416ec-cb95-49d2-98a8-745dd7a1c1d3', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 11:09:35.132294+00', '2025-11-15 11:09:35.132294+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL),
+	('613fc08c-8cb6-400e-aeb4-6854c1f75739', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 11:10:55.497398+00', '2025-11-15 11:10:55.497398+00', NULL, 'aal1', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '172.18.0.1', NULL, NULL, NULL, NULL);
 
 
 --
@@ -114,7 +122,11 @@ INSERT INTO "auth"."mfa_amr_claims" ("session_id", "created_at", "updated_at", "
 	('33dbcef9-d7d2-4b95-a368-38b9d6a93c8d', '2025-11-04 01:17:55.377231+00', '2025-11-04 01:17:55.377231+00', 'password', '58275151-f7c7-4823-9494-79b18096b019'),
 	('f2dbe689-ca4a-46a8-a76c-d0aa761cd089', '2025-11-10 15:21:25.178136+00', '2025-11-10 15:21:25.178136+00', 'password', '7dce76fa-49e3-4107-84b0-618c829ead68'),
 	('e781d008-1f05-4a81-ac59-49d284fdb091', '2025-11-11 01:29:19.486226+00', '2025-11-11 01:29:19.486226+00', 'password', 'd2d23f8d-1d4c-4066-aedc-4949a78a8702'),
-	('e1a52437-b8bc-4fdd-b496-364d9e5ffd87', '2025-11-13 23:09:32.46062+00', '2025-11-13 23:09:32.46062+00', 'password', '572b5e0e-2739-4993-bd2b-247a0293fc1a');
+	('e1a52437-b8bc-4fdd-b496-364d9e5ffd87', '2025-11-13 23:09:32.46062+00', '2025-11-13 23:09:32.46062+00', 'password', '572b5e0e-2739-4993-bd2b-247a0293fc1a'),
+	('7063f576-681a-4d92-b995-064445d66f67', '2025-11-15 03:29:11.86365+00', '2025-11-15 03:29:11.86365+00', 'password', '5f5da977-16e1-4bb1-8274-aa4e283b30f0'),
+	('246bc426-addd-41d7-bd4f-7ae541ba30b2', '2025-11-15 08:15:28.946952+00', '2025-11-15 08:15:28.946952+00', 'password', '04908959-fd9d-4dc1-8095-f8020e5780ca'),
+	('e62416ec-cb95-49d2-98a8-745dd7a1c1d3', '2025-11-15 11:09:35.134838+00', '2025-11-15 11:09:35.134838+00', 'password', 'f7ef5311-562a-418e-8493-aca9ec53423d'),
+	('613fc08c-8cb6-400e-aeb4-6854c1f75739', '2025-11-15 11:10:55.498443+00', '2025-11-15 11:10:55.498443+00', 'password', '1839eff5-0416-4400-862a-0f8121a18e08');
 
 
 --
@@ -157,7 +169,11 @@ INSERT INTO "auth"."refresh_tokens" ("instance_id", "id", "token", "user_id", "r
 	('00000000-0000-0000-0000-000000000000', 8, 'sv75k4db265a', '201cf9ca-15f0-45a1-8033-b9fd08a99445', false, '2025-11-04 01:17:55.376694+00', '2025-11-04 01:17:55.376694+00', NULL, '33dbcef9-d7d2-4b95-a368-38b9d6a93c8d'),
 	('00000000-0000-0000-0000-000000000000', 9, 'spoydu75muf7', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-10 15:21:25.177032+00', '2025-11-10 15:21:25.177032+00', NULL, 'f2dbe689-ca4a-46a8-a76c-d0aa761cd089'),
 	('00000000-0000-0000-0000-000000000000', 10, 'efqbhkqllb7p', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-11 01:29:19.484692+00', '2025-11-11 01:29:19.484692+00', NULL, 'e781d008-1f05-4a81-ac59-49d284fdb091'),
-	('00000000-0000-0000-0000-000000000000', 11, '3vd77ad37t5g', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-13 23:09:32.457841+00', '2025-11-13 23:09:32.457841+00', NULL, 'e1a52437-b8bc-4fdd-b496-364d9e5ffd87');
+	('00000000-0000-0000-0000-000000000000', 11, '3vd77ad37t5g', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-13 23:09:32.457841+00', '2025-11-13 23:09:32.457841+00', NULL, 'e1a52437-b8bc-4fdd-b496-364d9e5ffd87'),
+	('00000000-0000-0000-0000-000000000000', 12, 'h5t4jfv74nsk', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-15 03:29:11.862447+00', '2025-11-15 03:29:11.862447+00', NULL, '7063f576-681a-4d92-b995-064445d66f67'),
+	('00000000-0000-0000-0000-000000000000', 13, '5onarreabn67', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-15 08:15:28.946363+00', '2025-11-15 08:15:28.946363+00', NULL, '246bc426-addd-41d7-bd4f-7ae541ba30b2'),
+	('00000000-0000-0000-0000-000000000000', 14, '3y47ratm7sui', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-15 11:09:35.133336+00', '2025-11-15 11:09:35.133336+00', NULL, 'e62416ec-cb95-49d2-98a8-745dd7a1c1d3'),
+	('00000000-0000-0000-0000-000000000000', 15, 'oobwm4bsqlyv', '2234639c-59f0-4861-8448-103febfa612f', false, '2025-11-15 11:10:55.497794+00', '2025-11-15 11:10:55.497794+00', NULL, '613fc08c-8cb6-400e-aeb4-6854c1f75739');
 
 
 --
@@ -193,7 +209,7 @@ INSERT INTO "public"."users" ("id", "created_at", "updated_at", "display_name", 
 	('f0214704-7b33-4168-829c-c1e0fcb96ce9', '2025-11-04 01:11:54.281747+00', '2025-11-04 01:11:54.281747+00', 'reviewer@example.com', 'user', 'active'),
 	('420e4945-845a-4e93-849c-3fba45632cf3', '2025-11-04 01:12:09.087909+00', '2025-11-04 01:12:09.087909+00', 'company_owner@example.com', 'user', 'active'),
 	('201cf9ca-15f0-45a1-8033-b9fd08a99445', '2025-11-04 01:13:32.651223+00', '2025-11-04 01:13:32.651223+00', 'company_manger@example.com', 'user', 'active'),
-	('2234639c-59f0-4861-8448-103febfa612f', '2025-11-03 08:11:33.033199+00', '2025-11-15 03:10:08.343864+00', 'dev1', 'admin', 'active');
+	('2234639c-59f0-4861-8448-103febfa612f', '2025-11-03 08:11:33.033199+00', '2025-11-15 08:16:15.809506+00', 'dev1', 'admin', 'active');
 
 
 --
@@ -231,20 +247,36 @@ INSERT INTO "public"."wallets" ("id", "company_id", "user_id", "current_points",
 	('2e36b811-87ed-4c19-91bb-7524501a849e', NULL, 'f0214704-7b33-4168-829c-c1e0fcb96ce9', 0, NULL, NULL, NULL, '2025-11-04 01:11:54.281747+00', '2025-11-04 01:11:54.281747+00'),
 	('9e4b706a-92ca-4f35-851e-d38a56078b73', NULL, '420e4945-845a-4e93-849c-3fba45632cf3', 0, NULL, NULL, NULL, '2025-11-04 01:12:09.087909+00', '2025-11-04 01:12:09.087909+00'),
 	('9d90e6ef-bdfd-42e9-ae5b-eed0997682f5', NULL, '201cf9ca-15f0-45a1-8033-b9fd08a99445', 0, NULL, NULL, NULL, '2025-11-04 01:13:32.651223+00', '2025-11-04 01:13:32.651223+00'),
-	('da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', '3aa3545b-ed63-40e9-8735-576686170346', NULL, 0, '농협은행1', '312-0172-8650-12', '김동익', '2025-11-06 06:19:13.099002+00', '2025-11-11 00:49:26.627725+00'),
-	('314af2ba-ae38-4eb6-9d28-545abeddf488', NULL, '2234639c-59f0-4861-8448-103febfa612f', 0, '농협은행2', '312-0172-8650-01', '김동익', '2025-11-03 08:11:33.033199+00', '2025-11-11 00:49:32.13134+00');
+	('314af2ba-ae38-4eb6-9d28-545abeddf488', NULL, '2234639c-59f0-4861-8448-103febfa612f', 0, '농협은행2', '312-0172-8650-01', '김동익', '2025-11-03 08:11:33.033199+00', '2025-11-11 00:49:32.13134+00'),
+	('da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', '3aa3545b-ed63-40e9-8735-576686170346', NULL, 500000, '농협은행1', '312-0172-8650-12', '김동익', '2025-11-06 06:19:13.099002+00', '2025-11-15 11:14:42.458697+00');
 
 
 --
 -- Data for Name: cash_transactions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO "public"."cash_transactions" ("id", "wallet_id", "transaction_type", "cash_amount", "payment_method", "bank_name", "account_number", "account_holder", "status", "approved_by", "rejected_by", "rejection_reason", "description", "created_by_user_id", "created_at", "updated_at", "point_amount") VALUES
+	('ff698ed7-98d9-4b52-831f-6788199394ee', 'da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', 'deposit', 220000.00, NULL, NULL, NULL, NULL, 'approved', '2234639c-59f0-4861-8448-103febfa612f', NULL, NULL, '포인트 충전 요청', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 03:29:24.841468+00', '2025-11-15 03:29:46.959531+00', 200000),
+	('37b34a91-5009-4d52-b4da-afa78f159539', 'da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', 'withdraw', 200000.00, NULL, '농협은행1', '312-0172-8650-12', '김동익', 'approved', '2234639c-59f0-4861-8448-103febfa612f', NULL, NULL, '포인트 출금 요청', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 03:31:38.4956+00', '2025-11-15 03:35:22.230523+00', 200000),
+	('65913078-4b30-4d7d-93fc-6228abe74370', 'da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', 'deposit', 55000.00, NULL, NULL, NULL, NULL, 'rejected', NULL, '2234639c-59f0-4861-8448-103febfa612f', 'ss', '포인트 충전 요청', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 08:17:16.671387+00', '2025-11-15 08:17:48.779448+00', 50000),
+	('b73287c6-646a-44e4-9955-8341b2b94c42', 'da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', 'deposit', 550000.00, NULL, NULL, NULL, NULL, 'approved', '2234639c-59f0-4861-8448-103febfa612f', NULL, NULL, '포인트 충전 요청', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 11:11:30.07444+00', '2025-11-15 11:14:42.458697+00', 500000),
+	('45e653e3-282c-4b51-93f4-8c84e6745999', 'da5d8db7-62f2-4d5c-bdf1-bce3f38c175e', 'deposit', 110000.00, NULL, NULL, NULL, NULL, 'pending', NULL, NULL, NULL, '포인트 충전 요청', '2234639c-59f0-4861-8448-103febfa612f', '2025-11-15 11:15:14.167856+00', '2025-11-15 11:15:14.167856+00', 100000);
 
 
 --
 -- Data for Name: cash_transaction_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO "public"."cash_transaction_logs" ("id", "transaction_id", "status", "changed_by", "change_reason", "created_at") VALUES
+	('953aef7d-3e51-4874-a475-96da95b0f060', 'ff698ed7-98d9-4b52-831f-6788199394ee', 'pending', '2234639c-59f0-4861-8448-103febfa612f', NULL, '2025-11-15 03:29:24.841468+00'),
+	('871788d2-6eec-47e4-aa0a-fa97090a2f1e', 'ff698ed7-98d9-4b52-831f-6788199394ee', 'approved', '2234639c-59f0-4861-8448-103febfa612f', 'Status changed to approved', '2025-11-15 03:29:46.959531+00'),
+	('6d81b2d5-5ad4-46ef-bfb9-b1efc5dce55f', '37b34a91-5009-4d52-b4da-afa78f159539', 'pending', '2234639c-59f0-4861-8448-103febfa612f', NULL, '2025-11-15 03:31:38.4956+00'),
+	('d1467e38-f1ea-4611-ad6c-0adea6bc1f12', '37b34a91-5009-4d52-b4da-afa78f159539', 'approved', '2234639c-59f0-4861-8448-103febfa612f', 'Status changed to approved', '2025-11-15 03:35:22.230523+00'),
+	('a871d8d8-c7f5-47ce-9629-8d7481de7a51', '65913078-4b30-4d7d-93fc-6228abe74370', 'pending', '2234639c-59f0-4861-8448-103febfa612f', NULL, '2025-11-15 08:17:16.671387+00'),
+	('f1ebb215-67f5-4954-9c91-5a04f7c205c0', '65913078-4b30-4d7d-93fc-6228abe74370', 'rejected', '2234639c-59f0-4861-8448-103febfa612f', 'ss', '2025-11-15 08:17:48.779448+00'),
+	('f68b1af2-65a6-48a3-b960-856d04477970', 'b73287c6-646a-44e4-9955-8341b2b94c42', 'pending', '2234639c-59f0-4861-8448-103febfa612f', NULL, '2025-11-15 11:11:30.07444+00'),
+	('ca2d8ee7-59ec-49b3-8d71-f2ef1f206358', 'b73287c6-646a-44e4-9955-8341b2b94c42', 'approved', '2234639c-59f0-4861-8448-103febfa612f', 'Status changed to approved', '2025-11-15 11:14:42.458697+00'),
+	('3ebbb2e2-44e2-4ab0-9f08-df562ef513ac', '45e653e3-282c-4b51-93f4-8c84e6745999', 'pending', '2234639c-59f0-4861-8448-103febfa612f', NULL, '2025-11-15 11:15:14.167856+00');
 
 
 --
@@ -326,7 +358,7 @@ INSERT INTO "public"."wallet_logs" ("id", "wallet_id", "old_bank_name", "old_acc
 -- Name: refresh_tokens_id_seq; Type: SEQUENCE SET; Schema: auth; Owner: supabase_auth_admin
 --
 
-SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 11, true);
+SELECT pg_catalog.setval('"auth"."refresh_tokens_id_seq"', 15, true);
 
 
 --
@@ -340,6 +372,6 @@ SELECT pg_catalog.setval('"supabase_functions"."hooks_id_seq"', 1, false);
 -- PostgreSQL database dump complete
 --
 
--- \unrestrict O0rw834EjnHsRdbrBBo0V7xqqyxHdJkK4xDDlyRxzrHzzBeO2HIZs2lMSvDWsA2
+-- \unrestrict lGH1JpwYlE0s44fWWEdDO7E0y2DWEheV7MAYFHnk7slP0rwBizS20qxHWCKdSOd
 
 RESET ALL;

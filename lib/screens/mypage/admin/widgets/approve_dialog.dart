@@ -13,7 +13,7 @@ class ApproveDialog extends StatelessWidget {
     final transactionType = transaction['transaction_type'] as String? ?? '';
     final amount = transaction['amount'] as int? ?? 0;
     final cashAmount = transaction['cash_amount'] as num?;
-    final userName = transaction['user_name'] as String? ?? '알 수 없음';
+    final userName = transaction['user_name'] as String? ?? '';
     final isDeposit = transactionType == 'deposit';
 
     return AlertDialog(
@@ -45,14 +45,16 @@ class ApproveDialog extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '사용자: $userName',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                if (userName.isNotEmpty) ...[
+                  Text(
+                    '사용자: $userName',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
+                  const SizedBox(height: 8),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

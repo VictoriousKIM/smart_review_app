@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../utils/date_time_utils.dart';
 
 class PendingTransactionCard extends StatelessWidget {
   final Map<String, dynamic> transaction;
@@ -21,7 +22,7 @@ class PendingTransactionCard extends StatelessWidget {
     final userType = transaction['user_type'] as String? ?? 'reviewer';
     final amount = transaction['amount'] as int? ?? 0;
     final cashAmount = transaction['cash_amount'] as num?;
-    final userName = transaction['user_name'] as String? ?? '알 수 없음';
+    final userName = transaction['user_name'] as String? ?? '';
     final userEmail = transaction['user_email'] as String? ?? '';
     final companyName = transaction['company_name'] as String?;
     final description = transaction['description'] as String? ?? '';
@@ -140,22 +141,23 @@ class PendingTransactionCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               // 사용자 정보
-              Row(
-                children: [
-                  Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          userName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF333333),
+              if (userName.isNotEmpty)
+                Row(
+                  children: [
+                    Icon(Icons.person, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            userName,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF333333),
+                            ),
                           ),
-                        ),
                         if (userEmail.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text(
@@ -306,7 +308,7 @@ class PendingTransactionCard extends StatelessWidget {
               if (createdAt != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  _formatDate(DateTime.parse(createdAt)),
+                  DateTimeUtils.formatKST(DateTimeUtils.parseKST(createdAt)),
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[500],
@@ -372,8 +374,6 @@ class PendingTransactionCard extends StatelessWidget {
         return Colors.blue;
       case 'rejected':
         return Colors.red;
-      case 'completed':
-        return Colors.green;
       case 'cancelled':
         return Colors.grey;
       default:
@@ -389,8 +389,6 @@ class PendingTransactionCard extends StatelessWidget {
         return '승인됨';
       case 'rejected':
         return '거절됨';
-      case 'completed':
-        return '완료됨';
       case 'cancelled':
         return '취소됨';
       default:
@@ -398,8 +396,5 @@ class PendingTransactionCard extends StatelessWidget {
     }
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
 

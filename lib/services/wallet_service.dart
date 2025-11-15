@@ -1,6 +1,7 @@
 import '../models/wallet_models.dart';
 import '../models/point_transfer.dart';
 import '../config/supabase_config.dart';
+import '../utils/date_time_utils.dart';
 
 /// 지갑 및 포인트 관리 서비스 (완전 분리 버전)
 class WalletService {
@@ -419,7 +420,7 @@ class WalletService {
                 'withdraw_bank_name': bankName,
                 'withdraw_account_number': accountNumber,
                 'withdraw_account_holder': accountHolder,
-                'updated_at': DateTime.now().toIso8601String(),
+                'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
               })
               .eq('id', wallet.id)
               .eq('user_id', userId);
@@ -498,7 +499,7 @@ class WalletService {
                 'withdraw_bank_name': bankName,
                 'withdraw_account_number': accountNumber,
                 'withdraw_account_holder': accountHolder,
-                'updated_at': DateTime.now().toIso8601String(),
+                'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
               })
               .eq('id', wallet.id)
               .eq('company_id', companyId);
@@ -650,7 +651,7 @@ class WalletService {
   /// 현금 거래 상태 업데이트 (Admin 전용)
   static Future<bool> updatePointCashTransactionStatus({
     required String transactionId,
-    required String status, // 'approved', 'rejected', 'completed'
+    required String status, // 'approved', 'rejected'
     String? rejectionReason,
   }) async {
     try {
@@ -674,7 +675,7 @@ class WalletService {
   /// 대기중인 현금 거래 목록 조회 (Admin 전용)
   static Future<List<Map<String, dynamic>>> getPendingCashTransactions({
     String?
-    status, // 'pending', 'approved', 'rejected', 'completed', 'cancelled'
+    status, // 'pending', 'approved', 'rejected', 'cancelled'
     String? transactionType, // 'deposit', 'withdraw'
     String? userType, // 'advertiser', 'reviewer'
     int limit = 50,

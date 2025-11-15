@@ -68,12 +68,11 @@ class CashTransaction {
   final String transactionType; // 'CHARGE' or 'WITHDRAW'
   final int amount;
   final double? cashAmount;
-  final String status; // 'PENDING', 'COMPLETED', 'FAILED'
+  final String status; // 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'
   final String? paymentMethod;
   final String? requestedBy;
   final String? approvedBy;
   final DateTime createdAt;
-  final DateTime? completedAt;
 
   CashTransaction({
     required this.id,
@@ -86,7 +85,6 @@ class CashTransaction {
     this.requestedBy,
     this.approvedBy,
     required this.createdAt,
-    this.completedAt,
   });
 
   factory CashTransaction.fromJson(Map<String, dynamic> json) {
@@ -103,9 +101,6 @@ class CashTransaction {
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),
-      completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'])
-          : null,
     );
   }
 
@@ -121,7 +116,6 @@ class CashTransaction {
       'requested_by': requestedBy,
       'approved_by': approvedBy,
       'created_at': createdAt.toIso8601String(),
-      'completed_at': completedAt?.toIso8601String(),
     };
   }
 }
