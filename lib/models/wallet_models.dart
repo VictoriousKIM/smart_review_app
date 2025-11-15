@@ -185,7 +185,7 @@ class UserPointLog {
     return UserPointLog(
       id: json['log_id'] ?? json['id'] ?? '',
       transactionType: json['transaction_type'] ?? '',
-      amount: json['amount'] ?? 0,
+      amount: json['point_amount'] ?? json['amount'] ?? 0,
       description: json['description'],
       relatedEntityType: json['related_entity_type'],
       relatedEntityId: json['related_entity_id'],
@@ -262,7 +262,7 @@ class CompanyPointLog {
     return CompanyPointLog(
       id: json['log_id'] ?? json['id'] ?? '',
       transactionType: json['transaction_type'] ?? '',
-      amount: json['amount'] ?? 0,
+      amount: json['point_amount'] ?? json['amount'] ?? 0,
       description: json['description'],
       relatedEntityType: json['related_entity_type'],
       relatedEntityId: json['related_entity_id'],

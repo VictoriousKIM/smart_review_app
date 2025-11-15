@@ -244,12 +244,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 const PointsScreen(userType: 'reviewer'),
             routes: [
               GoRoute(
-                path: 'charge',
-                name: 'reviewer-points-charge',
-                builder: (context, state) =>
-                    const PointChargeScreen(userType: 'reviewer'),
-              ),
-              GoRoute(
                 path: 'refund',
                 name: 'reviewer-points-refund',
                 builder: (context, state) =>
@@ -378,7 +372,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/mypage/admin/points',
             name: 'admin-points',
-            builder: (context, state) => const AdminPointsScreen(),
+            builder: (context, state) {
+              final tab = state.uri.queryParameters['tab'];
+              return AdminPointsScreen(initialTab: tab);
+            },
           ),
           GoRoute(
             path: '/mypage/admin/statistics',

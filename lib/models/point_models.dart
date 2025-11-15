@@ -92,7 +92,7 @@ class CashTransaction {
       id: json['id'] ?? '',
       walletId: json['wallet_id'] ?? '',
       transactionType: json['transaction_type'] ?? '',
-      amount: json['amount'] ?? 0,
+      amount: json['point_amount'] ?? json['amount'] ?? 0,
       cashAmount: json['cash_amount']?.toDouble(),
       status: json['status'] ?? 'PENDING',
       paymentMethod: json['payment_method'],

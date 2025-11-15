@@ -8,6 +8,7 @@ import '../../../widgets/mypage_common_widgets.dart';
 import '../../../widgets/drawer/reviewer_drawer.dart';
 import '../../../services/company_user_service.dart';
 import '../../../services/campaign_log_service.dart';
+import '../../../services/wallet_service.dart';
 import '../../../config/supabase_config.dart';
 
 class ReviewerMyPageScreen extends ConsumerStatefulWidget {
@@ -29,11 +30,53 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
   int _registeredCount = 0;
   int _completedCount = 0;
   bool _isLoadingStats = true;
+  
+  // 포인트 관련 상태
+  int? _currentPoints;
+  bool _isLoadingPoints = true;
 
   @override
   void initState() {
     super.initState();
     _loadCampaignStats();
+    _loadUserPoints();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 화면이 다시 포커스될 때 포인트 새로고침
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final route = ModalRoute.of(context);
+      if (route?.isCurrent == true) {
+        _loadUserPoints();
+      }
+    });
+  }
+
+  // 개인 지갑 포인트 조회
+  Future<void> _loadUserPoints() async {
+    setState(() {
+      _isLoadingPoints = true;
+    });
+
+    try {
+      final wallet = await WalletService.getUserWallet();
+      if (mounted) {
+        setState(() {
+          _currentPoints = wallet?.currentPoints ?? 0;
+          _isLoadingPoints = false;
+        });
+      }
+    } catch (e) {
+      print('❌ 개인 포인트 조회 실패: $e');
+      if (mounted) {
+        setState(() {
+          _currentPoints = 0;
+          _isLoadingPoints = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadCampaignStats() async {
@@ -153,6 +196,16 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
                         },
                   switchButtonText: '사업자 전환',
                   showRating: true,
+                  onProfileTap: () {
+                    // 프로필 화면의 리뷰어 탭으로 이동 (기본 탭)
+                    context.go('/mypage/profile');
+                  },
+                  onPointsTap: () {
+                    // 리뷰어 포인트 스크린으로 이동
+                    context.go('/mypage/reviewer/points');
+                  },
+                  currentPoints: _currentPoints,
+                  isLoadingPoints: _isLoadingPoints,
                 ),
 
                 const SizedBox(height: 16),

@@ -20,24 +20,19 @@ class PendingTransactionCard extends StatelessWidget {
     final status = transaction['status'] as String? ?? 'pending';
     final transactionType = transaction['transaction_type'] as String? ?? '';
     final userType = transaction['user_type'] as String? ?? 'reviewer';
-    final amount = transaction['amount'] as int? ?? 0;
-    final cashAmount = transaction['cash_amount'] as num?;
-    final userName = transaction['user_name'] as String? ?? '';
-    final userEmail = transaction['user_email'] as String? ?? '';
-    final companyName = transaction['company_name'] as String?;
-    final description = transaction['description'] as String? ?? '';
     final createdAt = transaction['created_at'] as String?;
-    final bankName = transaction['bank_name'] as String?;
-    final accountNumber = transaction['account_number'] as String?;
-    final accountHolder = transaction['account_holder'] as String?;
+    final companyName = transaction['company_name'] as String?;
+    final companyBusinessNumber = transaction['company_business_number'] as String?;
+    final amount = (transaction['point_amount'] ?? transaction['amount'] ?? 0) as int;
+    final userName = transaction['user_name'] as String? ?? '';
 
     final isPending = status == 'pending';
     final isDeposit = transactionType == 'deposit';
     final isAdvertiser = userType == 'advertiser';
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -45,80 +40,26 @@ class PendingTransactionCard extends StatelessWidget {
         onTap: onDetail,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 헤더: 배지들
               Row(
                 children: [
-                  // 사용자 타입 배지
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isAdvertiser
-                          ? Colors.blue.withValues(alpha: 0.1)
-                          : Colors.green.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isAdvertiser ? Icons.business : Icons.person,
-                          size: 14,
-                          color: isAdvertiser ? Colors.blue[700] : Colors.green[700],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isAdvertiser ? '사업자' : '리뷰어',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isAdvertiser ? Colors.blue[700] : Colors.green[700],
-                          ),
-                        ),
-                      ],
-                    ),
+                  _buildCompactBadge(
+                    icon: isAdvertiser ? Icons.business : Icons.person,
+                    label: isAdvertiser ? '사업자' : '리뷰어',
+                    color: isAdvertiser ? Colors.blue : Colors.green,
                   ),
-                  const SizedBox(width: 8),
-                  // 거래 타입 배지
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDeposit
-                          ? Colors.green.withValues(alpha: 0.1)
-                          : Colors.red.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isDeposit ? Icons.add_circle : Icons.remove_circle,
-                          size: 14,
-                          color: isDeposit ? Colors.green[700] : Colors.red[700],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isDeposit ? '입금' : '출금',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isDeposit ? Colors.green[700] : Colors.red[700],
-                          ),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(width: 6),
+                  _buildCompactBadge(
+                    icon: isDeposit ? Icons.add_circle : Icons.remove_circle,
+                    label: isDeposit ? '입금' : '출금',
+                    color: isDeposit ? Colors.green : Colors.red,
                   ),
                   const Spacer(),
-                  // 상태 배지
+                  // 상태 배지 (더 크게)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -140,225 +81,93 @@ class PendingTransactionCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              // 사용자 정보
-              if (userName.isNotEmpty)
-                Row(
-                  children: [
-                    Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            userName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF333333),
-                            ),
-                          ),
-                        if (userEmail.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            userEmail,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                        if (companyName != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.business, size: 14, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text(
-                                companyName,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // 금액 정보
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
+              // 제목/날짜와 버튼을 행으로 배치
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // 왼쪽 열: 제목과 날짜
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // 제목: 회사명(사업자번호) 또는 사용자명
                         Text(
-                          '포인트',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
+                          _buildTitleText(
+                            isAdvertiser: isAdvertiser,
+                            companyName: companyName,
+                            companyBusinessNumber: companyBusinessNumber,
+                            userName: userName,
+                          ),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF333333),
                           ),
                         ),
                         const SizedBox(height: 4),
+                        // 포인트 (줄바꿈)
                         Text(
-                          '${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: isDeposit ? Colors.green[700] : Colors.red[700],
+                          _buildAmountText(amount),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF333333),
                           ),
                         ),
-                      ],
-                    ),
-                    if (cashAmount != null) ...[
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
+                        const SizedBox(height: 8),
+                        // 날짜
+                        if (createdAt != null)
                           Text(
-                            '현금',
+                            DateTimeUtils.formatKST(DateTimeUtils.parseKST(createdAt)),
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               color: Colors.grey[600],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${cashAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF333333),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              // 계좌 정보 (출금인 경우)
-              if (!isDeposit && bankName != null && accountNumber != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.blue.withValues(alpha: 0.2),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.account_balance, size: 16, color: Colors.blue[700]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '$bankName $accountNumber',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.blue[900],
-                              ),
-                            ),
-                            if (accountHolder != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                '예금주: $accountHolder',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                            ],
-                          ],
+                  const SizedBox(width: 16),
+                  // 오른쪽 열: 액션 버튼 (아래쪽 정렬)
+                  if (isPending) ...[
+                    OutlinedButton(
+                      onPressed: onReject,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ],
-              // 설명
-              if (description.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                  ),
-                ),
-              ],
-              // 생성 일시
-              if (createdAt != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  DateTimeUtils.formatKST(DateTimeUtils.parseKST(createdAt)),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
-              // 액션 버튼 (대기중인 경우만)
-              if (isPending) ...[
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onReject,
-                        icon: const Icon(Icons.close, size: 18),
-                        label: const Text('거절'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
+                      child: const Text('거절'),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: onApprove,
-                        icon: const Icon(Icons.check, size: 18),
-                        label: const Text('승인'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                    ElevatedButton(
+                      onPressed: onApprove,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF137fec),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
                         ),
                       ),
+                      child: const Text('승인'),
                     ),
-                  ],
-                ),
-              ],
-              // 상세보기 버튼
-              if (!isPending) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: onDetail,
-                    child: const Text('상세보기'),
-                  ),
-                ),
-              ],
+                  ] else if (onDetail != null)
+                    OutlinedButton(
+                      onPressed: onDetail,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: const Text('상세보기'),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -371,7 +180,7 @@ class PendingTransactionCard extends StatelessWidget {
       case 'pending':
         return Colors.orange;
       case 'approved':
-        return Colors.blue;
+        return Colors.green;
       case 'rejected':
         return Colors.red;
       case 'cancelled':
@@ -396,5 +205,72 @@ class PendingTransactionCard extends StatelessWidget {
     }
   }
 
+  // 제목 텍스트 생성
+  String _buildTitleText({
+    required bool isAdvertiser,
+    String? companyName,
+    String? companyBusinessNumber,
+    String? userName,
+  }) {
+    if (isAdvertiser && companyName != null) {
+      // 사업자: 회사명(사업자번호)
+      final businessNumber = companyBusinessNumber ?? '';
+      if (businessNumber.isNotEmpty) {
+        return '$companyName($businessNumber)';
+      } else {
+        return companyName;
+      }
+    } else {
+      // 리뷰어: 사용자명
+      final displayName = (userName != null && userName.isNotEmpty) ? userName : '리뷰어';
+      return displayName;
+    }
+  }
+
+  // 포인트 텍스트 생성
+  String _buildAmountText(int amount) {
+    final formattedAmount = amount.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    return '${formattedAmount}P';
+  }
+
+  // 컴팩트한 배지 위젯
+  Widget _buildCompactBadge({
+    IconData? icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 6,
+        vertical: 3,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
+
 

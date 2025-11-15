@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/wallet_service.dart';
 import '../../../services/company_user_service.dart';
 import '../../../utils/user_type_helper.dart';
-import '../../../models/wallet_models.dart';
 
 class PointChargeScreen extends StatefulWidget {
   final String userType;
@@ -22,10 +20,9 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
   int _currentPoints = 0;
   String _walletId = '';
   int? _selectedAmount;
-  final TextEditingController _depositorNameController = TextEditingController();
+  final TextEditingController _depositorNameController =
+      TextEditingController();
   String? _receiptType; // 'cash_receipt', 'tax_invoice', 'none'
-  CompanyWallet? _companyWallet;
-  UserWallet? _userWallet;
 
   // 충전 금액 옵션 (포인트, 현금)
   final List<Map<String, int>> _chargeOptions = [
@@ -39,6 +36,21 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
   @override
   void initState() {
     super.initState();
+    // 리뷰어는 충전 불가
+    if (widget.userType == 'reviewer') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰어는 포인트 충전이 불가능합니다.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          context.pop();
+        }
+      });
+      return;
+    }
     _loadWalletInfo();
   }
 
@@ -57,24 +69,23 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       final user = await _authService.currentUser;
       if (user == null) return;
 
-      final isReviewer = await UserTypeHelper.isReviewer(user.uid);
-      final isOwner = await UserTypeHelper.isAdvertiserOwner(user.uid);
-
-      if (isReviewer) {
-        // 리뷰어: 개인 지갑 조회
-        final wallet = await WalletService.getUserWallet();
-        _currentPoints = wallet?.currentPoints ?? 0;
-        _walletId = wallet?.id ?? '';
-        _userWallet = wallet;
-      } else if (isOwner) {
-        // 광고주 owner: 회사 지갑 조회
-        final companyId = await CompanyUserService.getUserCompanyId(user.uid);
-        if (companyId != null) {
-          final companyWallet =
-              await WalletService.getCompanyWalletByCompanyId(companyId);
-          _currentPoints = companyWallet?.currentPoints ?? 0;
-          _walletId = companyWallet?.id ?? '';
-          _companyWallet = companyWallet;
+      // 광고주만 처리 (리뷰어는 initState에서 차단됨)
+      if (widget.userType == 'advertiser') {
+        final isOwner = await UserTypeHelper.isAdvertiserOwner(user.uid);
+        if (isOwner) {
+          // owner: 회사 지갑 조회
+          final companyId = await CompanyUserService.getUserCompanyId(user.uid);
+          if (companyId != null) {
+            final companyWallet =
+                await WalletService.getCompanyWalletByCompanyId(companyId);
+            _currentPoints = companyWallet?.currentPoints ?? 0;
+            _walletId = companyWallet?.id ?? '';
+          }
+        } else {
+          // manager: 개인 지갑 조회
+          final wallet = await WalletService.getUserWallet();
+          _currentPoints = wallet?.currentPoints ?? 0;
+          _walletId = wallet?.id ?? '';
         }
       }
 
@@ -86,39 +97,32 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('지갑 정보를 불러올 수 없습니다: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('지갑 정보를 불러올 수 없습니다: $e')));
       }
     }
   }
 
-  void _copyAccountNumber(String accountNumber) {
-    Clipboard.setData(ClipboardData(text: accountNumber));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('계좌번호가 복사되었습니다.')),
-    );
-  }
-
   Future<void> _submitCharge() async {
     if (_selectedAmount == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('충전 금액을 선택해주세요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('충전 금액을 선택해주세요.')));
       return;
     }
 
     if (_depositorNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('입금자명을 입력해주세요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('입금자명을 입력해주세요.')));
       return;
     }
 
     if (_walletId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('지갑 정보를 찾을 수 없습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('지갑 정보를 찾을 수 없습니다.')));
       return;
     }
 
@@ -137,16 +141,16 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('충전 요청이 완료되었습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('충전 요청이 완료되었습니다.')));
         context.pop(true); // 성공 시 true 반환
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('충전 요청 중 오류가 발생했습니다: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('충전 요청 중 오류가 발생했습니다: $e')));
       }
     }
   }
@@ -253,8 +257,12 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
           final cash = option['cash']!;
 
           return RadioListTile<int>(
-            title: Text('${points.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P'),
-            subtitle: Text('(${cash.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원)'),
+            title: Text(
+              '${points.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
+            ),
+            subtitle: Text(
+              '(${cash.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원)',
+            ),
             value: points,
             groupValue: _selectedAmount,
             onChanged: (value) {
@@ -302,23 +310,8 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
   }
 
   Widget _buildDepositAccountSection() {
-    // 회사 지갑 또는 개인 지갑에서 계좌 정보 가져오기
-    String? bankName, accountNumber, accountHolder;
-
-    if (_companyWallet != null) {
-      bankName = _companyWallet!.withdrawBankName;
-      accountNumber = _companyWallet!.withdrawAccountNumber;
-      accountHolder = _companyWallet!.withdrawAccountHolder;
-    } else if (_userWallet != null) {
-      bankName = _userWallet!.withdrawBankName;
-      accountNumber = _userWallet!.withdrawAccountNumber;
-      accountHolder = _userWallet!.withdrawAccountHolder;
-    }
-
-    if (bankName == null || accountNumber == null || accountHolder == null) {
-      return const SizedBox.shrink();
-    }
-
+    // 광고주일 때만 고정된 계좌 정보 표시
+    // (리뷰어는 이 화면에 접근할 수 없음)
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -337,56 +330,24 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Column(
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildAccountInfoRow('은행명', bankName),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildAccountInfoRow('계좌번호', accountNumber),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () => _copyAccountNumber(accountNumber!),
-                    child: const Text(
-                      '계좌 복사',
-                      style: TextStyle(color: Color(0xFF2196F3)),
-                    ),
-                  ),
-                ],
+              Text(
+                '은행명: 농협',
+                style: TextStyle(fontSize: 14, color: Color(0xFF333333)),
               ),
-              const SizedBox(height: 12),
-              _buildAccountInfoRow('예금주', accountHolder),
+              SizedBox(height: 8),
+              Text(
+                '계좌번호: 312-0172-8650-01',
+                style: TextStyle(fontSize: 14, color: Color(0xFF333333)),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '예금주: 김동익',
+                style: TextStyle(fontSize: 14, color: Color(0xFF333333)),
+              ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAccountInfoRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            '$label:',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF666666),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF333333),
-            ),
           ),
         ),
       ],
@@ -415,18 +376,9 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
             fillColor: Colors.white,
           ),
           items: const [
-            DropdownMenuItem(
-              value: 'cash_receipt',
-              child: Text('현금영수증'),
-            ),
-            DropdownMenuItem(
-              value: 'tax_invoice',
-              child: Text('세금계산서'),
-            ),
-            DropdownMenuItem(
-              value: 'none',
-              child: Text('발행안함'),
-            ),
+            DropdownMenuItem(value: 'cash_receipt', child: Text('현금영수증')),
+            DropdownMenuItem(value: 'tax_invoice', child: Text('세금계산서')),
+            DropdownMenuItem(value: 'none', child: Text('발행안함')),
           ],
           onChanged: (value) {
             setState(() {
@@ -457,14 +409,14 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          _buildNoticeItem('모든 상품은 부가세(VAT)포함 가격입니다.'),
+          _buildNoticeItem('무통장 신청 후 24시간 내에 입금되지 않는 건은 자동 취소 됩니다.'),
           _buildNoticeItem(
-              '모든 상품은 부가세(VAT)포함 가격입니다.'),
+            '광고비 충전은 영업일 기준 (am 09:30 ~ pm 06:30) 당일 입금내역 확인 후 충전 됩니다.',
+          ),
           _buildNoticeItem(
-              '무통장 신청 후 24시간 내에 입금되지 않는 건은 자동 취소 됩니다.'),
-          _buildNoticeItem(
-              '광고비 충전은 영업일 기준 (am 09:30 ~ pm 06:30) 당일 입금내역 확인 후 충전 됩니다.'),
-          _buildNoticeItem(
-              '충전하신 광고비는 5년 동안 사용하실 수 있으며, 기한 내 남은 잔여포인트는 환불 가능합니다.'),
+            '충전하신 광고비는 5년 동안 사용하실 수 있으며, 기한 내 남은 잔여포인트는 환불 가능합니다.',
+          ),
         ],
       ),
     );
@@ -480,10 +432,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF666666),
-              ),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF666666)),
             ),
           ),
         ],
@@ -492,7 +441,8 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
   }
 
   Widget _buildChargeButton() {
-    final isEnabled = _selectedAmount != null &&
+    final isEnabled =
+        _selectedAmount != null &&
         _depositorNameController.text.trim().isNotEmpty;
 
     return SizedBox(
@@ -511,13 +461,9 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
         ),
         child: const Text(
           '포인트 충전',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 }
-

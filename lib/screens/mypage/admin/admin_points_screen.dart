@@ -10,7 +10,9 @@ import 'widgets/reject_dialog.dart';
 import '../common/point_transaction_detail_screen.dart';
 
 class AdminPointsScreen extends ConsumerStatefulWidget {
-  const AdminPointsScreen({super.key});
+  final String? initialTab;
+
+  const AdminPointsScreen({super.key, this.initialTab});
 
   @override
   ConsumerState<AdminPointsScreen> createState() => _AdminPointsScreenState();
@@ -30,13 +32,38 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+
+    // 초기 탭 설정
+    int initialIndex = 0;
+    if (widget.initialTab != null) {
+      switch (widget.initialTab) {
+        case 'pending':
+          initialIndex = 1; // 대기중
+          break;
+        case 'approved':
+          initialIndex = 2; // 승인됨
+          break;
+        case 'rejected':
+          initialIndex = 3; // 거절됨
+          break;
+        default:
+          initialIndex = 0; // 전체
+      }
+    }
+
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: initialIndex,
+    );
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         _onTabChanged(_tabController.index);
       }
     });
-    _loadTransactions();
+
+    // 초기 탭에 맞는 상태 설정
+    _onTabChanged(initialIndex);
   }
 
   @override
@@ -82,9 +109,9 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('거래 목록을 불러오는데 실패했습니다: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('거래 목록을 불러오는데 실패했습니다: $e')));
       }
     }
   }
@@ -168,22 +195,163 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
           transactionData: transaction,
         ),
       ),
+    ).then((result) {
+      // 취소 또는 변경 시 거래 목록 다시 로드
+      if (result == true) {
+        _loadTransactions();
+      }
+    });
+  }
+
+  Widget _buildFilterSection() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 거래 타입 필터
+          Row(
+            children: [
+              const Text(
+                '거래 타입:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    _buildFilterChip(
+                      label: '전체',
+                      isSelected: _selectedTransactionType == null,
+                      onTap: () {
+                        setState(() {
+                          _selectedTransactionType = null;
+                        });
+                        _loadTransactions();
+                      },
+                    ),
+                    _buildFilterChip(
+                      label: '입금',
+                      isSelected: _selectedTransactionType == 'deposit',
+                      onTap: () {
+                        setState(() {
+                          _selectedTransactionType = 'deposit';
+                        });
+                        _loadTransactions();
+                      },
+                    ),
+                    _buildFilterChip(
+                      label: '출금',
+                      isSelected: _selectedTransactionType == 'withdraw',
+                      onTap: () {
+                        setState(() {
+                          _selectedTransactionType = 'withdraw';
+                        });
+                        _loadTransactions();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 유저 타입 필터
+          Row(
+            children: [
+              const Text(
+                '유저 타입:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    _buildFilterChip(
+                      label: '전체',
+                      isSelected: _selectedUserType == null,
+                      onTap: () {
+                        setState(() {
+                          _selectedUserType = null;
+                        });
+                        _loadTransactions();
+                      },
+                    ),
+                    _buildFilterChip(
+                      label: '사업자',
+                      isSelected: _selectedUserType == 'advertiser',
+                      onTap: () {
+                        setState(() {
+                          _selectedUserType = 'advertiser';
+                        });
+                        _loadTransactions();
+                      },
+                    ),
+                    _buildFilterChip(
+                      label: '리뷰어',
+                      isSelected: _selectedUserType == 'reviewer',
+                      onTap: () {
+                        setState(() {
+                          _selectedUserType = 'reviewer';
+                        });
+                        _loadTransactions();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  void _showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => _FilterDialog(
-        selectedTransactionType: _selectedTransactionType,
-        selectedUserType: _selectedUserType,
-        onApply: (transactionType, userType) {
-          setState(() {
-            _selectedTransactionType = transactionType;
-            _selectedUserType = userType;
-          });
-          _loadTransactions();
-        },
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF137fec) : Colors.grey[200],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF137fec) : Colors.grey[300]!,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isSelected ? Colors.white : Colors.grey[700],
+          ),
+        ),
       ),
     );
   }
@@ -221,11 +389,6 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
-            tooltip: '필터',
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadTransactions,
             tooltip: '새로고침',
@@ -237,160 +400,63 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
             ),
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: '전체'),
-            Tab(text: '대기중'),
-            Tab(text: '승인됨'),
-            Tab(text: '거절됨'),
-          ],
-        ),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadTransactions,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _transactions.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.inbox,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '거래 내역이 없습니다',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _transactions.length,
-                    itemBuilder: (context, index) {
-                      final transaction = _transactions[index];
-                      return PendingTransactionCard(
-                        transaction: transaction,
-                        onApprove: () => _handleApprove(transaction),
-                        onReject: () => _handleReject(transaction),
-                        onDetail: () => _showDetail(transaction),
-                      );
-                    },
-                  ),
-      ),
-    );
-  }
-}
-
-class _FilterDialog extends StatefulWidget {
-  final String? selectedTransactionType;
-  final String? selectedUserType;
-  final Function(String?, String?) onApply;
-
-  const _FilterDialog({
-    required this.selectedTransactionType,
-    required this.selectedUserType,
-    required this.onApply,
-  });
-
-  @override
-  State<_FilterDialog> createState() => _FilterDialogState();
-}
-
-class _FilterDialogState extends State<_FilterDialog> {
-  late String? _transactionType;
-  late String? _userType;
-
-  @override
-  void initState() {
-    super.initState();
-    _transactionType = widget.selectedTransactionType;
-    _userType = widget.selectedUserType;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('필터'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
         children: [
-          const Text(
-            '거래 타입',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<String?>(
-            segments: const [
-              ButtonSegment(value: null, label: Text('전체')),
-              ButtonSegment(value: 'deposit', label: Text('입금')),
-              ButtonSegment(value: 'withdraw', label: Text('출금')),
+          // 필터 섹션 (고정)
+          _buildFilterSection(),
+
+          // TabBar
+          TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(text: '전체'),
+              Tab(text: '대기중'),
+              Tab(text: '승인됨'),
+              Tab(text: '거절됨'),
             ],
-            selected: {_transactionType},
-            onSelectionChanged: (Set<String?> newSelection) {
-              setState(() {
-                _transactionType = newSelection.first;
-              });
-            },
           ),
-          const SizedBox(height: 24),
-          const Text(
-            '사용자 타입',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+
+          // 카드 리스트
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadTransactions,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _transactions.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.inbox, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            '거래 내역이 없습니다',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _transactions.length,
+                      itemBuilder: (context, index) {
+                        final transaction = _transactions[index];
+                        return PendingTransactionCard(
+                          transaction: transaction,
+                          onApprove: () => _handleApprove(transaction),
+                          onReject: () => _handleReject(transaction),
+                          onDetail: () => _showDetail(transaction),
+                        );
+                      },
+                    ),
             ),
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<String?>(
-            segments: const [
-              ButtonSegment(value: null, label: Text('전체')),
-              ButtonSegment(value: 'advertiser', label: Text('사업자')),
-              ButtonSegment(value: 'reviewer', label: Text('리뷰어')),
-            ],
-            selected: {_userType},
-            onSelectionChanged: (Set<String?> newSelection) {
-              setState(() {
-                _userType = newSelection.first;
-              });
-            },
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            setState(() {
-              _transactionType = null;
-              _userType = null;
-            });
-          },
-          child: const Text('초기화'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            widget.onApply(_transactionType, _userType);
-            Navigator.of(context).pop();
-          },
-          child: const Text('적용'),
-        ),
-      ],
     );
   }
 }

@@ -25,7 +25,7 @@ class _RejectDialogState extends State<RejectDialog> {
   @override
   Widget build(BuildContext context) {
     final transactionType = widget.transaction['transaction_type'] as String? ?? '';
-    final amount = widget.transaction['amount'] as int? ?? 0;
+    final amount = (widget.transaction['point_amount'] ?? widget.transaction['amount'] ?? 0) as int;
     final cashAmount = widget.transaction['cash_amount'] as num?;
     final userName = widget.transaction['user_name'] as String? ?? '';
     final isDeposit = transactionType == 'deposit';

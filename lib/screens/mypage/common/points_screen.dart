@@ -46,12 +46,9 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         return;
       }
 
-      // UserTypeHelper를 사용하여 리뷰어/광고주 구분
-      final isReviewer = await UserTypeHelper.isReviewer(user.uid);
-      final isOwner = await UserTypeHelper.isAdvertiserOwner(user.uid);
-
-      if (isReviewer) {
-        // 리뷰어: 개인 지갑 조회
+      // widget.userType을 직접 사용하여 리뷰어/광고주 구분
+      if (widget.userType == 'reviewer') {
+        // 리뷰어: 개인 지갑 조회 (userId 기반)
         final wallet = await WalletService.getUserWallet();
         _currentPoints = wallet?.currentPoints ?? 0;
         _isOwner = true; // 리뷰어는 항상 자신의 지갑에 대한 권한이 있음
@@ -65,7 +62,9 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
                 'type': log.amount > 0 ? 'earned' : 'spent',
                 'amount': log.amount,
                 'description': log.description ?? '포인트 거래',
-                'date': _formatDate(DateTimeUtils.toKST(log.createdAt)),
+                'date': DateTimeUtils.formatKST(
+                  DateTimeUtils.toKST(log.createdAt),
+                ),
                 'transaction_category': 'campaign',
                 'transaction_type': log.transactionType,
                 'raw_data': {
@@ -80,6 +79,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
             .toList();
       } else {
         // 광고주: owner 여부 확인 후 지갑 조회
+        final isOwner = await UserTypeHelper.isAdvertiserOwner(user.uid);
         if (isOwner) {
           // owner: 회사 지갑 조회
           final companyId = await CompanyUserService.getUserCompanyId(user.uid);
@@ -98,37 +98,39 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
 
             print('✅ 회사 포인트 내역 조회 결과: ${unifiedLogs.length}건');
             for (var log in unifiedLogs) {
+              final amount = log['point_amount'] ?? log['amount'] ?? 0;
               print(
-                '  - 거래 ID: ${log['id']}, 카테고리: ${log['transaction_category']}, 타입: ${log['transaction_type']}, 금액: ${log['amount']}, 상태: ${log['status']}',
+                '  - 거래 ID: ${log['id']}, 카테고리: ${log['transaction_category']}, 타입: ${log['transaction_type']}, 금액: $amount, 상태: ${log['status']}',
               );
             }
 
-            _pointHistory = unifiedLogs
-                .map(
-                  (log) => {
-                    'id': log['id'] ?? '',
-                    'type': log['transaction_category'] == 'cash'
+            _pointHistory = unifiedLogs.map((log) {
+              final amount = log['point_amount'] ?? log['amount'] ?? 0;
+              return {
+                'id': log['id'] ?? '',
+                'type': log['transaction_category'] == 'cash'
+                    ? (log['transaction_type'] == 'deposit'
+                          ? 'charge'
+                          : 'withdraw')
+                    : (amount > 0 ? 'earned' : 'spent'),
+                'amount': amount,
+                'description':
+                    log['description'] ??
+                    (log['transaction_category'] == 'cash'
                         ? (log['transaction_type'] == 'deposit'
-                              ? 'charge'
-                              : 'withdraw')
-                        : (log['amount'] > 0 ? 'earned' : 'spent'),
-                    'amount': log['amount'] ?? 0,
-                    'description':
-                        log['description'] ??
-                        (log['transaction_category'] == 'cash'
-                            ? (log['transaction_type'] == 'deposit'
-                                  ? '포인트 충전'
-                                  : '포인트 출금')
-                            : '포인트 거래'),
-                    'date': _formatDate(DateTimeUtils.parseKST(log['created_at'])),
-                    'status': log['status'],
-                    'transaction_category':
-                        log['transaction_category'] ?? 'campaign',
-                    'transaction_type': log['transaction_type'] ?? '',
-                    'raw_data': log, // 전체 데이터 저장
-                  },
-                )
-                .toList();
+                              ? '포인트 충전'
+                              : '포인트 출금')
+                        : '포인트 거래'),
+                'date': DateTimeUtils.formatKST(
+                  DateTimeUtils.parseKST(log['created_at']),
+                ),
+                'status': log['status'],
+                'transaction_category':
+                    log['transaction_category'] ?? 'campaign',
+                'transaction_type': log['transaction_type'] ?? '',
+                'raw_data': log, // 전체 데이터 저장
+              };
+            }).toList();
 
             print('✅ 포인트 내역 매핑 완료: ${_pointHistory.length}건');
           } else {
@@ -151,7 +153,9 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
                   'type': log.amount > 0 ? 'earned' : 'spent',
                   'amount': log.amount,
                   'description': log.description ?? '포인트 거래',
-                  'date': _formatDate(DateTimeUtils.toKST(log.createdAt)),
+                  'date': DateTimeUtils.formatKST(
+                    DateTimeUtils.toKST(log.createdAt),
+                  ),
                   'transaction_category': 'campaign',
                   'transaction_type': log.transactionType,
                   'raw_data': {
@@ -182,21 +186,6 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('포인트 정보를 불러올 수 없습니다: $e')));
       }
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTimeUtils.nowKST();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
-      return '오늘 ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays == 1) {
-      return '어제 ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}일 전';
-    } else {
-      return '${date.month}/${date.day}';
     }
   }
 
@@ -381,26 +370,38 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   }
 
   Widget _buildEmptyHistory() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.history, size: 48, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            '포인트 내역이 없습니다',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 화면 높이를 계산하여 하단 전체를 차지하도록 설정
+        final screenHeight = MediaQuery.of(context).size.height;
+        final availableHeight = screenHeight - 400; // 상단 요소들 높이 제외
+
+        return Container(
+          width: double.infinity,
+          height: availableHeight > 200 ? availableHeight : 200,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.history, size: 48, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  '포인트 내역이 없습니다',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -410,7 +411,8 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
     final transactionCategory =
         history['transaction_category'] as String? ?? 'campaign';
     // 출금(withdraw) 거래의 경우 amount를 음수로 표시
-    final rawAmount = history['amount'] as int;
+    final rawAmount =
+        (history['point_amount'] ?? history['amount'] ?? 0) as int;
     final amount =
         (transactionCategory == 'cash' && transactionType == 'withdraw')
         ? -rawAmount
@@ -480,9 +482,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
                     history['date'],
                     style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
-                  if (transactionCategory == 'cash' &&
-                      status != null &&
-                      status != 'approved') ...[
+                  if (transactionCategory == 'cash' && status != null) ...[
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -546,11 +546,18 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         ? 'reviewer-points-detail'
         : 'advertiser-points-detail';
 
-    context.pushNamed(
-      routeName,
-      pathParameters: {'id': history['id'] as String},
-      extra: history['raw_data'],
-    );
+    context
+        .pushNamed(
+          routeName,
+          pathParameters: {'id': history['id'] as String},
+          extra: history['raw_data'],
+        )
+        .then((result) {
+          // 취소 또는 변경 시 포인트 정보 다시 로드
+          if (result == true) {
+            _loadPointsData();
+          }
+        });
   }
 
   void _navigateToRefund() {
@@ -566,10 +573,11 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   }
 
   void _navigateToCharge() {
-    final routeName = widget.userType == 'reviewer'
-        ? 'reviewer-points-charge'
-        : 'advertiser-points-charge';
-    context.pushNamed(routeName).then((result) {
+    // 리뷰어는 충전 불가
+    if (widget.userType == 'reviewer') {
+      return;
+    }
+    context.pushNamed('advertiser-points-charge').then((result) {
       // 충전 신청 성공 시 포인트 정보 다시 로드
       if (result == true) {
         _loadPointsData();

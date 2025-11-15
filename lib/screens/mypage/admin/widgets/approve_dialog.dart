@@ -11,7 +11,7 @@ class ApproveDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final transactionType = transaction['transaction_type'] as String? ?? '';
-    final amount = transaction['amount'] as int? ?? 0;
+    final amount = (transaction['point_amount'] ?? transaction['amount'] ?? 0) as int;
     final cashAmount = transaction['cash_amount'] as num?;
     final userName = transaction['user_name'] as String? ?? '';
     final isDeposit = transactionType == 'deposit';

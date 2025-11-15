@@ -7,6 +7,8 @@ import '../../../widgets/custom_button.dart';
 import '../../../widgets/mypage_common_widgets.dart';
 import '../../../widgets/drawer/advertiser_drawer.dart';
 import '../../../services/campaign_service.dart';
+import '../../../services/wallet_service.dart';
+import '../../../services/company_user_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../models/campaign.dart';
 
@@ -29,11 +31,77 @@ class _AdvertiserMyPageScreenState
   int _registeredCount = 0;
   int _completedCount = 0;
   bool _isLoadingStats = true;
+  
+  // 포인트 관련 상태
+  int? _currentPoints;
+  bool _isLoadingPoints = true;
 
   @override
   void initState() {
     super.initState();
     _loadCampaignStats();
+    _loadCompanyPoints();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 화면이 다시 포커스될 때 포인트 새로고침
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final route = ModalRoute.of(context);
+      if (route?.isCurrent == true) {
+        _loadCompanyPoints();
+      }
+    });
+  }
+
+  // 회사 지갑 포인트 조회
+  Future<void> _loadCompanyPoints() async {
+    setState(() {
+      _isLoadingPoints = true;
+    });
+
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _currentPoints = 0;
+            _isLoadingPoints = false;
+          });
+        }
+        return;
+      }
+
+      // 회사 ID 조회
+      final companyId = await CompanyUserService.getUserCompanyId(user.id);
+      if (companyId == null) {
+        if (mounted) {
+          setState(() {
+            _currentPoints = 0;
+            _isLoadingPoints = false;
+          });
+        }
+        return;
+      }
+
+      // 회사 지갑 조회
+      final wallet = await WalletService.getCompanyWalletByCompanyId(companyId);
+      if (mounted) {
+        setState(() {
+          _currentPoints = wallet?.currentPoints ?? 0;
+          _isLoadingPoints = false;
+        });
+      }
+    } catch (e) {
+      print('❌ 회사 포인트 조회 실패: $e');
+      if (mounted) {
+        setState(() {
+          _currentPoints = 0;
+          _isLoadingPoints = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadCampaignStats() async {
@@ -179,6 +247,16 @@ class _AdvertiserMyPageScreenState
               },
               switchButtonText: '리뷰어 전환',
               showRating: false,
+              onProfileTap: () {
+                // 프로필 화면의 사업자 탭으로 이동
+                context.go('/mypage/profile?tab=business');
+              },
+              onPointsTap: () {
+                // 사업자 포인트 스크린으로 이동
+                context.go('/mypage/advertiser/points');
+              },
+              currentPoints: _currentPoints,
+              isLoadingPoints: _isLoadingPoints,
             ),
 
             const SizedBox(height: 16),

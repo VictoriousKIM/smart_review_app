@@ -47,34 +47,35 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
       final user = await _authService.currentUser;
       if (user == null) return;
 
-      final isReviewer = await UserTypeHelper.isReviewer(user.uid);
-      final isOwner = await UserTypeHelper.isAdvertiserOwner(user.uid);
-
-      if (isReviewer) {
-        // 리뷰어: 개인 지갑 조회
+      if (widget.userType == 'reviewer') {
+        // 리뷰어: 무조건 개인 지갑 조회
         final wallet = await WalletService.getUserWallet();
         _currentPoints = wallet?.currentPoints ?? 0;
         _walletId = wallet?.id;
         _userWallet = wallet;
         _isCompanyWallet = false;
-      } else if (isOwner) {
-        // 광고주 owner: 회사 지갑 조회
-        final companyId = await CompanyUserService.getUserCompanyId(user.uid);
-        if (companyId != null) {
-          final companyWallet =
-              await WalletService.getCompanyWalletByCompanyId(companyId);
-          _currentPoints = companyWallet?.currentPoints ?? 0;
-          _walletId = companyWallet?.id;
-          _companyWallet = companyWallet;
-          _isCompanyWallet = true;
+      } else if (widget.userType == 'advertiser') {
+        // 광고주: owner 여부 확인
+        final isOwner = await UserTypeHelper.isAdvertiserOwner(user.uid);
+        if (isOwner) {
+          // owner: 회사 지갑 조회
+          final companyId = await CompanyUserService.getUserCompanyId(user.uid);
+          if (companyId != null) {
+            final companyWallet =
+                await WalletService.getCompanyWalletByCompanyId(companyId);
+            _currentPoints = companyWallet?.currentPoints ?? 0;
+            _walletId = companyWallet?.id;
+            _companyWallet = companyWallet;
+            _isCompanyWallet = true;
+          }
+        } else {
+          // manager: 개인 지갑 조회
+          final wallet = await WalletService.getUserWallet();
+          _currentPoints = wallet?.currentPoints ?? 0;
+          _walletId = wallet?.id;
+          _userWallet = wallet;
+          _isCompanyWallet = false;
         }
-      } else {
-        // manager: 개인 지갑 조회
-        final wallet = await WalletService.getUserWallet();
-        _currentPoints = wallet?.currentPoints ?? 0;
-        _walletId = wallet?.id;
-        _userWallet = wallet;
-        _isCompanyWallet = false;
       }
 
       setState(() {

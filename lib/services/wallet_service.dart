@@ -709,4 +709,24 @@ class WalletService {
       rethrow;
     }
   }
+
+  /// 현금 거래 취소 (pending 상태만 가능)
+  static Future<bool> cancelCashTransaction({
+    required String transactionId,
+  }) async {
+    try {
+      final response = await _supabase.rpc(
+        'cancel_cash_transaction',
+        params: {
+          'p_transaction_id': transactionId,
+        },
+      );
+
+      print('✅ 현금 거래 취소 성공');
+      return response as bool;
+    } catch (e) {
+      print('❌ 현금 거래 취소 실패: $e');
+      rethrow;
+    }
+  }
 }

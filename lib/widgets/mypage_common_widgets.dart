@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/sns_platform_connection_service.dart';
+import '../services/wallet_service.dart';
 
 class MyPageCommonWidgets {
   // 상단 파란색 카드
@@ -9,10 +10,14 @@ class MyPageCommonWidgets {
     required VoidCallback onSwitchPressed,
     required String switchButtonText,
     bool showRating = false,
+    VoidCallback? onProfileTap,
+    VoidCallback? onPointsTap,
+    int? currentPoints,
+    bool isLoadingPoints = false,
   }) {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF137fec),
         borderRadius: BorderRadius.circular(16),
@@ -22,31 +27,45 @@ class MyPageCommonWidgets {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // 사용자 정보
-              Column(
+              // 사용자 정보 - 클릭 가능하게 변경
+              Expanded(
+                child: InkWell(
+                  onTap: onProfileTap,
+                  borderRadius: BorderRadius.circular(8),
+                  splashColor: Colors.white.withValues(alpha: 0.2),
+                  highlightColor: Colors.white.withValues(alpha: 0.1),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                    child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     userType,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 14,
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     userName,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 24,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
+                    ),
+                  ),
+                ),
               ),
-              // 전환 버튼
+              // 전환 버튼 (흰색 배경)
               ElevatedButton(
                 onPressed: onSwitchPressed,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                  foregroundColor: Colors.white,
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF137fec),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -58,7 +77,7 @@ class MyPageCommonWidgets {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.swap_horiz, size: 16),
+                    Icon(Icons.swap_horiz, size: 16, color: const Color(0xFF137fec).withValues(alpha: 0.7)),
                     const SizedBox(width: 4),
                     Text(switchButtonText),
                   ],
@@ -66,35 +85,57 @@ class MyPageCommonWidgets {
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // 포인트 정보
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 12),
+          // 포인트 정보 - 클릭 가능하게 변경
+          InkWell(
+            onTap: onPointsTap,
+            borderRadius: BorderRadius.circular(8),
+            splashColor: Colors.white.withValues(alpha: 0.2),
+            highlightColor: Colors.white.withValues(alpha: 0.1),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // 왼쪽: 보유 포인트 라벨
                   const Text(
                     '보유 포인트',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                    style: TextStyle(color: Colors.white, fontSize: 14),
                   ),
-                  const SizedBox(height: 4),
+                  // 오른쪽: 포인트 값 + 화살표 아이콘
                   Row(
                     children: [
-                      const Text(
-                        'OP',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      if (isLoadingPoints)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      else
+                        Text(
+                          currentPoints != null
+                              ? '${WalletService.formatPoints(currentPoints)}P'
+                              : '0P',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
                       const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ],
       ),

@@ -23,7 +23,8 @@ class DateTimeUtils {
       // ISO8601 형식 파싱
       final dateTime = DateTime.parse(dateString);
       // UTC로 간주하고 KST로 변환
-      if (dateTime.isUtc || !dateString.contains('Z') && !dateString.contains('+')) {
+      if (dateTime.isUtc ||
+          !dateString.contains('Z') && !dateString.contains('+')) {
         return dateTime.toUtc().add(kstOffset);
       }
       return toKST(dateTime);
@@ -51,21 +52,4 @@ class DateTimeUtils {
     return '${kstTime.year}-${kstTime.month.toString().padLeft(2, '0')}-${kstTime.day.toString().padLeft(2, '0')} '
         '${kstTime.hour.toString().padLeft(2, '0')}:${kstTime.minute.toString().padLeft(2, '0')}:${kstTime.second.toString().padLeft(2, '0')}';
   }
-
-  /// 상대 시간 포맷팅 (오늘, 어제, N일 전 등)
-  static String formatRelativeKST(DateTime kstTime) {
-    final now = nowKST();
-    final difference = now.difference(kstTime);
-
-    if (difference.inDays == 0) {
-      return '오늘 ${kstTime.hour.toString().padLeft(2, '0')}:${kstTime.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays == 1) {
-      return '어제 ${kstTime.hour.toString().padLeft(2, '0')}:${kstTime.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}일 전';
-    } else {
-      return '${kstTime.month}/${kstTime.day}';
-    }
-  }
 }
-

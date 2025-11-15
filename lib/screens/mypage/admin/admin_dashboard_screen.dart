@@ -5,6 +5,7 @@ import '../../../widgets/drawer/admin_drawer.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../config/supabase_config.dart';
+import '../../../services/wallet_service.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -45,8 +46,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           .select('id')
           .then((response) => response.length);
 
-      // TODO: 승인 대기 개수는 실제 승인 대기 항목 조회 필요
-      final pending = 0;
+      // 대기 중인 포인트 거래 개수 조회
+      int pending = 0;
+      try {
+        final pendingTransactions =
+            await WalletService.getPendingCashTransactions(
+              status: 'pending',
+              limit: 1000, // 충분히 큰 값으로 설정
+            );
+        pending = pendingTransactions.length;
+      } catch (e) {
+        print('대기 중 포인트 거래 개수 조회 실패: $e');
+        pending = 0;
+      }
 
       setState(() {
         _usersCount = users;
@@ -213,7 +225,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: 1.5,
+      childAspectRatio: 2.2,
       children: [
         _buildStatCard(
           title: '전체 사용자',
@@ -243,12 +255,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           },
         ),
         _buildStatCard(
-          title: '대기 중 승인',
+          title: '대기 중 포인트',
           value: _isLoadingStats ? '...' : _pendingCount.toString(),
           icon: Icons.pending_outlined,
           color: Colors.red,
           onTap: () {
-            // 승인 대기 목록으로 이동 (향후 구현)
+            context.go('/mypage/admin/points?tab=pending');
           },
         ),
       ],
@@ -269,22 +281,27 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 32),
-              const Spacer(),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
+              // 아이콘과 숫자를 같은 행에 배치
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, color: color, size: 32),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
               Text(
                 title,
                 style: const TextStyle(fontSize: 14, color: Color(0xFF666666)),
@@ -331,6 +348,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               color: Colors.orange,
               onTap: () {
                 context.go('/mypage/admin/campaigns');
+              },
+            ),
+            _buildActionButton(
+              icon: Icons.account_balance_wallet_outlined,
+              label: '포인트 관리',
+              color: Colors.teal,
+              onTap: () {
+                context.go('/mypage/admin/points');
               },
             ),
             _buildActionButton(
