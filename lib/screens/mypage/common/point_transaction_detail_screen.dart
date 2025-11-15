@@ -43,9 +43,9 @@ class _PointTransactionDetailScreenState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('거래 정보를 불러올 수 없습니다: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('거래 정보를 불러올 수 없습니다: $e')));
       }
     } finally {
       setState(() {
@@ -70,29 +70,29 @@ class _PointTransactionDetailScreenState
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _transaction == null
-              ? const Center(child: Text('거래 정보를 찾을 수 없습니다.'))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildStatusCard(),
-                      const SizedBox(height: 16),
-                      _buildTransactionInfoCard(),
-                      const SizedBox(height: 16),
-                      _buildAmountCard(),
-                      if (_transaction!['transaction_category'] == 'cash') ...[
-                        const SizedBox(height: 16),
-                        _buildCashInfoCard(),
-                      ],
-                      if (_transaction!['transaction_category'] == 'cash' &&
-                          _transaction!['status'] == 'pending') ...[
-                        const SizedBox(height: 16),
-                        _buildPendingInfoCard(),
-                      ],
-                    ],
-                  ),
-                ),
+          ? const Center(child: Text('거래 정보를 찾을 수 없습니다.'))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildStatusCard(),
+                  const SizedBox(height: 16),
+                  _buildTransactionInfoCard(),
+                  const SizedBox(height: 16),
+                  _buildAmountCard(),
+                  if (_transaction!['transaction_category'] == 'cash') ...[
+                    const SizedBox(height: 16),
+                    _buildCashInfoCard(),
+                  ],
+                  if (_transaction!['transaction_category'] == 'cash' &&
+                      _transaction!['status'] == 'pending') ...[
+                    const SizedBox(height: 16),
+                    _buildPendingInfoCard(),
+                  ],
+                ],
+              ),
+            ),
     );
   }
 
@@ -172,9 +172,7 @@ class _PointTransactionDetailScreenState
               children: [
                 Text(
                   transactionCategory == 'cash'
-                      ? (transactionType == 'deposit'
-                          ? '포인트 충전'
-                          : '포인트 출금')
+                      ? (transactionType == 'deposit' ? '포인트 충전' : '포인트 출금')
                       : '포인트 거래',
                   style: const TextStyle(
                     fontSize: 18,
@@ -237,10 +235,7 @@ class _PointTransactionDetailScreenState
           ],
           if (createdAt != null) ...[
             const SizedBox(height: 12),
-            _buildInfoRow(
-              '거래 일시',
-              _formatDateTime(DateTime.parse(createdAt)),
-            ),
+            _buildInfoRow('거래 일시', _formatDateTime(DateTime.parse(createdAt))),
           ],
           if (_transaction!['completed_at'] != null) ...[
             const SizedBox(height: 12),
@@ -257,9 +252,16 @@ class _PointTransactionDetailScreenState
   }
 
   Widget _buildAmountCard() {
-    final amount = _transaction!['amount'] as int? ?? 0;
-    final isPositive = amount > 0;
     final transactionType = _transaction!['transaction_type'] as String? ?? '';
+    final transactionCategory =
+        _transaction!['transaction_category'] as String? ?? 'campaign';
+    // 출금(withdraw) 거래의 경우 amount를 음수로 표시
+    final rawAmount = _transaction!['amount'] as int? ?? 0;
+    final amount =
+        (transactionCategory == 'cash' && transactionType == 'withdraw')
+        ? -rawAmount
+        : rawAmount;
+    final isPositive = amount > 0;
 
     return Container(
       width: double.infinity,
@@ -295,10 +297,7 @@ class _PointTransactionDetailScreenState
                 transactionType == 'deposit' || transactionType == 'earn'
                     ? '충전/적립 포인트'
                     : '출금/사용 포인트',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
               Text(
                 '${isPositive ? '+' : ''}${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
@@ -319,10 +318,7 @@ class _PointTransactionDetailScreenState
               children: [
                 Text(
                   '실제 현금 금액',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
                 Text(
                   '${(_transaction!['cash_amount'] as num).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
@@ -392,9 +388,7 @@ class _PointTransactionDetailScreenState
             _buildInfoRow('계좌번호', accountNumber),
             const SizedBox(height: 12),
           ],
-          if (accountHolder != null) ...[
-            _buildInfoRow('예금주', accountHolder),
-          ],
+          if (accountHolder != null) ...[_buildInfoRow('예금주', accountHolder)],
         ],
       ),
     );
@@ -407,9 +401,7 @@ class _PointTransactionDetailScreenState
       decoration: BoxDecoration(
         color: Colors.orange.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -430,10 +422,7 @@ class _PointTransactionDetailScreenState
                 const SizedBox(height: 4),
                 Text(
                   '관리자의 승인을 기다리고 있습니다.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange[700],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.orange[700]),
                 ),
               ],
             ),
@@ -451,10 +440,7 @@ class _PointTransactionDetailScreenState
           width: 100,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
         ),
         Expanded(
@@ -475,4 +461,3 @@ class _PointTransactionDetailScreenState
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
-

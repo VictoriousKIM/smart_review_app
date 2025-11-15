@@ -96,12 +96,39 @@ CREATE OR REPLACE FUNCTION "public"."update_wallet_balance_on_cash_transaction"(
     SET "search_path" TO ''
     AS $$
 BEGIN
-    -- completed 상태로 변경될 때만 잔액 업데이트
-    IF NEW.status = 'completed' AND (OLD.status IS NULL OR OLD.status != 'completed') THEN
-        UPDATE public.wallets
-        SET current_points = current_points + NEW.point_amount,
-            updated_at = NOW()
-        WHERE id = NEW.wallet_id;
+    -- 입금(deposit)의 경우: approved 또는 completed 상태일 때 잔액 증가
+    -- 출금(withdraw)의 경우: completed 상태일 때만 잔액 차감
+    IF NEW.transaction_type = 'deposit' THEN
+        -- 입금: approved 또는 completed 상태로 변경될 때 잔액 증가
+        IF (NEW.status = 'approved' OR NEW.status = 'completed') 
+           AND (OLD.status IS NULL OR (OLD.status != 'approved' AND OLD.status != 'completed')) THEN
+            UPDATE public.wallets
+            SET current_points = current_points + NEW.point_amount,
+                updated_at = NOW()
+            WHERE id = NEW.wallet_id;
+        -- 입금: approved/completed에서 다른 상태로 변경될 때 잔액 차감 (롤백)
+        ELSIF (OLD.status = 'approved' OR OLD.status = 'completed')
+              AND NEW.status NOT IN ('approved', 'completed') THEN
+            UPDATE public.wallets
+            SET current_points = current_points - OLD.point_amount,
+                updated_at = NOW()
+            WHERE id = NEW.wallet_id;
+        END IF;
+    ELSIF NEW.transaction_type = 'withdraw' THEN
+        -- 출금: completed 상태로 변경될 때만 잔액 차감
+        IF NEW.status = 'completed' 
+           AND (OLD.status IS NULL OR OLD.status != 'completed') THEN
+            UPDATE public.wallets
+            SET current_points = current_points - NEW.point_amount,
+                updated_at = NOW()
+            WHERE id = NEW.wallet_id;
+        -- 출금: completed에서 다른 상태로 변경될 때 잔액 증가 (롤백)
+        ELSIF OLD.status = 'completed' AND NEW.status != 'completed' THEN
+            UPDATE public.wallets
+            SET current_points = current_points + OLD.point_amount,
+                updated_at = NOW()
+            WHERE id = NEW.wallet_id;
+        END IF;
     END IF;
     RETURN NEW;
 END;

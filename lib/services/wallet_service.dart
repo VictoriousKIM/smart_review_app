@@ -670,4 +670,42 @@ class WalletService {
       rethrow;
     }
   }
+
+  /// 대기중인 현금 거래 목록 조회 (Admin 전용)
+  static Future<List<Map<String, dynamic>>> getPendingCashTransactions({
+    String?
+    status, // 'pending', 'approved', 'rejected', 'completed', 'cancelled'
+    String? transactionType, // 'deposit', 'withdraw'
+    String? userType, // 'advertiser', 'reviewer'
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final response =
+          await _supabase.rpc(
+                'get_pending_cash_transactions',
+                params: {
+                  'p_status': status,
+                  'p_transaction_type': transactionType,
+                  'p_user_type': userType,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
+
+      final transactions = response
+          .map((e) => e as Map<String, dynamic>)
+          .toList();
+
+      print('✅ 대기중인 현금 거래 목록 조회 성공: ${transactions.length}건');
+      return transactions;
+    } catch (e) {
+      print('❌ 대기중인 현금 거래 목록 조회 실패: $e');
+      if (e.toString().contains('Unauthorized')) {
+        throw Exception('관리자 권한이 필요합니다');
+      }
+      rethrow;
+    }
+  }
 }

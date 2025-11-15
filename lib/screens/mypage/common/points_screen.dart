@@ -288,14 +288,6 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '≈ ${(_currentPoints / 1000).toStringAsFixed(0)}원',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white.withValues(alpha: 0.8),
-            ),
-          ),
         ],
       ),
     );
@@ -413,11 +405,17 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
 
   Widget _buildHistoryItem(Map<String, dynamic> history) {
     final isEarned = history['type'] == 'earned' || history['type'] == 'charge';
-    final amount = history['amount'] as int;
-    final isPositive = amount > 0;
-    final status = history['status'] as String? ?? 'completed';
+    final transactionType = history['transaction_type'] as String? ?? '';
     final transactionCategory =
         history['transaction_category'] as String? ?? 'campaign';
+    // 출금(withdraw) 거래의 경우 amount를 음수로 표시
+    final rawAmount = history['amount'] as int;
+    final amount =
+        (transactionCategory == 'cash' && transactionType == 'withdraw')
+        ? -rawAmount
+        : rawAmount;
+    final isPositive = amount > 0;
+    final status = history['status'] as String? ?? 'completed';
 
     return InkWell(
       onTap: () {

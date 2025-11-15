@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict I0HHdue5gDZfAEOUtbKtiuKTxmMiyV2eKUbYnbaXKak6wMCfB4Ge64UOBBtwJmM
+-- \restrict O0rw834EjnHsRdbrBBo0V7xqqyxHdJkK4xDDlyRxzrHzzBeO2HIZs2lMSvDWsA2
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -193,7 +193,7 @@ INSERT INTO "public"."users" ("id", "created_at", "updated_at", "display_name", 
 	('f0214704-7b33-4168-829c-c1e0fcb96ce9', '2025-11-04 01:11:54.281747+00', '2025-11-04 01:11:54.281747+00', 'reviewer@example.com', 'user', 'active'),
 	('420e4945-845a-4e93-849c-3fba45632cf3', '2025-11-04 01:12:09.087909+00', '2025-11-04 01:12:09.087909+00', 'company_owner@example.com', 'user', 'active'),
 	('201cf9ca-15f0-45a1-8033-b9fd08a99445', '2025-11-04 01:13:32.651223+00', '2025-11-04 01:13:32.651223+00', 'company_manger@example.com', 'user', 'active'),
-	('2234639c-59f0-4861-8448-103febfa612f', '2025-11-03 08:11:33.033199+00', '2025-11-11 01:33:23.174891+00', 'dev1', 'user', 'active');
+	('2234639c-59f0-4861-8448-103febfa612f', '2025-11-03 08:11:33.033199+00', '2025-11-15 03:10:08.343864+00', 'dev1', 'admin', 'active');
 
 
 --
@@ -340,6 +340,6 @@ SELECT pg_catalog.setval('"supabase_functions"."hooks_id_seq"', 1, false);
 -- PostgreSQL database dump complete
 --
 
--- \unrestrict I0HHdue5gDZfAEOUtbKtiuKTxmMiyV2eKUbYnbaXKak6wMCfB4Ge64UOBBtwJmM
+-- \unrestrict O0rw834EjnHsRdbrBBo0V7xqqyxHdJkK4xDDlyRxzrHzzBeO2HIZs2lMSvDWsA2
 
 RESET ALL;

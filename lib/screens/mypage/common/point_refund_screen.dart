@@ -105,7 +105,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
     if (amount < _minRefundAmount) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('최소 환급 가능 포인트는 $_minRefundAmount P입니다.'),
+          content: Text('최소 출금 가능 포인트는 $_minRefundAmount P입니다.'),
         ),
       );
       return;
@@ -113,7 +113,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
 
     if (amount > _currentPoints) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('보유 포인트보다 많은 금액을 환급할 수 없습니다.')),
+        const SnackBar(content: Text('보유 포인트보다 많은 금액을 출금할 수 없습니다.')),
       );
       return;
     }
@@ -148,19 +148,19 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
         bankName: bankName,
         accountNumber: accountNumber,
         accountHolder: accountHolder,
-        description: '포인트 환급 요청',
+        description: '포인트 출금 요청',
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('환급 신청이 완료되었습니다.')),
+          const SnackBar(content: Text('출금 신청이 완료되었습니다.')),
         );
         context.pop(true); // 성공 시 true 반환
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('환급 신청 중 오류가 발생했습니다: $e')),
+          SnackBar(content: Text('출금 신청 중 오류가 발생했습니다: $e')),
         );
       }
     }
@@ -171,7 +171,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
       appBar: AppBar(
-        title: const Text('포인트 환급'),
+        title: const Text('포인트 출금'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -194,7 +194,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
                   _buildAccountInfoSection(),
                   const SizedBox(height: 24),
 
-                  // 환급 금액
+                  // 출금 금액
                   _buildRefundAmountSection(),
                   const SizedBox(height: 24),
 
@@ -202,7 +202,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
                   _buildNoticeSection(),
                   const SizedBox(height: 24),
 
-                  // 환급 신청 버튼
+                  // 출금 신청 버튼
                   _buildRefundButton(),
                 ],
               ),
@@ -337,7 +337,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
         const Row(
           children: [
             Text(
-              '환급금액',
+              '출금금액',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -358,7 +358,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
           controller: _amountController,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
-            hintText: '최소 환급 가능 포인트 ${_minRefundAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+            hintText: '최소 출금 가능 포인트 ${_minRefundAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
             border: const OutlineInputBorder(),
             filled: true,
             fillColor: Colors.white,
@@ -393,7 +393,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '* 환급신청 전 꼭 확인해주세요 *',
+            '* 출금신청 전 꼭 확인해주세요 *',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -402,7 +402,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
           ),
           const SizedBox(height: 12),
           _buildNoticeItem(
-              '최소 환급 가능 포인트는 ${_minRefundAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P입니다.'),
+              '최소 출금 가능 포인트는 ${_minRefundAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P입니다.'),
           _buildNoticeItem(
               '입력하신 정보와 예금주 정보가 일치해야 정상 출금 처리가 가능합니다.'),
           _buildNoticeItem(
@@ -453,7 +453,7 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
           ),
         ),
         child: const Text(
-          '환급신청',
+          '출금신청',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
