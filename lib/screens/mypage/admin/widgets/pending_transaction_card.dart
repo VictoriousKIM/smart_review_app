@@ -104,37 +104,37 @@ class PendingTransactionCard extends StatelessWidget {
                             color: Color(0xFF333333),
                           ),
                         ),
-                        const SizedBox(height: 4),
+                          const SizedBox(height: 4),
                         // 포인트 (줄바꿈)
-                        Text(
+                              Text(
                           _buildAmountText(amount),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF333333),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF333333),
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 8),
                         // 날짜
                         if (createdAt != null)
-                          Text(
+                            Text(
                             DateTimeUtils.formatKST(DateTimeUtils.parseKST(createdAt)),
-                            style: TextStyle(
+                              style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[600],
-                            ),
-                          ),
-                      ],
-                    ),
+                        ),
+                      ),
+                    ],
                   ),
+                ),
                   const SizedBox(width: 16),
                   // 오른쪽 열: 액션 버튼 (아래쪽 정렬)
-                  if (isPending) ...[
+              if (isPending) ...[
                     OutlinedButton(
-                      onPressed: onReject,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
+                        onPressed: onReject,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 12,
@@ -144,10 +144,10 @@ class PendingTransactionCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton(
-                      onPressed: onApprove,
-                      style: ElevatedButton.styleFrom(
+                        onPressed: onApprove,
+                        style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF137fec),
-                        foregroundColor: Colors.white,
+                          foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 12,
@@ -166,8 +166,8 @@ class PendingTransactionCard extends StatelessWidget {
                       ),
                       child: const Text('상세보기'),
                     ),
-                ],
-              ),
+                  ],
+                ),
             ],
           ),
         ),
