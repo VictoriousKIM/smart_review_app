@@ -179,7 +179,6 @@ class CampaignLogService {
               title,
               campaign_type,
               product_image_url,
-              platform_logo_url,
               platform,
               companies!inner(
                 id,
@@ -257,7 +256,6 @@ class CampaignLogService {
               title,
               campaign_type,
               product_image_url,
-              platform_logo_url,
               platform,
               companies!inner(
                 id,

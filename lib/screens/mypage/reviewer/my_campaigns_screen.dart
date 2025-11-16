@@ -298,26 +298,12 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
                         ),
                         const SizedBox(height: 4),
                         if (campaign.platform.isNotEmpty)
-                          Row(
-                            children: [
-                              if (campaign.platformLogoUrl.isNotEmpty)
-                                Image.network(
-                                  campaign.platformLogoUrl,
-                                  width: 16,
-                                  height: 16,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const SizedBox.shrink(),
-                                ),
-                              if (campaign.platformLogoUrl.isNotEmpty)
-                                const SizedBox(width: 4),
-                              Text(
-                                campaign.platform,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
+                          Text(
+                            campaign.platform,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
                           ),
                         const SizedBox(height: 8),
                         // 상태 표시

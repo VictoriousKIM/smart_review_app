@@ -12,9 +12,11 @@ import '../../services/campaign_image_service.dart';
 import '../../widgets/image_crop_editor.dart';
 import '../../services/campaign_service.dart';
 import '../../services/wallet_service.dart';
+import '../../services/cloudflare_workers_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../config/supabase_config.dart';
+import '../../utils/error_handler.dart';
 
 class CampaignCreationScreen extends ConsumerStatefulWidget {
   const CampaignCreationScreen({super.key});
@@ -42,6 +44,9 @@ class _CampaignCreationScreenState
   bool _isLoadingImage = false;
   bool _isEditingImage = false;
   bool _isCreatingCampaign = false;
+  bool _isUploadingImage = false;
+  double _uploadProgress = 0.0;
+  String? _lastCampaignCreationId; // 중복 호출 방지용
 
   // 컨트롤러들
   final _keywordController = TextEditingController();
@@ -52,7 +57,6 @@ class _CampaignCreationScreenState
   final _productNumberController = TextEditingController();
   final _paymentAmountController = TextEditingController();
   final _reviewRewardController = TextEditingController();
-  final _productDescriptionController = TextEditingController();
   final _reviewTextLengthController = TextEditingController(text: '100');
   final _reviewImageCountController = TextEditingController(text: '1');
   final _maxParticipantsController = TextEditingController(text: '10');
@@ -63,6 +67,7 @@ class _CampaignCreationScreenState
   String _campaignType = 'reviewer';
   String _platform = 'coupang';
   String _paymentType = 'platform';
+  String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
   String? _productProvisionType;
   String _productProvisionOther = '';
   bool _onlyAllowedReviewers = false;
@@ -147,7 +152,6 @@ class _CampaignCreationScreenState
     _productNumberController.dispose();
     _paymentAmountController.dispose();
     _reviewRewardController.dispose();
-    _productDescriptionController.dispose();
     _reviewTextLengthController.dispose();
     _reviewImageCountController.dispose();
     _maxParticipantsController.dispose();
@@ -370,8 +374,11 @@ class _CampaignCreationScreenState
               .toString();
           _sellerController.text = extractedData['seller'] ?? '';
           _productNumberController.text = extractedData['productNumber'] ?? '';
-          _paymentAmountController.text = (extractedData['paymentAmount'] ?? 0)
-              .toString();
+          _paymentAmountController.text =
+              (extractedData['productPrice'] ??
+                      extractedData['paymentAmount'] ??
+                      0)
+                  .toString();
 
           _ignoreCostListeners = false;
           _calculateCost();
@@ -743,7 +750,234 @@ class _CampaignCreationScreenState
     );
   }
 
+  // 상품 이미지 업로드 (Presigned URL 방식) - 재시도 로직 포함
+  Future<String?> _uploadProductImage(
+    Uint8List imageBytes, {
+    int maxRetries = 3,
+    bool showRetryDialog = true,
+  }) async {
+    int attempt = 0;
+
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        setState(() {
+          _isUploadingImage = true;
+          _uploadProgress = 0.0;
+          _errorMessage = null;
+        });
+
+        final user = SupabaseConfig.client.auth.currentUser;
+        if (user == null) {
+          throw Exception('로그인이 필요합니다.');
+        }
+
+        // 파일명 생성
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final fileName = 'product_${timestamp}.jpg';
+
+        // 1. Presigned URL 요청
+        setState(() {
+          _uploadProgress = 0.1;
+        });
+
+        final presignedUrlResponse =
+            await CloudflareWorkersService.getPresignedUrl(
+              fileName: fileName,
+              userId: user.id,
+              contentType: 'image/jpeg',
+              fileType: 'campaign-images',
+              method: 'PUT',
+            ).timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                throw TimeoutException('Presigned URL 요청 시간 초과');
+              },
+            );
+
+        if (!presignedUrlResponse.success) {
+          throw Exception('Presigned URL 생성 실패');
+        }
+
+        // 2. Presigned URL로 R2에 직접 업로드
+        setState(() {
+          _uploadProgress = 0.3;
+        });
+
+        await CloudflareWorkersService.uploadToPresignedUrl(
+          presignedUrl: presignedUrlResponse.url,
+          fileBytes: imageBytes,
+          contentType: 'image/jpeg',
+        ).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw TimeoutException('이미지 업로드 시간 초과');
+          },
+        );
+
+        // 3. Public URL 생성 (Cloudflare Workers를 통해 제공)
+        // R2 Public URL은 직접 접근이 안 될 수 있으므로 Workers를 통해 제공
+        final publicUrl =
+            '${SupabaseConfig.workersApiUrl}/api/files/${presignedUrlResponse.filePath}';
+
+        setState(() {
+          _uploadProgress = 1.0;
+          _isUploadingImage = false;
+        });
+
+        return publicUrl;
+      } catch (e) {
+        // 에러 타입 감지 및 로깅
+        final errorType = ErrorHandler.detectErrorType(e);
+        ErrorHandler.handleNetworkError(
+          e,
+          context: {
+            'operation': 'upload_product_image',
+            'attempt': attempt,
+            'maxRetries': maxRetries,
+          },
+        );
+
+        // 사용자 친화적 에러 메시지 생성
+        final userFriendlyMessage = ErrorHandler.getUserFriendlyMessage(
+          errorType,
+          e.toString(),
+        );
+
+        // 재시도 불가능한 에러인 경우 즉시 종료
+        if (_isNonRetryableError(e)) {
+          setState(() {
+            _errorMessage = userFriendlyMessage;
+            _isUploadingImage = false;
+          });
+          return null;
+        }
+
+        // 마지막 시도인 경우
+        if (attempt >= maxRetries) {
+          setState(() {
+            _errorMessage = userFriendlyMessage;
+            _isUploadingImage = false;
+          });
+          return null;
+        }
+
+        // 재시도 가능한 경우 다이얼로그 표시
+        if (showRetryDialog && mounted) {
+          final shouldRetry = await _showRetryDialog(
+            context,
+            userFriendlyMessage,
+            attempt,
+            maxRetries,
+          );
+
+          if (!shouldRetry) {
+            // 사용자가 취소
+            setState(() {
+              _isUploadingImage = false;
+            });
+            return null;
+          }
+        }
+
+        // 재시도 전 대기 (지수 백오프)
+        setState(() {
+          _uploadProgress = 0.0;
+        });
+        await Future.delayed(Duration(seconds: attempt * 2));
+      }
+    }
+
+    setState(() {
+      _isUploadingImage = false;
+    });
+    return null;
+  }
+
+  // 재시도 불가능한 에러인지 확인
+  bool _isNonRetryableError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    // 인증 에러는 재시도 불가
+    if (errorString.contains('unauthorized') ||
+        errorString.contains('로그인이 필요') ||
+        errorString.contains('auth')) {
+      return true;
+    }
+
+    // 잘못된 요청은 재시도 불가
+    if (errorString.contains('bad request') ||
+        errorString.contains('400') ||
+        errorString.contains('invalid')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // 재시도 다이얼로그 표시
+  Future<bool> _showRetryDialog(
+    BuildContext context,
+    String errorMessage,
+    int currentAttempt,
+    int maxRetries,
+  ) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('업로드 실패'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(errorMessage),
+                  const SizedBox(height: 16),
+                  Text(
+                    '시도 횟수: $currentAttempt / $maxRetries',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '다시 시도하시겠습니까?',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('취소'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('다시 시도'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+  }
+
   Future<void> _createCampaign() async {
+    // ✅ 즉시 체크 (setState 전에) - 중복 호출 방지
+    if (_isCreatingCampaign) {
+      debugPrint('⚠️ 캠페인 생성이 이미 진행 중입니다.');
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
 
     if (_totalCost > _currentBalance) {
@@ -754,15 +988,83 @@ class _CampaignCreationScreenState
       return;
     }
 
+    // ✅ 생성 시도 ID 생성 (중복 방지용)
+    final creationId = DateTime.now().millisecondsSinceEpoch.toString();
+    if (_lastCampaignCreationId == creationId) {
+      debugPrint('⚠️ 동일한 생성 시도가 감지되었습니다.');
+      return;
+    }
+    _lastCampaignCreationId = creationId;
+
+    // ✅ 즉시 플래그 설정 (setState 전에)
+    _isCreatingCampaign = true;
+
     setState(() {
       _isCreatingCampaign = true;
       _errorMessage = null;
     });
 
     try {
+      // ✅ 이미지 업로드
+      String? productImageUrl;
+      if (_productImage != null) {
+        productImageUrl = await _uploadProductImage(_productImage!);
+        if (productImageUrl == null) {
+          // 업로드 실패 시 생성 중단
+          setState(() {
+            _isCreatingCampaign = false;
+          });
+          return;
+        }
+      } else if (_capturedImage != null) {
+        productImageUrl = await _uploadProductImage(_capturedImage!);
+        if (productImageUrl == null) {
+          setState(() {
+            _isCreatingCampaign = false;
+          });
+          return;
+        }
+      }
+
+      // ✅ review_type에 따른 값 설정
+      int? reviewTextLength;
+      int? reviewImageCount;
+
+      if (_reviewType == 'star_only') {
+        reviewTextLength = null;
+        reviewImageCount = null;
+      } else if (_reviewType == 'star_text') {
+        reviewTextLength = int.tryParse(_reviewTextLengthController.text);
+        if (reviewTextLength == null || reviewTextLength <= 0) {
+          setState(() {
+            _errorMessage = '리뷰 텍스트 최소 글자 수를 입력해주세요';
+            _isCreatingCampaign = false;
+          });
+          return;
+        }
+        reviewImageCount = null;
+      } else if (_reviewType == 'star_text_image') {
+        reviewTextLength = int.tryParse(_reviewTextLengthController.text);
+        reviewImageCount = int.tryParse(_reviewImageCountController.text);
+        if (reviewTextLength == null || reviewTextLength <= 0) {
+          setState(() {
+            _errorMessage = '리뷰 텍스트 최소 글자 수를 입력해주세요';
+            _isCreatingCampaign = false;
+          });
+          return;
+        }
+        if (reviewImageCount == null || reviewImageCount <= 0) {
+          setState(() {
+            _errorMessage = '사진 최소 개수를 입력해주세요';
+            _isCreatingCampaign = false;
+          });
+          return;
+        }
+      }
+
       final response = await _campaignService.createCampaignV2(
         title: _productNameController.text.trim(),
-        description: _productDescriptionController.text.trim(),
+        description: '', // ✅ product_description 제거
         campaignType: _campaignType,
         platform: _platform,
         reviewReward: int.tryParse(_reviewRewardController.text) ?? 0,
@@ -774,18 +1076,27 @@ class _CampaignCreationScreenState
         quantity: int.tryParse(_quantityController.text) ?? 1,
         seller: _sellerController.text.trim(),
         productNumber: _productNumberController.text.trim(),
-        paymentAmount: int.tryParse(_paymentAmountController.text) ?? 0,
+        productName: _productNameController.text.trim(), // ✅ 추가
+        productPrice:
+            int.tryParse(_paymentAmountController.text) ??
+            0, // ✅ paymentAmount를 productPrice로 변경
         reviewType: _reviewType,
-        reviewTextLength: int.tryParse(_reviewTextLengthController.text) ?? 100,
-        reviewImageCount: int.tryParse(_reviewImageCountController.text) ?? 0,
+        reviewTextLength: reviewTextLength, // ✅ NULL 가능
+        reviewImageCount: reviewImageCount, // ✅ NULL 가능
         preventProductDuplicate: _preventProductDuplicate,
         preventStoreDuplicate: _preventStoreDuplicate,
         duplicatePreventDays:
             int.tryParse(_duplicateCheckDaysController.text) ?? 0,
         paymentMethod: _paymentType,
+        productImageUrl: productImageUrl,
+        purchaseMethod: _purchaseMethod, // ✅ 추가
       );
 
       if (response.success) {
+        // ✅ 성공 시 즉시 플래그 해제
+        _isCreatingCampaign = false;
+        _lastCampaignCreationId = null;
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -793,21 +1104,33 @@ class _CampaignCreationScreenState
               backgroundColor: Colors.green,
             ),
           );
-          context.go('/mypage/advertiser/my-campaigns');
+          // RPC는 이미 완료되었으므로, 강제 새로고침 플래그와 함께 이동
+          context.go('/mypage/advertiser/my-campaigns?refresh=true');
         }
       } else {
+        // ✅ 에러 시에도 플래그 해제
+        _isCreatingCampaign = false;
+        _lastCampaignCreationId = null;
+
         setState(() {
           _errorMessage = response.error ?? '캠페인 생성에 실패했습니다.';
         });
       }
     } catch (e) {
+      // ✅ 예외 시에도 플래그 해제
+      _isCreatingCampaign = false;
+      _lastCampaignCreationId = null;
+
       setState(() {
         _errorMessage = '예상치 못한 오류: $e';
       });
     } finally {
-      setState(() {
-        _isCreatingCampaign = false;
-      });
+      // ✅ 최종적으로 플래그 해제
+      if (mounted) {
+        setState(() {
+          _isCreatingCampaign = false;
+        });
+      }
     }
   }
 
@@ -884,17 +1207,48 @@ class _CampaignCreationScreenState
               const SizedBox(height: 24),
 
               RepaintBoundary(child: _buildCostSection()),
+              const SizedBox(height: 24),
+
+              if (_isUploadingImage) ...[
+                RepaintBoundary(child: _buildUploadProgressSection()),
+                const SizedBox(height: 24),
+              ],
+
               const SizedBox(height: 32),
 
               RepaintBoundary(
-                child: CustomButton(
-                  text: '캠페인 생성하기',
-                  onPressed: _canCreateCampaign() && !_isCreatingCampaign
-                      ? _createCampaign
-                      : null,
-                  isLoading: _isCreatingCampaign,
-                  backgroundColor: const Color(0xFF137fec),
-                  textColor: Colors.white,
+                child: AbsorbPointer(
+                  absorbing:
+                      !_canCreateCampaign() ||
+                      _isCreatingCampaign ||
+                      _isUploadingImage,
+                  child: Opacity(
+                    opacity:
+                        (_canCreateCampaign() &&
+                            !_isCreatingCampaign &&
+                            !_isUploadingImage)
+                        ? 1.0
+                        : 0.6,
+                    child: CustomButton(
+                      text: '캠페인 생성하기',
+                      onPressed:
+                          _canCreateCampaign() &&
+                              !_isCreatingCampaign &&
+                              !_isUploadingImage
+                          ? () {
+                              // 중복 호출 방지: 즉시 체크
+                              if (_isCreatingCampaign) {
+                                debugPrint('⚠️ 캠페인 생성이 이미 진행 중입니다.');
+                                return;
+                              }
+                              _createCampaign();
+                            }
+                          : null,
+                      isLoading: _isCreatingCampaign || _isUploadingImage,
+                      backgroundColor: const Color(0xFF137fec),
+                      textColor: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1248,12 +1602,54 @@ class _CampaignCreationScreenState
             const SizedBox(height: 16),
             CustomTextField(
               controller: _paymentAmountController,
-              labelText: '결제금액 *',
+              labelText: '상품가격 *', // ✅ "결제금액"에서 "상품가격"으로 변경
               hintText: '13800',
               keyboardType: TextInputType.number,
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return '결제금액을 입력해주세요';
+                  return '상품가격을 입력해주세요';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _purchaseMethod,
+              decoration: const InputDecoration(
+                labelText: '구매방법 *',
+                border: OutlineInputBorder(),
+                helperText: '상품 구매 시 사용할 방법을 선택하세요',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'mobile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.smartphone, size: 20),
+                      SizedBox(width: 8),
+                      Text('모바일'),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'pc',
+                  child: Row(
+                    children: [
+                      Icon(Icons.computer, size: 20),
+                      SizedBox(width: 8),
+                      Text('PC'),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _purchaseMethod = value!;
+                });
+              },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return '구매방법을 선택해주세요';
                 }
                 return null;
               },
@@ -1294,13 +1690,7 @@ class _CampaignCreationScreenState
                 },
               ),
             ],
-            const SizedBox(height: 16),
-            CustomTextField(
-              controller: _productDescriptionController,
-              labelText: '제품 설명',
-              hintText: '캠페인에 대한 상세 설명을 입력하세요',
-              maxLines: 3,
-            ),
+            // ✅ product_description 필드 제거됨
           ],
         ),
       ),
@@ -1598,6 +1988,44 @@ class _CampaignCreationScreenState
     );
   }
 
+  Widget _buildUploadProgressSection() {
+    return Card(
+      elevation: 2,
+      color: Colors.blue[50],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cloud_upload, color: Colors.blue[800]),
+                const SizedBox(width: 8),
+                const Text(
+                  '이미지 업로드 중',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: _uploadProgress > 0 ? _uploadProgress : null,
+              backgroundColor: Colors.blue[100],
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[700]!),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _uploadProgress > 0
+                  ? '업로드 진행 중... (${(_uploadProgress * 100).toStringAsFixed(0)}%)'
+                  : '업로드 준비 중...',
+              style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCostSection() {
     return Card(
       elevation: 2,
@@ -1767,7 +2195,9 @@ class _CampaignCreationScreenState
         _startDateTime != null &&
         _endDateTime != null &&
         _totalCost <= _currentBalance &&
-        (int.tryParse(maxParticipants) ?? 0) > 0;
+        (int.tryParse(maxParticipants) ?? 0) > 0 &&
+        !_isUploadingImage &&
+        !_isCreatingCampaign; // ✅ 중복 호출 방지
   }
 
   void _updateDateTimeControllers() {

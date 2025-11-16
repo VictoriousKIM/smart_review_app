@@ -258,13 +258,14 @@ $$;
 ALTER FUNCTION "public"."check_user_exists"("p_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text" DEFAULT NULL::"text", "p_platform" "text" DEFAULT NULL::"text", "p_platform_logo_url" "text" DEFAULT NULL::"text") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text" DEFAULT NULL::"text", "p_platform" "text" DEFAULT NULL::"text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
 DECLARE
   v_user_id uuid;
   v_company_id uuid;
+  v_wallet_id uuid;
   v_current_points integer;
   v_required_points integer;
   v_campaign_id uuid;
@@ -289,13 +290,14 @@ BEGIN
   END IF;
   
   -- 3. 회사 지갑 조회 (FOR UPDATE로 락)
-  SELECT cw.current_points 
-  INTO v_current_points
-  FROM public.company_wallets cw
+  SELECT cw.id, cw.current_points 
+  INTO v_wallet_id, v_current_points
+  FROM public.wallets cw
   WHERE cw.company_id = v_company_id
+    AND cw.user_id IS NULL
   FOR UPDATE;
   
-  IF v_current_points IS NULL THEN
+  IF v_wallet_id IS NULL OR v_current_points IS NULL THEN
     RAISE EXCEPTION '회사 지갑이 없습니다';
   END IF;
   
@@ -309,39 +311,38 @@ BEGIN
   END IF;
   
   -- 6. 포인트 차감
-  UPDATE public.company_wallets
+  UPDATE public.wallets
   SET current_points = current_points - v_required_points,
       updated_at = NOW()
-  WHERE company_id = v_company_id;
+  WHERE company_id = v_company_id
+    AND user_id IS NULL;
   
-  -- 7. 캠페인 생성
+  -- 7. 캠페인 생성 (platform_logo_url 제거)
   INSERT INTO public.campaigns (
     title, description, company_id, user_id,
-    campaign_type, product_price, review_reward,
+    campaign_type, product_price, review_reward, review_cost,
     max_participants, current_participants,
     start_date, end_date, status,
-    product_image_url, platform, platform_logo_url,
+    product_image_url, platform,
     created_at, updated_at
   ) VALUES (
     p_title, p_description, v_company_id, v_user_id,
-    p_campaign_type, p_product_price, p_review_reward,
+    p_campaign_type, p_product_price, p_review_reward, p_review_reward,
     p_max_participants, 0,
     p_start_date, p_end_date, 'active',
-    p_product_image_url, p_platform, p_platform_logo_url,
+    p_product_image_url, p_platform,
     NOW(), NOW()
   ) RETURNING id INTO v_campaign_id;
   
   -- 8. 포인트 로그 기록
-  INSERT INTO public.company_point_logs (
-    company_id, transaction_type, amount,
-    description, related_entity_type, related_entity_id,
+  INSERT INTO public.point_transactions (
+    wallet_id, transaction_type, amount,
+    campaign_id, description,
     created_by_user_id, created_at
   ) VALUES (
-    v_company_id, 'spend', -v_required_points,
-    '캠페인 생성: ' || p_title,
-    'campaign', v_campaign_id,
-    v_user_id,
-    NOW()
+    v_wallet_id, 'spend', -v_required_points,
+    v_campaign_id, '캠페인 생성: ' || p_title,
+    v_user_id, NOW()
   );
   
   -- 9. 결과 반환
@@ -360,123 +361,151 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text", "p_platform_logo_url" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_platform_logo_url" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_payment_amount" integer DEFAULT 0, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_product_description" "text" DEFAULT NULL::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT 100, "p_review_image_count" integer DEFAULT 0, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_product_name" "text" DEFAULT NULL::"text", "p_product_price" integer DEFAULT NULL::integer, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_product_description" "text" DEFAULT NULL::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT NULL::integer, "p_review_image_count" integer DEFAULT NULL::integer, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
 DECLARE
   v_user_id UUID;
   v_company_id UUID;
+  v_wallet_id UUID;
   v_current_points INTEGER;
   v_total_cost INTEGER;
   v_campaign_id UUID;
   v_result JSONB;
+  v_points_before_deduction INTEGER;
+  v_points_after_deduction INTEGER;
 BEGIN
-  -- 1. 현재 사용자
-  v_user_id := (SELECT auth.uid());
-  IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'Unauthorized';
-  END IF;
-  
-  -- 2. 사용자의 활성 회사 조회
-  SELECT cu.company_id INTO v_company_id
-  FROM public.company_users cu
-  WHERE cu.user_id = v_user_id
-    AND cu.status = 'active'
-    AND cu.company_role IN ('owner', 'manager')
-  LIMIT 1;
-  
-  IF v_company_id IS NULL THEN
-    RAISE EXCEPTION '회사에 소속되지 않았습니다';
-  END IF;
-  
-  -- 3. 총 비용 계산
-  v_total_cost := calculate_campaign_cost(
-    p_payment_method,
-    p_payment_amount,
-    p_review_reward,
-    p_max_participants
-  );
-  
-  -- 4. 회사 지갑 조회 및 잔액 확인
-  SELECT cw.current_points INTO v_current_points
-  FROM public.company_wallets cw
-  WHERE cw.company_id = v_company_id
-  FOR UPDATE;
-  
-  IF v_current_points IS NULL THEN
-    RAISE EXCEPTION '회사 지갑이 없습니다';
-  END IF;
-  
-  IF v_current_points < v_total_cost THEN
-    RAISE EXCEPTION '포인트가 부족합니다 (필요: %, 보유: %)', 
-      v_total_cost, v_current_points;
-  END IF;
-  
-  -- 5. 포인트 차감
-  UPDATE public.company_wallets
-  SET current_points = current_points - v_total_cost,
-      updated_at = NOW()
-  WHERE company_id = v_company_id;
-  
-  -- 6. 캠페인 생성
-  INSERT INTO public.campaigns (
-    title, description, company_id, user_id,
-    campaign_type, platform, platform_logo_url,
-    keyword, option, quantity, seller, product_number,
-    product_image_url, payment_amount, purchase_method,
-    product_description, review_type, review_text_length, review_image_count,
-    review_reward, max_participants, current_participants,
-    start_date, end_date,
-    prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days,
-    payment_method, total_cost,
-    status, created_at, updated_at
-  ) VALUES (
-    p_title, p_description, v_company_id, v_user_id,
-    p_campaign_type, p_platform, p_platform_logo_url,
-    p_keyword, p_option, p_quantity, p_seller, p_product_number,
-    p_product_image_url, p_payment_amount, p_purchase_method,
-    p_product_description, p_review_type, p_review_text_length, p_review_image_count,
-    p_review_reward, p_max_participants, 0,
-    p_start_date, p_end_date,
-    p_prevent_product_duplicate, p_prevent_store_duplicate, p_duplicate_prevent_days,
-    p_payment_method, v_total_cost,
-    'active', NOW(), NOW()
-  ) RETURNING id INTO v_campaign_id;
-  
-  -- 7. 포인트 로그 기록
-  INSERT INTO public.company_point_logs (
-    company_id, transaction_type, amount,
-    description, related_entity_type, related_entity_id,
-    created_by_user_id, created_at
-  ) VALUES (
-    v_company_id, 'spend', -v_total_cost,
-    '캠페인 생성: ' || p_title,
-    'campaign', v_campaign_id,
-    v_user_id, NOW()
-  );
-  
-  -- 8. 결과 반환
-  SELECT jsonb_build_object(
-    'success', true,
-    'campaign_id', v_campaign_id,
-    'total_cost', v_total_cost,
-    'points_spent', v_total_cost,
-    'remaining_points', v_current_points - v_total_cost
-  ) INTO v_result;
-  
-  RETURN v_result;
-  
-EXCEPTION WHEN OTHERS THEN
-  RAISE;
+  -- ✅ 명시적 트랜잭션 시작
+  BEGIN
+    -- 1. 현재 사용자
+    v_user_id := (SELECT auth.uid());
+    IF v_user_id IS NULL THEN
+      RAISE EXCEPTION 'Unauthorized';
+    END IF;
+    
+    -- 2. 사용자의 활성 회사 조회
+    SELECT cu.company_id INTO v_company_id
+    FROM public.company_users cu
+    WHERE cu.user_id = v_user_id
+      AND cu.status = 'active'
+      AND cu.company_role IN ('owner', 'manager')
+    LIMIT 1;
+    
+    IF v_company_id IS NULL THEN
+      RAISE EXCEPTION '회사에 소속되지 않았습니다';
+    END IF;
+    
+    -- 3. 총 비용 계산
+    v_total_cost := public.calculate_campaign_cost(
+      p_payment_method,
+      COALESCE(p_product_price, 0),
+      p_review_reward,
+      p_max_participants
+    );
+    
+    -- 4. 회사 지갑 조회 및 잠금 (FOR UPDATE NOWAIT로 배타적 잠금, 데드락 방지)
+    SELECT cw.id, cw.current_points 
+    INTO v_wallet_id, v_current_points
+    FROM public.wallets AS cw
+    WHERE cw.company_id = v_company_id
+      AND cw.user_id IS NULL
+    FOR UPDATE NOWAIT;  -- ✅ NOWAIT: 잠금 대기하지 않고 즉시 실패
+    
+    IF v_wallet_id IS NULL OR v_current_points IS NULL THEN
+      RAISE EXCEPTION '회사 지갑이 없습니다';
+    END IF;
+    
+    -- 5. 잔액 확인
+    v_points_before_deduction := v_current_points;
+    
+    IF v_current_points < v_total_cost THEN
+      RAISE EXCEPTION '포인트가 부족합니다 (필요: %, 보유: %)', 
+        v_total_cost, v_current_points;
+    END IF;
+    
+    -- ✅ 중요: wallets를 직접 업데이트하지 않음!
+    -- 트리거(point_transactions_wallet_balance_trigger)가 자동으로 업데이트함
+    -- 따라서 여기서 UPDATE를 하면 2번 차감됨
+    
+    -- 6. 캠페인 생성
+    INSERT INTO public.campaigns (
+      title, description, company_id, user_id,
+      campaign_type, platform,
+      keyword, option, quantity, seller, product_number,
+      product_image_url, product_name, product_price,
+      purchase_method,
+      product_description, review_type, review_text_length, review_image_count,
+      review_reward, review_cost, max_participants, current_participants,
+      start_date, end_date,
+      prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days,
+      payment_method, total_cost,
+      status, created_at, updated_at
+    ) VALUES (
+      p_title, p_description, v_company_id, v_user_id,
+      p_campaign_type, p_platform,
+      p_keyword, p_option, p_quantity, p_seller, p_product_number,
+      p_product_image_url, p_product_name, p_product_price,
+      p_purchase_method,
+      p_product_description, p_review_type, p_review_text_length, p_review_image_count,
+      p_review_reward, p_review_reward, p_max_participants, 0,
+      p_start_date, p_end_date,
+      p_prevent_product_duplicate, p_prevent_store_duplicate, p_duplicate_prevent_days,
+      p_payment_method, v_total_cost,
+      'active', NOW(), NOW()
+    ) RETURNING id INTO v_campaign_id;
+    
+    -- 7. 포인트 로그 기록 (트리거가 자동으로 wallets 잔액 업데이트)
+    INSERT INTO public.point_transactions (
+      wallet_id, transaction_type, amount,
+      campaign_id, description,
+      created_by_user_id, created_at
+    ) VALUES (
+      v_wallet_id, 'spend', -v_total_cost,
+      v_campaign_id, '캠페인 생성: ' || p_title,
+      v_user_id, NOW()
+    );
+    
+    -- 8. 차감 후 잔액 확인 (트리거가 업데이트한 후)
+    SELECT current_points INTO v_points_after_deduction
+    FROM public.wallets
+    WHERE id = v_wallet_id;
+    
+    -- ✅ 차감이 정확히 한 번만 되었는지 확인
+    IF v_points_after_deduction != (v_points_before_deduction - v_total_cost) THEN
+      RAISE EXCEPTION '포인트 차감이 정확하지 않습니다. (예상: %, 실제: %)', 
+        v_points_before_deduction - v_total_cost, v_points_after_deduction;
+    END IF;
+    
+    -- 9. 결과 반환
+    SELECT jsonb_build_object(
+      'success', true,
+      'campaign_id', v_campaign_id,
+      'total_cost', v_total_cost,
+      'points_spent', v_total_cost,
+      'remaining_points', v_points_after_deduction,
+      'points_before', v_points_before_deduction,
+      'points_after', v_points_after_deduction
+    ) INTO v_result;
+    
+    RETURN v_result;
+    
+  EXCEPTION
+    WHEN lock_not_available THEN
+      -- ✅ 잠금 실패 시 재시도 안내
+      RAISE EXCEPTION '다른 요청이 처리 중입니다. 잠시 후 다시 시도해주세요.';
+    WHEN OTHERS THEN
+      -- ✅ 에러 발생 시 롤백 (자동)
+      RAISE;
+  END;
 END;
 $$;
 
 
-ALTER FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_point_amount" integer, "p_cash_amount" numeric DEFAULT NULL::numeric, "p_payment_method" "text" DEFAULT NULL::"text", "p_bank_name" "text" DEFAULT NULL::"text", "p_account_number" "text" DEFAULT NULL::"text", "p_account_holder" "text" DEFAULT NULL::"text", "p_description" "text" DEFAULT NULL::"text", "p_created_by_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "uuid"
@@ -1036,19 +1065,21 @@ BEGIN
   
   RETURN QUERY
   SELECT 
-    cpl.id as log_id,
-    cpl.transaction_type,
-    cpl.amount,
-    cpl.description,
-    cpl.related_entity_type,
-    cpl.related_entity_id,
-    cpl.created_by_user_id,
+    pt.id as log_id,
+    pt.transaction_type,
+    pt.amount,
+    pt.description,
+    pt.related_entity_type,
+    pt.related_entity_id,
+    pt.created_by_user_id,
     COALESCE(u.display_name, '알 수 없음') as created_by_user_name,
-    cpl.created_at
-  FROM public.company_point_logs cpl
-  LEFT JOIN public.users u ON u.id = cpl.created_by_user_id
-  WHERE cpl.company_id = p_company_id
-  ORDER BY cpl.created_at DESC
+    pt.created_at
+  FROM public.point_transactions pt
+  JOIN public.wallets w ON w.id = pt.wallet_id
+  LEFT JOIN public.users u ON u.id = pt.created_by_user_id
+  WHERE w.company_id = p_company_id
+    AND w.user_id IS NULL
+  ORDER BY pt.created_at DESC
   LIMIT p_limit
   OFFSET p_offset;
 END;
@@ -1332,35 +1363,64 @@ DECLARE
   v_campaigns jsonb;
   v_total_count integer;
   v_result jsonb;
+  v_company_ids uuid[];
+  v_status_filter text;
 BEGIN
+  -- 파라미터 검증
+  IF p_user_id IS NULL THEN
+    RAISE EXCEPTION 'p_user_id cannot be NULL';
+  END IF;
+  
+  -- NULL 체크 및 기본값 설정
+  v_status_filter := COALESCE(NULLIF(p_status, ''), 'all');
+  
   -- 권한 확인: 자신의 캠페인이거나 관리자
-  IF p_user_id != (select auth.uid()) AND 
+  IF p_user_id != (SELECT auth.uid()) AND 
      NOT EXISTS (
        SELECT 1 FROM public.users 
-       WHERE id = (select auth.uid()) AND user_type = 'admin'
+       WHERE id = (SELECT auth.uid()) AND user_type = 'admin'
      ) THEN
     RAISE EXCEPTION 'You can only view your own campaigns';
   END IF;
   
-  -- 캠페인 조회
+  -- 사용자의 활성 회사 ID 목록 조회
+  SELECT ARRAY_AGG(company_id) INTO v_company_ids
+  FROM public.company_users
+  WHERE user_id = p_user_id
+    AND status = 'active';
+  
+  IF v_company_ids IS NULL OR array_length(v_company_ids, 1) IS NULL THEN
+    -- 회사에 소속되지 않은 경우 빈 결과 반환
+    SELECT jsonb_build_object(
+      'campaigns', '[]'::jsonb,
+      'total_count', 0,
+      'limit', p_limit,
+      'offset', p_offset
+    ) INTO v_result;
+    RETURN v_result;
+  END IF;
+  
+  -- 캠페인 조회 (company_id 기반)
+  -- jsonb_agg 사용 시 ORDER BY는 집계 함수 안에 포함해야 함
   SELECT jsonb_agg(
     jsonb_build_object(
-      'campaign', campaigns.*,
-      'log', campaign_logs.*
-    )
+      'campaign', row_to_json(c.*)
+    ) ORDER BY c.created_at DESC
   ) INTO v_campaigns
-  FROM public.campaigns
-  JOIN public.campaign_logs ON campaigns.id = campaign_logs.campaign_id
-  WHERE campaign_logs.user_id = p_user_id
-  AND (p_status = 'all' OR campaign_logs.status = p_status)
-  ORDER BY campaign_logs.created_at DESC
-  LIMIT p_limit OFFSET p_offset;
+  FROM (
+    SELECT *
+    FROM public.campaigns
+    WHERE company_id = ANY(v_company_ids)
+      AND (v_status_filter = 'all' OR status = v_status_filter)
+    ORDER BY created_at DESC
+    LIMIT p_limit OFFSET p_offset
+  ) c;
   
   -- 총 개수 조회
   SELECT COUNT(*) INTO v_total_count
-  FROM public.campaign_logs
-  WHERE user_id = p_user_id
-  AND (p_status = 'all' OR status = p_status);
+  FROM public.campaigns
+  WHERE company_id = ANY(v_company_ids)
+    AND (v_status_filter = 'all' OR status = v_status_filter);
   
   -- 결과 반환
   SELECT jsonb_build_object(
@@ -1371,6 +1431,9 @@ BEGIN
   ) INTO v_result;
   
   RETURN v_result;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'Error in get_user_campaigns_safe: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
 END;
 $$;
 
@@ -1392,7 +1455,7 @@ BEGIN
     cu.status
   FROM public.company_users cu
   JOIN public.companies c ON c.id = cu.company_id
-  JOIN public.company_wallets cw ON cw.company_id = c.id
+  JOIN public.wallets cw ON cw.company_id = c.id AND cw.user_id IS NULL
   WHERE cu.user_id = COALESCE(p_user_id, auth.uid())
     AND cu.status = 'active'
     AND cu.company_role IN ('owner', 'manager')
@@ -3510,17 +3573,13 @@ CREATE TABLE IF NOT EXISTS "public"."campaigns" (
     "user_id" "uuid",
     "campaign_type" "text" DEFAULT 'reviewer'::"text",
     "review_reward" integer,
-    "last_used_at" timestamp with time zone,
-    "usage_count" integer DEFAULT 0,
     "completed_applicants_count" integer DEFAULT 0 NOT NULL,
     "keyword" "text",
     "option" "text",
     "quantity" integer DEFAULT 1,
     "seller" "text",
     "product_number" "text",
-    "payment_amount" integer DEFAULT 0,
     "purchase_method" "text" DEFAULT 'mobile'::"text",
-    "product_description" "text",
     "review_type" "text" DEFAULT 'star_only'::"text",
     "review_text_length" integer DEFAULT 100,
     "review_image_count" integer DEFAULT 0,
@@ -3561,10 +3620,6 @@ COMMENT ON COLUMN "public"."campaigns"."seller" IS '판매자명';
 
 
 COMMENT ON COLUMN "public"."campaigns"."product_number" IS '상품번호';
-
-
-
-COMMENT ON COLUMN "public"."campaigns"."payment_amount" IS '결제금액 (원)';
 
 
 
@@ -4082,10 +4137,6 @@ CREATE INDEX "idx_campaigns_keyword" ON "public"."campaigns" USING "btree" ("key
 
 
 
-CREATE INDEX "idx_campaigns_last_used_at" ON "public"."campaigns" USING "btree" ("last_used_at");
-
-
-
 CREATE INDEX "idx_campaigns_max_participants" ON "public"."campaigns" USING "btree" ("max_participants");
 
 
@@ -4123,10 +4174,6 @@ CREATE INDEX "idx_campaigns_status_type" ON "public"."campaigns" USING "btree" (
 
 
 CREATE INDEX "idx_campaigns_title" ON "public"."campaigns" USING "gin" ("to_tsvector"('"english"'::"regconfig", "title"));
-
-
-
-CREATE INDEX "idx_campaigns_usage_count" ON "public"."campaigns" USING "btree" ("usage_count");
 
 
 
@@ -5026,15 +5073,15 @@ GRANT ALL ON FUNCTION "public"."check_user_exists"("p_user_id" "uuid") TO "servi
 
 
 
-GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text", "p_platform_logo_url" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text", "p_platform_logo_url" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text", "p_platform_logo_url" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_platform_logo_url" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_payment_amount" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text") TO "service_role";
 
 
 

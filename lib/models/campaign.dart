@@ -7,7 +7,6 @@ class Campaign {
   final String? productName; // DB에 있는 필드 추가
   final String productImageUrl;
   final String platform;
-  final String platformLogoUrl;
   final CampaignCategory campaignType;
   final int? productPrice;
   final int reviewCost; // DB에 있는 필드 (review_cost)
@@ -26,9 +25,7 @@ class Campaign {
   final int quantity;
   final String? seller;
   final String? productNumber;
-  final int paymentAmount;
   final String purchaseMethod;
-  final String? productDescription;
 
   // 리뷰 설정
   final String reviewType; // 'star_only', 'star_text', 'star_text_image'
@@ -52,7 +49,6 @@ class Campaign {
     this.productName,
     required this.productImageUrl,
     required this.platform,
-    required this.platformLogoUrl,
     required this.campaignType,
     this.productPrice,
     required this.reviewCost,
@@ -70,9 +66,7 @@ class Campaign {
     this.quantity = 1,
     this.seller,
     this.productNumber,
-    this.paymentAmount = 0,
     this.purchaseMethod = 'mobile',
-    this.productDescription,
     // 리뷰 설정
     this.reviewType = 'star_only',
     this.reviewTextLength = 100,
@@ -109,7 +103,6 @@ class Campaign {
       productName: json['product_name'],
       productImageUrl: json['product_image_url'] ?? '',
       platform: json['platform'] ?? '',
-      platformLogoUrl: json['platform_logo_url'] ?? '',
       campaignType: mapCampaignType(json['campaign_type']),
       productPrice: json['product_price'],
       reviewCost: json['review_cost'] ?? 0,
@@ -136,9 +129,7 @@ class Campaign {
       quantity: json['quantity'] ?? 1,
       seller: json['seller'],
       productNumber: json['product_number'],
-      paymentAmount: json['payment_amount'] ?? 0,
       purchaseMethod: json['purchase_method'] ?? 'mobile',
-      productDescription: json['product_description'],
       // 리뷰 설정
       reviewType: json['review_type'] ?? 'star_only',
       reviewTextLength: json['review_text_length'] ?? 100,
@@ -176,7 +167,6 @@ class Campaign {
       'product_name': productName,
       'product_image_url': productImageUrl,
       'platform': platform,
-      'platform_logo_url': platformLogoUrl,
       'campaign_type': mapCampaignTypeToDb(campaignType),
       'product_price': productPrice,
       'review_cost': reviewCost,
@@ -194,9 +184,7 @@ class Campaign {
       'quantity': quantity,
       'seller': seller,
       'product_number': productNumber,
-      'payment_amount': paymentAmount,
       'purchase_method': purchaseMethod,
-      'product_description': productDescription,
       // 리뷰 설정
       'review_type': reviewType,
       'review_text_length': reviewTextLength,
@@ -219,7 +207,6 @@ class Campaign {
     String? productName,
     String? productImageUrl,
     String? platform,
-    String? platformLogoUrl,
     CampaignCategory? campaignType,
     int? productPrice,
     int? reviewCost,
@@ -237,9 +224,7 @@ class Campaign {
     int? quantity,
     String? seller,
     String? productNumber,
-    int? paymentAmount,
     String? purchaseMethod,
-    String? productDescription,
     // 리뷰 설정
     String? reviewType,
     int? reviewTextLength,
@@ -260,7 +245,6 @@ class Campaign {
       productName: productName ?? this.productName,
       productImageUrl: productImageUrl ?? this.productImageUrl,
       platform: platform ?? this.platform,
-      platformLogoUrl: platformLogoUrl ?? this.platformLogoUrl,
       campaignType: campaignType ?? this.campaignType,
       productPrice: productPrice ?? this.productPrice,
       reviewCost: reviewCost ?? this.reviewCost,
@@ -278,9 +262,7 @@ class Campaign {
       quantity: quantity ?? this.quantity,
       seller: seller ?? this.seller,
       productNumber: productNumber ?? this.productNumber,
-      paymentAmount: paymentAmount ?? this.paymentAmount,
       purchaseMethod: purchaseMethod ?? this.purchaseMethod,
-      productDescription: productDescription ?? this.productDescription,
       // 리뷰 설정
       reviewType: reviewType ?? this.reviewType,
       reviewTextLength: reviewTextLength ?? this.reviewTextLength,

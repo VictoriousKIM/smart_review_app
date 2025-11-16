@@ -142,16 +142,33 @@ class _AdvertiserMyPageScreenState
               .whereType<Campaign>()
               .toList();
         } else {
-          // RPC 응답이 다른 형식일 수 있으므로 직접 조회
-          final directResult = await SupabaseConfig.client
-              .from('campaigns')
-              .select()
-              .eq('user_id', user.id)
-              .order('created_at', ascending: false);
+          // 대체 로직: company_id 기반 직접 조회
+          try {
+            // 1. 사용자의 회사 ID 조회
+            final companyResult = await SupabaseConfig.client
+                .from('company_users')
+                .select('company_id')
+                .eq('user_id', user.id)
+                .eq('status', 'active')
+                .maybeSingle();
 
-          allCampaigns = (directResult as List)
-              .map((json) => Campaign.fromJson(json))
-              .toList();
+            if (companyResult != null) {
+              final companyId = companyResult['company_id'] as String;
+              
+              // 2. 회사의 캠페인 조회
+              final directResult = await SupabaseConfig.client
+                  .from('campaigns')
+                  .select()
+                  .eq('company_id', companyId)
+                  .order('created_at', ascending: false);
+
+              allCampaigns = (directResult as List)
+                  .map((json) => Campaign.fromJson(json))
+                  .toList();
+            }
+          } catch (e) {
+            print('⚠️ 대체 조회 실패: $e');
+          }
         }
 
         // 상태별 카운트 계산

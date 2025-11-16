@@ -34,15 +34,48 @@ class CampaignCard extends StatelessWidget {
                           width: 140,
                           height: 140,
                           fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              width: 140,
+                              height: 140,
+                              color: Colors.grey[200],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
                           errorBuilder: (context, error, stackTrace) {
+                            // 디버깅 로그
+                            debugPrint('🖼️ 이미지 로딩 실패: ${campaign.productImageUrl}');
+                            debugPrint('에러: $error');
                             return Container(
                               width: 140,
                               height: 140,
                               color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.image,
-                                color: Colors.grey,
-                                size: 40,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey,
+                                    size: 40,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '이미지\n로딩 실패',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey[600],
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
                               ),
                             );
                           },
@@ -138,33 +171,14 @@ class CampaignCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('플랫폼', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-          Row(
-            children: [
-              if (campaign.platformLogoUrl.isNotEmpty)
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: Image.network(
-                    campaign.platformLogoUrl,
-                    width: 14,
-                    height: 14,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const SizedBox(width: 14, height: 14);
-                    },
-                  ),
-                ),
-              const SizedBox(width: 4),
-              Text(
-                _getPlatformName(
-                  campaign.platform.isNotEmpty ? campaign.platform : '알 수 없음',
-                ),
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+          Text(
+            _getPlatformName(
+              campaign.platform.isNotEmpty ? campaign.platform : '알 수 없음',
+            ),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

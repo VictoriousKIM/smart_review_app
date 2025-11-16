@@ -116,7 +116,7 @@ class CampaignImageService {
       return '제품명을 찾을 수 없습니다.';
     }
 
-    if (data['paymentAmount'] == null || data['paymentAmount'] <= 0) {
+    if (data['productPrice'] == null || data['productPrice'] <= 0) {
       return '결제금액을 찾을 수 없습니다.';
     }
 

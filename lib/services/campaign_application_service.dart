@@ -119,7 +119,6 @@ class CampaignApplicationService {
                       'description': log.campaign!.description,
                       'product_image_url': log.campaign!.productImageUrl,
                       'platform': log.campaign!.platform,
-                      'platform_logo_url': log.campaign!.platformLogoUrl,
                       'product_price': log.campaign!.productPrice,
                       'review_reward': log.campaign!.reviewReward,
                       'start_date': log.campaign!.startDate?.toIso8601String(),

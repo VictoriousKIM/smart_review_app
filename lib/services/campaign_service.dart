@@ -1,10 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../models/campaign.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
-import '../utils/date_time_utils.dart';
 
 class CampaignService {
   static final CampaignService _instance = CampaignService._internal();
@@ -269,28 +269,43 @@ class CampaignService {
     int limit = 10,
     String? status,
   }) async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '로그인이 필요합니다.',
-        );
-      }
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        error: '로그인이 필요합니다.',
+      );
+    }
 
+    try {
       // RPC 함수 호출로 안전한 사용자 캠페인 조회
+      final offset = (page - 1) * limit;
+      final statusParam = status ?? 'all';
+      
+      debugPrint('📞 get_user_campaigns_safe 호출:');
+      debugPrint('   p_user_id: ${user.id}');
+      debugPrint('   p_status: $statusParam');
+      debugPrint('   p_offset: $offset');
+      debugPrint('   p_limit: $limit');
+      
       final response = await _supabase.rpc(
         'get_user_campaigns_safe',
         params: {
           'p_user_id': user.id,
-          'p_status': status,
-          'p_page': page,
+          'p_status': statusParam,
+          'p_offset': offset,
           'p_limit': limit,
         },
       );
 
+      debugPrint('✅ get_user_campaigns_safe 성공:');
+      debugPrint('   campaigns 수: ${(response['campaigns'] as List?)?.length ?? 0}');
+      debugPrint('   total_count: ${response['total_count']}');
+      
       return ApiResponse<Map<String, dynamic>>(success: true, data: response);
     } catch (e) {
+      debugPrint('❌ get_user_campaigns_safe 실패: $e');
+      debugPrint('   파라미터: p_user_id=${user.id}, p_status=${status ?? 'all'}, p_offset=${(page - 1) * limit}, p_limit=$limit');
       return ApiResponse<Map<String, dynamic>>(
         success: false,
         error: '사용자 캠페인 조회 실패: $e',
@@ -350,8 +365,7 @@ class CampaignService {
           .from('campaigns')
           .select()
           .eq('user_id', user.id)
-          .order('last_used_at', ascending: false)
-          .order('usage_count', ascending: false)
+          .order('created_at', ascending: false)
           .order('created_at', ascending: false)
           .limit(limit);
 
@@ -407,7 +421,6 @@ class CampaignService {
         'description': previousCampaign.description,
         'product_image_url': previousCampaign.productImageUrl,
         'platform': previousCampaign.platform,
-        'platform_logo_url': previousCampaign.platformLogoUrl,
         'campaign_type': previousCampaign.campaignType.name,
         'product_price': previousCampaign.productPrice,
         'review_reward': previousCampaign.reviewReward,
@@ -419,8 +432,6 @@ class CampaignService {
         'user_id': user.id,
         'is_template': false,
         'template_name': null,
-        'last_used_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
-        'usage_count': 0,
       };
 
       final response = await _supabase
@@ -455,7 +466,6 @@ class CampaignService {
     required DateTime endDate,
     required int maxParticipants,
     String? productImageUrl,
-    String? platformLogoUrl,
   }) async {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
@@ -503,7 +513,6 @@ class CampaignService {
           'p_end_date': endDate.toIso8601String(),
           'p_product_image_url': productImageUrl,
           'p_platform': platform,
-          'p_platform_logo_url': platformLogoUrl,
         },
       );
 
@@ -578,8 +587,7 @@ class CampaignService {
           .select()
           .eq('user_id', user.id)
           .ilike('title', '%${query.trim()}%')
-          .order('last_used_at', ascending: false)
-          .order('usage_count', ascending: false)
+          .order('created_at', ascending: false)
           .limit(limit);
 
       final campaigns = (response as List)
@@ -610,16 +618,17 @@ class CampaignService {
     int? quantity,
     String? seller,
     String? productNumber,
-    int? paymentAmount,
+    String? productName,  // ✅ 추가
+    int? productPrice,    // ✅ 추가 (paymentAmount 대체)
     String? reviewType,
-    int? reviewTextLength,
-    int? reviewImageCount,
+    int? reviewTextLength,  // ✅ NULL 가능
+    int? reviewImageCount,  // ✅ NULL 가능
     bool? preventProductDuplicate,
     bool? preventStoreDuplicate,
     int? duplicatePreventDays,
     String? paymentMethod,
     String? productImageUrl,
-    String? platformLogoUrl,
+    String? purchaseMethod,  // ✅ 추가
   }) async {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
@@ -658,19 +667,19 @@ class CampaignService {
           'p_start_date': startDate.toIso8601String(),
           'p_end_date': endDate.toIso8601String(),
           'p_platform': platform,
-          'p_platform_logo_url': platformLogoUrl,
           'p_keyword': keyword,
           'p_option': option,
           'p_quantity': quantity ?? 1,
           'p_seller': seller,
           'p_product_number': productNumber,
           'p_product_image_url': productImageUrl,
-          'p_payment_amount': paymentAmount ?? 0,
-          'p_purchase_method': 'mobile',
-          'p_product_description': description,
+          'p_product_name': productName,      // ✅ 추가
+          'p_product_price': productPrice,    // ✅ 추가 (paymentAmount 대체)
+          'p_purchase_method': purchaseMethod ?? 'mobile',  // ✅ 하드코딩 제거
+          'p_product_description': null,  // ✅ 제거 (NULL로 설정)
           'p_review_type': reviewType ?? 'star_only',
-          'p_review_text_length': reviewTextLength ?? 100,
-          'p_review_image_count': reviewImageCount ?? 0,
+          'p_review_text_length': reviewTextLength,  // ✅ NULL 가능
+          'p_review_image_count': reviewImageCount,  // ✅ NULL 가능
           'p_prevent_product_duplicate': preventProductDuplicate ?? false,
           'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
           'p_duplicate_prevent_days': duplicatePreventDays ?? 0,

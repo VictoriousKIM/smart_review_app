@@ -214,7 +214,7 @@ class _EmailLoginFormState extends ConsumerState<EmailLoginForm> {
               if (!_isSignUpMode) ...[
                 const SizedBox(height: 8),
                 Text(
-                  '개발용 계정: dev@example.com / password123',
+                  '개발용 계정: dev@example.com / dev@example.com',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),

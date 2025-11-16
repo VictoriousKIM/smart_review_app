@@ -16,6 +16,10 @@ class SupabaseConfig {
   static const String workersApiUrl =
       'https://smart-review-api.nightkille.workers.dev';
 
+  // R2 Public URL
+  static const String r2PublicUrl =
+      'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files';
+
   static SupabaseClient get client => Supabase.instance.client;
 
   static Future<void> initialize() async {
