@@ -68,9 +68,9 @@ class _CampaignCreationScreenState
   String _platform = 'coupang';
   String _paymentType = 'platform';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
-  String? _productProvisionType;
+  String _productProvisionType = 'delivery'; // ✅ 필수, 초기값: 실배송
   String _productProvisionOther = '';
-  bool _onlyAllowedReviewers = false;
+  bool _onlyAllowedReviewers = true;
   String _reviewType = 'star_only';
   DateTime? _startDateTime;
   DateTime? _endDateTime;
@@ -1104,8 +1104,9 @@ class _CampaignCreationScreenState
               backgroundColor: Colors.green,
             ),
           );
-          // RPC는 이미 완료되었으므로, 강제 새로고침 플래그와 함께 이동
-          context.go('/mypage/advertiser/my-campaigns?refresh=true');
+          // pushNamed().then() 패턴: 생성된 캠페인 ID를 전달하여 상위 화면에서 직접 조회
+          final campaignId = response.data?.id;
+          context.pop(campaignId); // 생성된 캠페인 ID를 반환
         }
       } else {
         // ✅ 에러 시에도 플래그 해제
@@ -1474,14 +1475,8 @@ class _CampaignCreationScreenState
               ),
               items: const [
                 DropdownMenuItem(value: 'reviewer', child: Text('리뷰어')),
-                DropdownMenuItem(value: 'press', child: Text('기자단')),
-                DropdownMenuItem(value: 'visit', child: Text('방문형')),
               ],
-              onChanged: (value) {
-                setState(() {
-                  _campaignType = value!;
-                });
-              },
+              onChanged: null, // 변경 불가능하게 설정
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
@@ -1493,8 +1488,6 @@ class _CampaignCreationScreenState
               items: const [
                 DropdownMenuItem(value: 'coupang', child: Text('쿠팡')),
                 DropdownMenuItem(value: 'naver', child: Text('네이버 쇼핑')),
-                DropdownMenuItem(value: '11st', child: Text('11번가')),
-                DropdownMenuItem(value: 'gmarket', child: Text('G마켓')),
               ],
               onChanged: (value) {
                 setState(() {
@@ -1507,11 +1500,7 @@ class _CampaignCreationScreenState
               title: const Text('사업자가 허용한 리뷰어만 가능'),
               subtitle: const Text('사업자가 승인한 리뷰어만 캠페인에 참여할 수 있습니다'),
               value: _onlyAllowedReviewers,
-              onChanged: (value) {
-                setState(() {
-                  _onlyAllowedReviewers = value ?? false;
-                });
-              },
+              onChanged: null, // 변경 불가능하게 설정
               controlAffinity: ListTileControlAffinity.leading,
             ),
           ],
@@ -1539,16 +1528,11 @@ class _CampaignCreationScreenState
               ],
             ),
             const SizedBox(height: 16),
-            CustomTextField(
-              controller: _keywordController,
-              labelText: '키워드',
-              hintText: '예: 화장실 선반',
-            ),
+            CustomTextField(controller: _keywordController, labelText: '키워드'),
             const SizedBox(height: 16),
             CustomTextField(
               controller: _productNameController,
               labelText: '제품명 *',
-              hintText: '예: 브림유 BRIMU 무타공 흡착식 욕실선반',
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return '제품명을 입력해주세요';
@@ -1563,7 +1547,6 @@ class _CampaignCreationScreenState
                   child: CustomTextField(
                     controller: _optionController,
                     labelText: '옵션',
-                    hintText: '예: 투명실버',
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -1588,22 +1571,16 @@ class _CampaignCreationScreenState
               ],
             ),
             const SizedBox(height: 16),
-            CustomTextField(
-              controller: _sellerController,
-              labelText: '판매자',
-              hintText: '예: 브림유',
-            ),
+            CustomTextField(controller: _sellerController, labelText: '판매자'),
             const SizedBox(height: 16),
             CustomTextField(
               controller: _productNumberController,
               labelText: '상품번호',
-              hintText: '예: 8325154393',
             ),
             const SizedBox(height: 16),
             CustomTextField(
               controller: _paymentAmountController,
-              labelText: '상품가격 *', // ✅ "결제금액"에서 "상품가격"으로 변경
-              hintText: '13800',
+              labelText: '상품가격 *',
               keyboardType: TextInputType.number,
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -1658,7 +1635,7 @@ class _CampaignCreationScreenState
             DropdownButtonFormField<String>(
               value: _productProvisionType,
               decoration: const InputDecoration(
-                labelText: '상품제공여부',
+                labelText: '상품제공여부 *',
                 border: OutlineInputBorder(),
                 hintText: '선택하세요',
               ),
@@ -1669,11 +1646,17 @@ class _CampaignCreationScreenState
               ],
               onChanged: (value) {
                 setState(() {
-                  _productProvisionType = value;
+                  _productProvisionType = value!;
                   if (value != 'other') {
                     _productProvisionOther = '';
                   }
                 });
+              },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return '상품제공여부를 선택해주세요';
+                }
+                return null;
               },
             ),
             if (_productProvisionType == 'other') ...[
@@ -1786,15 +1769,9 @@ class _CampaignCreationScreenState
             const SizedBox(height: 16),
             CustomTextField(
               controller: _reviewRewardController,
-              labelText: '리뷰비 *',
-              hintText: '1000',
+              labelText: '리뷰비',
+              hintText: '선택사항, 미입력 시 0',
               keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return '리뷰비를 입력해주세요';
-                }
-                return null;
-              },
             ),
           ],
         ),
@@ -1833,12 +1810,6 @@ class _CampaignCreationScreenState
                     readOnly: true,
                     onTap: () => _selectDateTime(context, true),
                     controller: _startDateTimeController,
-                    validator: (value) {
-                      if (_startDateTime == null) {
-                        return '시작 일시를 선택해주세요';
-                      }
-                      return null;
-                    },
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -1852,12 +1823,6 @@ class _CampaignCreationScreenState
                     readOnly: true,
                     onTap: () => _selectDateTime(context, false),
                     controller: _endDateTimeController,
-                    validator: (value) {
-                      if (_endDateTime == null) {
-                        return '종료 일시를 선택해주세요';
-                      }
-                      return null;
-                    },
                   ),
                 ),
               ],

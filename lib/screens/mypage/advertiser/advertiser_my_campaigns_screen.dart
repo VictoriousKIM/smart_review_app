@@ -9,8 +9,17 @@ import '../../../widgets/custom_button.dart';
 
 class AdvertiserMyCampaignsScreen extends ConsumerStatefulWidget {
   final String? initialTab;
+  // pushNamed().then() 패턴으로 변경하여 refresh, campaignId 파라미터는 더 이상 사용하지 않음
+  // @Deprecated('pushNamed().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  // final bool refresh;
+  // final String? campaignId;
 
-  const AdvertiserMyCampaignsScreen({super.key, this.initialTab});
+  const AdvertiserMyCampaignsScreen({
+    super.key,
+    this.initialTab,
+    // this.refresh = false,
+    // this.campaignId,
+  });
 
   @override
   ConsumerState<AdvertiserMyCampaignsScreen> createState() =>
@@ -69,33 +78,130 @@ class _AdvertiserMyCampaignsScreenState
       }
     });
 
-    // URL 파라미터 확인
-    final refresh = Uri.base.queryParameters['refresh'] == 'true';
-    
-    // 강제 새로고침인 경우 약간의 지연 후 조회 (Supabase 캐싱 우회)
-    if (refresh) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        // Supabase 클라이언트 캐싱을 우회하기 위한 짧은 지연
-        await Future.delayed(const Duration(milliseconds: 100));
-        if (mounted) {
-          _loadCampaigns(forceRefresh: true);
-          // URL 파라미터 제거 (조회 후)
-          final currentUri = Uri.base;
-          if (currentUri.queryParameters.containsKey('refresh')) {
-            final newUri = currentUri.replace(queryParameters: {});
-            context.go(newUri.path);
-          }
-        }
-      });
-    } else {
-      _loadCampaigns();
-    }
+    // 초기 데이터 로드
+    _loadCampaigns();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// 캠페인 생성 화면으로 이동 (pushNamed().then() 패턴)
+  void _navigateToCreateCampaign() {
+    context.pushNamed('advertiser-my-campaigns-create').then((result) {
+      // result는 생성된 캠페인 ID (String) 또는 null
+      if (result != null && result is String) {
+        final campaignId = result;
+        debugPrint('✅ 캠페인 생성 완료 - campaignId: $campaignId');
+        // 생성된 캠페인을 직접 조회하여 목록에 추가 (Eventual Consistency 문제 해결)
+        _addCampaignByIdDirectly(campaignId);
+      } else if (result == true) {
+        // fallback: true가 반환된 경우 일반 새로고침
+        debugPrint('🔄 일반 새로고침 실행');
+        _loadCampaigns();
+      }
+    });
+  }
+
+  /// 생성된 캠페인을 직접 조회하여 목록에 추가 (Eventual Consistency 문제 해결)
+  Future<void> _addCampaignByIdDirectly(String campaignId) async {
+    if (!mounted) return;
+
+    debugPrint('🔍 생성된 캠페인 직접 조회 시작 - campaignId: $campaignId');
+
+    try {
+      // 짧은 지연 후 조회 (트랜잭션 커밋 대기)
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final result = await _campaignService.getCampaignById(campaignId);
+      debugPrint(
+        '📥 캠페인 조회 결과 - success: ${result.success}, data: ${result.data != null}',
+      );
+
+      if (result.success && result.data != null && mounted) {
+        final campaign = result.data!;
+
+        // 중복 체크
+        if (!_allCampaigns.any((c) => c.id == campaignId)) {
+          debugPrint('➕ 캠페인을 목록에 추가 - ${campaign.title}');
+          _allCampaigns.insert(0, campaign);
+          _updateFilteredCampaigns();
+
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+            debugPrint('✅ UI 업데이트 완료 - 총 캠페인 수: ${_allCampaigns.length}');
+          }
+        } else {
+          debugPrint('ℹ️ 캠페인이 이미 목록에 있습니다: $campaignId');
+        }
+      } else {
+        debugPrint('⚠️ 캠페인을 찾을 수 없습니다. 일반 새로고침 실행...');
+        // 직접 조회 실패 시 일반 새로고침
+        _loadCampaigns();
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ 캠페인 직접 조회 실패: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
+      // 에러 발생 시 일반 새로고침
+      if (mounted) {
+        _loadCampaigns();
+      }
+    }
+  }
+
+  // ============================================
+  // 폴링 관련 메서드 (더 이상 사용하지 않음, 참고용으로 유지)
+  // pushNamed().then() 패턴으로 변경하여 같은 세션에서 조회하므로 폴링 불필요
+  // ============================================
+
+  /// 새로고침 처리 (폴링 및 직접 조회) - 사용하지 않음
+  @Deprecated('pushNamed().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  Future<void> _handleRefresh(String? campaignId) async {
+    debugPrint('🔄 PostFrameCallback 실행 - campaignId: $campaignId');
+
+    if (campaignId != null && campaignId.isNotEmpty) {
+      // 폴링 방식으로 캠페인 조회
+      debugPrint('📡 폴링 시작 - campaignId: $campaignId');
+
+      // 먼저 직접 조회 시도 (가장 빠른 방법)
+      final directResult = await _addCampaignById(campaignId);
+
+      // 직접 조회가 실패하면 폴링 시작
+      if (!directResult) {
+        await _loadCampaignsWithPolling(
+          expectedCampaignId: campaignId,
+          maxAttempts: 5,
+          initialInterval: const Duration(milliseconds: 200),
+        );
+      }
+    } else {
+      // campaignId가 없으면 일반 조회
+      debugPrint('⏳ campaignId 없음 - 일반 조회');
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        _loadCampaigns();
+      }
+    }
+
+    // URL 파라미터 제거 (폴링 완료 후)
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final routerState = GoRouterState.of(context);
+        if (routerState.uri.queryParameters.containsKey('refresh') ||
+            routerState.uri.queryParameters.containsKey('campaignId')) {
+          final newUri = routerState.uri.replace(
+            queryParameters: Map.from(routerState.uri.queryParameters)
+              ..remove('refresh')
+              ..remove('campaignId'),
+          );
+          context.go(newUri.toString());
+        }
+      });
+    }
   }
 
   Future<void> _loadCampaigns({bool forceRefresh = false}) async {
@@ -118,7 +224,8 @@ class _AdvertiserMyCampaignsScreenState
 
       // 모든 캠페인 가져오기
       List<Campaign> loadedCampaigns = [];
-      
+
+      debugPrint('📡 getUserCampaigns 호출 시작...');
       final result = await _campaignService.getUserCampaigns(
         page: 1,
         limit: 100,
@@ -126,9 +233,13 @@ class _AdvertiserMyCampaignsScreenState
 
       if (!mounted) return;
 
+      debugPrint('📥 getUserCampaigns 결과 - success: ${result.success}');
+
       if (result.success && result.data != null) {
         final campaignsData = result.data!;
         final campaignsList = campaignsData['campaigns'] as List?;
+
+        debugPrint('📋 campaignsList: ${campaignsList?.length ?? 0}개');
 
         if (campaignsList != null && campaignsList.isNotEmpty) {
           loadedCampaigns = campaignsList
@@ -141,9 +252,16 @@ class _AdvertiserMyCampaignsScreenState
               })
               .whereType<Campaign>()
               .toList();
-          
+
           debugPrint('✅ RPC로 ${loadedCampaigns.length}개 캠페인 조회 성공');
+          for (var campaign in loadedCampaigns.take(3)) {
+            debugPrint('   - ${campaign.id}: ${campaign.title}');
+          }
+        } else {
+          debugPrint('⚠️ campaignsList가 비어있거나 null입니다');
         }
+      } else {
+        debugPrint('❌ getUserCampaigns 실패 - error: ${result.error}');
       }
 
       // RPC 실패 또는 결과가 비어있으면 대체 로직 실행
@@ -160,7 +278,7 @@ class _AdvertiserMyCampaignsScreenState
 
           if (companyResult != null) {
             final companyId = companyResult['company_id'] as String;
-            
+
             // 2. 회사의 캠페인 조회
             final directResult = await SupabaseConfig.client
                 .from('campaigns')
@@ -171,7 +289,7 @@ class _AdvertiserMyCampaignsScreenState
             loadedCampaigns = (directResult as List)
                 .map((json) => Campaign.fromJson(json))
                 .toList();
-            
+
             debugPrint('✅ 대체 로직으로 ${loadedCampaigns.length}개 캠페인 조회 성공');
           } else {
             debugPrint('⚠️ 사용자가 활성 회사에 소속되지 않음');
@@ -196,42 +314,40 @@ class _AdvertiserMyCampaignsScreenState
 
       // 대기중: upcoming 상태 또는 시작일이 아직 지나지 않음
       _pendingCampaigns = _allCampaigns.where((campaign) {
-          final status = campaign.status.toString().split('.').last;
-          return status == 'upcoming' ||
-              (campaign.startDate != null && campaign.startDate!.isAfter(now));
-        }).toList();
+        final status = campaign.status.toString().split('.').last;
+        return status == 'upcoming' ||
+            (campaign.startDate != null && campaign.startDate!.isAfter(now));
+      }).toList();
 
       // 모집중: active 상태이고 현재 기간 내
       _recruitingCampaigns = _allCampaigns.where((campaign) {
-          final status = campaign.status.toString().split('.').last;
-          return status == 'active' &&
-              (campaign.startDate == null ||
-                  campaign.startDate!.isBefore(now)) &&
-              (campaign.endDate == null || campaign.endDate!.isAfter(now));
-        }).toList();
+        final status = campaign.status.toString().split('.').last;
+        return status == 'active' &&
+            (campaign.startDate == null || campaign.startDate!.isBefore(now)) &&
+            (campaign.endDate == null || campaign.endDate!.isAfter(now));
+      }).toList();
 
       // 선정완료: active 상태이지만 참여자 선정이 완료된 경우
       // (실제로는 campaign_events의 approved 상태를 확인해야 하지만, 여기서는 간단히 처리)
       _selectedCampaigns = _recruitingCampaigns.where((campaign) {
-          return campaign.currentParticipants >=
-              (campaign.maxParticipants ?? 0);
-        }).toList();
+        return campaign.currentParticipants >= (campaign.maxParticipants ?? 0);
+      }).toList();
 
       // 등록기간: active 상태이지만 모집이 완료되고 진행 중인 상태
       _registeredCampaigns = _allCampaigns.where((campaign) {
-          final status = campaign.status.toString().split('.').last;
-          return status == 'active' &&
-              campaign.currentParticipants > 0 &&
-              (campaign.maxParticipants == null ||
-                  campaign.currentParticipants < campaign.maxParticipants!);
-        }).toList();
+        final status = campaign.status.toString().split('.').last;
+        return status == 'active' &&
+            campaign.currentParticipants > 0 &&
+            (campaign.maxParticipants == null ||
+                campaign.currentParticipants < campaign.maxParticipants!);
+      }).toList();
 
       // 종료: completed 상태 또는 종료일이 지남
       _completedCampaigns = _allCampaigns.where((campaign) {
-          final status = campaign.status.toString().split('.').last;
-          return status == 'completed' ||
-              (campaign.endDate != null && campaign.endDate!.isBefore(now));
-        }).toList();
+        final status = campaign.status.toString().split('.').last;
+        return status == 'completed' ||
+            (campaign.endDate != null && campaign.endDate!.isBefore(now));
+      }).toList();
 
       // 디버깅 로그
       debugPrint('📊 캠페인 상태 분류:');
@@ -243,7 +359,9 @@ class _AdvertiserMyCampaignsScreenState
       debugPrint('   종료: ${_completedCampaigns.length}개');
       for (var campaign in _allCampaigns.take(5)) {
         final status = campaign.status.toString().split('.').last;
-        debugPrint('   - ${campaign.title}: status=$status, startDate=${campaign.startDate}, endDate=${campaign.endDate}');
+        debugPrint(
+          '   - ${campaign.title}: status=$status, startDate=${campaign.startDate}, endDate=${campaign.endDate}',
+        );
       }
 
       if (mounted) {
@@ -270,6 +388,146 @@ class _AdvertiserMyCampaignsScreenState
     }
   }
 
+  /// 폴링 방식으로 캠페인 조회 (생성된 캠페인이 나타날 때까지 재시도) - 사용하지 않음
+  @Deprecated('pushNamed().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  Future<void> _loadCampaignsWithPolling({
+    required String expectedCampaignId,
+    int maxAttempts = 5,
+    Duration initialInterval = const Duration(milliseconds: 200),
+  }) async {
+    debugPrint(
+      '🔄 폴링 시작 - expectedCampaignId: $expectedCampaignId, maxAttempts: $maxAttempts',
+    );
+
+    // 첫 시도 전에 짧은 지연 (트랜잭션 커밋 대기)
+    await Future.delayed(initialInterval);
+
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      if (!mounted) {
+        debugPrint('⚠️ 위젯이 unmount되어 폴링 중단');
+        return;
+      }
+
+      debugPrint('📡 폴링 시도 ${attempt + 1}/$maxAttempts - 캠페인 목록 조회 중...');
+      await _loadCampaigns();
+
+      // 생성된 캠페인이 목록에 있는지 확인
+      final found = _allCampaigns.any((c) => c.id == expectedCampaignId);
+      debugPrint('🔍 현재 목록에 있는 캠페인 수: ${_allCampaigns.length}');
+      debugPrint('🔍 찾는 캠페인 ID: $expectedCampaignId');
+      debugPrint('🔍 찾음 여부: $found');
+
+      if (found) {
+        debugPrint(
+          '✅ 생성된 캠페인을 찾았습니다: $expectedCampaignId (시도: ${attempt + 1}/$maxAttempts)',
+        );
+        return;
+      }
+
+      // 마지막 시도가 아니면 대기 후 재시도 (Exponential backoff)
+      if (attempt < maxAttempts - 1) {
+        // Exponential backoff: 200ms, 400ms, 800ms, 1600ms
+        final delay = initialInterval * (1 << attempt);
+        debugPrint(
+          '⏳ 캠페인 조회 재시도 중... (${attempt + 1}/$maxAttempts) - ${delay.inMilliseconds}ms 대기',
+        );
+        await Future.delayed(delay);
+      } else {
+        debugPrint('⚠️ 최대 재시도 횟수 초과. 캠페인을 찾지 못했습니다. 직접 조회 시도...');
+        // 최대 재시도 횟수 내에서 찾지 못하면 생성된 캠페인을 직접 조회하여 추가
+        await _addCampaignById(expectedCampaignId);
+      }
+    }
+  }
+
+  /// 생성된 캠페인을 직접 조회하여 목록에 추가 - 사용하지 않음
+  /// Returns: 성공 여부 (true: 추가 성공, false: 실패)
+  @Deprecated('pushNamed().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  Future<bool> _addCampaignById(String campaignId) async {
+    if (!mounted) return false;
+
+    debugPrint('🔍 캠페인 직접 조회 시작 - campaignId: $campaignId');
+
+    try {
+      final result = await _campaignService.getCampaignById(campaignId);
+      debugPrint(
+        '📥 캠페인 조회 결과 - success: ${result.success}, data: ${result.data != null}',
+      );
+
+      if (result.success && result.data != null && mounted) {
+        final campaign = result.data!;
+
+        // 중복 체크
+        if (!_allCampaigns.any((c) => c.id == campaignId)) {
+          debugPrint('➕ 캠페인을 목록에 추가 - ${campaign.title}');
+          _allCampaigns.insert(0, campaign);
+          _updateFilteredCampaigns();
+
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+            debugPrint('✅ UI 업데이트 완료 - 총 캠페인 수: ${_allCampaigns.length}');
+          }
+
+          debugPrint('✅ 생성된 캠페인을 직접 조회하여 추가했습니다: ${campaign.title}');
+          return true;
+        } else {
+          debugPrint('ℹ️ 캠페인이 이미 목록에 있습니다: $campaignId');
+          return true; // 이미 있으면 성공으로 간주
+        }
+      } else {
+        debugPrint('⚠️ 캠페인을 찾을 수 없습니다: $campaignId - error: ${result.error}');
+        return false;
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ 캠페인 직접 조회 실패: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
+      return false;
+    }
+  }
+
+  /// 상태별 필터링 업데이트
+  void _updateFilteredCampaigns() {
+    final now = DateTime.now();
+
+    // 대기중: upcoming 상태 또는 시작일이 아직 지나지 않음
+    _pendingCampaigns = _allCampaigns.where((campaign) {
+      final status = campaign.status.toString().split('.').last;
+      return status == 'upcoming' ||
+          (campaign.startDate != null && campaign.startDate!.isAfter(now));
+    }).toList();
+
+    // 모집중: active 상태이고 현재 기간 내
+    _recruitingCampaigns = _allCampaigns.where((campaign) {
+      final status = campaign.status.toString().split('.').last;
+      return status == 'active' &&
+          (campaign.startDate == null || campaign.startDate!.isBefore(now)) &&
+          (campaign.endDate == null || campaign.endDate!.isAfter(now));
+    }).toList();
+
+    // 선정완료: active 상태이지만 참여자 선정이 완료된 경우
+    _selectedCampaigns = _recruitingCampaigns.where((campaign) {
+      return campaign.currentParticipants >= (campaign.maxParticipants ?? 0);
+    }).toList();
+
+    // 등록기간: active 상태이지만 모집이 완료되고 진행 중인 상태
+    _registeredCampaigns = _allCampaigns.where((campaign) {
+      final status = campaign.status.toString().split('.').last;
+      return status == 'active' &&
+          campaign.currentParticipants > 0 &&
+          (campaign.maxParticipants == null ||
+              campaign.currentParticipants < campaign.maxParticipants!);
+    }).toList();
+
+    // 종료: completed 상태 또는 종료일이 지남
+    _completedCampaigns = _allCampaigns.where((campaign) {
+      final status = campaign.status.toString().split('.').last;
+      return status == 'completed' ||
+          (campaign.endDate != null && campaign.endDate!.isBefore(now));
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -285,8 +543,7 @@ class _AdvertiserMyCampaignsScreenState
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () =>
-                context.go('/mypage/advertiser/my-campaigns/create'),
+            onPressed: () => _navigateToCreateCampaign(),
           ),
         ],
         bottom: TabBar(
@@ -419,16 +676,19 @@ class _AdvertiserMyCampaignsScreenState
                             color: Colors.grey[200],
                             child: Center(
                               child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
                                     ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
+                                          loadingProgress.expectedTotalBytes!
                                     : null,
                               ),
                             ),
                           );
                         },
                         errorBuilder: (context, error, stackTrace) {
-                          debugPrint('🖼️ 이미지 로딩 실패: ${campaign.productImageUrl}');
+                          debugPrint(
+                            '🖼️ 이미지 로딩 실패: ${campaign.productImageUrl}',
+                          );
                           return Container(
                             width: 80,
                             height: 80,

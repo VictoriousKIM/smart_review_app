@@ -25,7 +25,7 @@ class CampaignService {
       dynamic query = _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at, end_date',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, review_reward, current_participants, max_participants, created_at, end_date',
           )
           .eq('status', 'active');
 
@@ -119,7 +119,7 @@ class CampaignService {
       final response = await _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, review_reward, current_participants, max_participants, created_at',
           )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
@@ -142,7 +142,7 @@ class CampaignService {
       final response = await _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, review_reward, current_participants, max_participants, created_at',
           )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
@@ -170,7 +170,7 @@ class CampaignService {
       var searchQuery = _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, product_price, review_reward, current_participants, max_participants, created_at',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, review_reward, current_participants, max_participants, created_at',
           )
           .eq('status', 'active')
           .ilike('title', '%$query%');
@@ -281,13 +281,13 @@ class CampaignService {
       // RPC 함수 호출로 안전한 사용자 캠페인 조회
       final offset = (page - 1) * limit;
       final statusParam = status ?? 'all';
-      
+
       debugPrint('📞 get_user_campaigns_safe 호출:');
       debugPrint('   p_user_id: ${user.id}');
       debugPrint('   p_status: $statusParam');
       debugPrint('   p_offset: $offset');
       debugPrint('   p_limit: $limit');
-      
+
       final response = await _supabase.rpc(
         'get_user_campaigns_safe',
         params: {
@@ -299,13 +299,17 @@ class CampaignService {
       );
 
       debugPrint('✅ get_user_campaigns_safe 성공:');
-      debugPrint('   campaigns 수: ${(response['campaigns'] as List?)?.length ?? 0}');
+      debugPrint(
+        '   campaigns 수: ${(response['campaigns'] as List?)?.length ?? 0}',
+      );
       debugPrint('   total_count: ${response['total_count']}');
-      
+
       return ApiResponse<Map<String, dynamic>>(success: true, data: response);
     } catch (e) {
       debugPrint('❌ get_user_campaigns_safe 실패: $e');
-      debugPrint('   파라미터: p_user_id=${user.id}, p_status=${status ?? 'all'}, p_offset=${(page - 1) * limit}, p_limit=$limit');
+      debugPrint(
+        '   파라미터: p_user_id=${user.id}, p_status=${status ?? 'all'}, p_offset=${(page - 1) * limit}, p_limit=$limit',
+      );
       return ApiResponse<Map<String, dynamic>>(
         success: false,
         error: '사용자 캠페인 조회 실패: $e',
@@ -618,17 +622,17 @@ class CampaignService {
     int? quantity,
     String? seller,
     String? productNumber,
-    String? productName,  // ✅ 추가
-    int? productPrice,    // ✅ 추가 (paymentAmount 대체)
+    String? productName, // ✅ 추가
+    int? productPrice, // ✅ 추가 (paymentAmount 대체)
     String? reviewType,
-    int? reviewTextLength,  // ✅ NULL 가능
-    int? reviewImageCount,  // ✅ NULL 가능
+    int? reviewTextLength, // ✅ NULL 가능
+    int? reviewImageCount, // ✅ NULL 가능
     bool? preventProductDuplicate,
     bool? preventStoreDuplicate,
     int? duplicatePreventDays,
     String? paymentMethod,
     String? productImageUrl,
-    String? purchaseMethod,  // ✅ 추가
+    String? purchaseMethod, // ✅ 추가
   }) async {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
@@ -673,13 +677,13 @@ class CampaignService {
           'p_seller': seller,
           'p_product_number': productNumber,
           'p_product_image_url': productImageUrl,
-          'p_product_name': productName,      // ✅ 추가
-          'p_product_price': productPrice,    // ✅ 추가 (paymentAmount 대체)
-          'p_purchase_method': purchaseMethod ?? 'mobile',  // ✅ 하드코딩 제거
-          'p_product_description': null,  // ✅ 제거 (NULL로 설정)
+          'p_product_name': productName, // ✅ 추가
+          'p_product_price': productPrice, // ✅ 추가 (paymentAmount 대체)
+          'p_purchase_method': purchaseMethod ?? 'mobile', // ✅ 하드코딩 제거
+          'p_product_description': null, // ✅ 제거 (NULL로 설정)
           'p_review_type': reviewType ?? 'star_only',
-          'p_review_text_length': reviewTextLength,  // ✅ NULL 가능
-          'p_review_image_count': reviewImageCount,  // ✅ NULL 가능
+          'p_review_text_length': reviewTextLength, // ✅ NULL 가능
+          'p_review_image_count': reviewImageCount, // ✅ NULL 가능
           'p_prevent_product_duplicate': preventProductDuplicate ?? false,
           'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
           'p_duplicate_prevent_days': duplicatePreventDays ?? 0,

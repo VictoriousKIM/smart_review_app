@@ -275,7 +275,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'advertiser-my-campaigns',
             builder: (context, state) {
               final initialTab = state.uri.queryParameters['tab'];
-              return AdvertiserMyCampaignsScreen(initialTab: initialTab);
+              // pushNamed().then() 패턴으로 변경하여 refresh, campaignId 파라미터는 더 이상 사용하지 않음
+              return AdvertiserMyCampaignsScreen(
+                initialTab: initialTab,
+              );
             },
             routes: [
               GoRoute(

@@ -130,16 +130,19 @@ class CampaignCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildPriceRow(
-          '제품 가격',
-          '${campaign.productPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
-        ),
-        const SizedBox(height: 1),
-        _buildPriceRow(
-          '리뷰 비용',
-          '${campaign.reviewReward.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
-          isReward: true,
-        ),
+        if (campaign.productPrice != null && campaign.productPrice! > 0)
+          _buildPriceRow(
+            '제품 가격',
+            '${campaign.productPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
+          ),
+        if (campaign.productPrice != null && campaign.productPrice! > 0)
+          const SizedBox(height: 1),
+        if (campaign.reviewReward != null && campaign.reviewReward! > 0)
+          _buildPriceRow(
+            '리뷰 보상',
+            '${campaign.reviewReward.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
+            isReward: true,
+          ),
       ],
     );
   }
@@ -162,6 +165,8 @@ class CampaignCard extends StatelessWidget {
   }
 
   Widget _buildPlatformInfo() {
+    final platformName = _getPlatformName(campaign.platform);
+    
     return Container(
       padding: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
@@ -172,9 +177,7 @@ class CampaignCard extends StatelessWidget {
         children: [
           Text('플랫폼', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
           Text(
-            _getPlatformName(
-              campaign.platform.isNotEmpty ? campaign.platform : '알 수 없음',
-            ),
+            platformName,
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -185,17 +188,25 @@ class CampaignCard extends StatelessWidget {
     );
   }
 
-  String _getPlatformName(String platform) {
-    switch (platform.toLowerCase()) {
+  String _getPlatformName(String? platform) {
+    if (platform == null || platform.isEmpty || platform.trim().isEmpty) {
+      return '알 수 없음';
+    }
+    
+    switch (platform.toLowerCase().trim()) {
       case 'coupang':
         return '쿠팡';
       case 'naver':
         return '네이버 쇼핑';
       case '11st':
+      case '11번가':
         return '11번가';
       case 'visit':
+      case '방문형':
         return '방문형';
       default:
+        // 알 수 없는 플랫폼이면 원본 값 반환 (디버깅용)
+        debugPrint('⚠️ 알 수 없는 플랫폼: $platform');
         return platform;
     }
   }
