@@ -1,7 +1,36 @@
 # Flutter 웹 앱 접근성 활성화 가이드
-- 수파베이스와 플러터를 실행하여 첫번째 탭에 개발자계정으로 로그인하고 두번째 탭에 수파베이스 대시보드, 세번째 탭에 Cloudflare Workers 대시보드를 열어줘
-- 이미 로그인이 돼었다면 로그인시도를 반복할 필요 없음
-- flutter run을 실행할 필요 없고, playwright mcp를 이용할 것
+
+## 🚀 빠른 시작 가이드
+
+다음 순서로 개발 환경을 설정하세요:
+
+1. **Supabase 시작** (Flutter는 별도로 실행할 필요 없음 - 이미 실행 중이어야 함)
+   ```bash
+   npx supabase start
+   ```
+
+2. **브라우저 탭 열기** (Playwright MCP 사용)
+   - 첫 번째 탭: Flutter 웹 앱 (http://localhost:3001/) - 개발자 계정으로 로그인
+   - 두 번째 탭: Supabase 대시보드 (http://127.0.0.1:54323)
+   - 세 번째 탭: Cloudflare Workers 대시보드 (https://dash.cloudflare.com)
+
+3. **접근성 활성화** (Flutter 웹 앱에서 필수!)
+   ```javascript
+   // 접근성 활성화 (필수!)
+   await page.evaluate(() => {
+     const accessibilityButton = document.querySelector('flt-semantics-placeholder[aria-label="Enable accessibility"]');
+     if (accessibilityButton) {
+       accessibilityButton.click();
+     }
+   });
+   ```
+
+**참고사항:**
+- 이미 로그인되어 있다면 로그인 시도를 반복할 필요 없음
+- Flutter는 별도로 `flutter run`을 실행할 필요 없음 (이미 실행 중이어야 함)
+- Playwright MCP를 사용하여 브라우저 자동화
+
+## 📱 Flutter 웹 앱 접근성 활성화
 
 Flutter 웹 앱에서 접근성 버튼을 활성화하는 방법:
 
@@ -20,25 +49,37 @@ await page.evaluate(() => {
 - Playwright로 Flutter 앱을 테스트할 때
 - 접근성 기능이 필요한 경우
 
-**플러터 웹 사용포트**
+## 🌐 접속 정보
+
+**Flutter 웹 앱 포트:**
 - http://localhost:3001/
-**개발용 계정 정보:**
-- 이메일: `dev@example.com`
-- 비밀번호: `dev@example.com`
-- 역할: 관리자 사용자
+
+**Supabase 대시보드:**
+- http://127.0.0.1:54323
+
+**Cloudflare Workers 대시보드:**
+- https://dash.cloudflare.com
+
+## 👤 개발용 계정 정보
+
+| 역할 | 이메일 | 비밀번호 | 설명 |
+|------|--------|----------|------|
+| 개발자 | `dev@example.com` | `dev@example.com` | 일반 사용자 |
+| 관리자 | `admin@example.com` | `admin@example.com` | 관리자 권한 |
+| 리뷰어 | `reviewer@example.com` | `reviewer@example.com` | 리뷰어 권한 |
 
 <!-- - 참고: `test@example.com` -->
-<!-- - 참고: `reviewer@example.com` -->
 <!-- - 참고: `company_owner@example.com` -->
 <!-- - 참고: `company_manger@example.com` -->
-로컬 Supabase 스택 시작
+
+## 🗄️ 로컬 Supabase 스택 시작
 
 ```bash
 # 로컬 Supabase 환경 시작
 npx supabase start
 ```
 
-###  환경 확인
+### 환경 확인
 
 성공적으로 시작되면 다음과 같은 정보가 출력됩니다:
 
@@ -51,16 +92,6 @@ npx supabase start
  Publishable key: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
       Secret key: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
 ```
-
-## 🎯 개발용 사용자 계정
-
-로컬 환경에서는 다음 개발용 계정들을 사용할 수 있습니다:
-
-| 역할 | 이메일 | 비밀번호 | 설명 |
-|------|--------|----------|------|
-| 개발자 | `dev@example.com` | `dev@example.com` | 일반 사용자 |
-| 관리자 | `admin@example.com` | `admin@example.com` | 관리자 권한 |
-| 리뷰어 | `reviewer@example.com` | `reviewer@example.com` | 리뷰어 권한 |
 
 ## 📦 데이터베이스 워크플로우
 

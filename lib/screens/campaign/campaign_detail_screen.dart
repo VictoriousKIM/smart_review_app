@@ -78,20 +78,25 @@ class CampaignDetailScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 이미지
-          CachedNetworkImage(
-            imageUrl: campaign.productImageUrl,
+          Container(
             width: double.infinity,
             height: 250,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
+            color: Colors.grey[100],
+            child: CachedNetworkImage(
+              imageUrl: campaign.productImageUrl,
+              width: double.infinity,
               height: 250,
-              color: Colors.grey[200],
-              child: const Center(child: CircularProgressIndicator()),
-            ),
-            errorWidget: (context, url, error) => Container(
-              height: 250,
-              color: Colors.grey[200],
-              child: const Icon(Icons.error, size: 64),
+              fit: BoxFit.contain,
+              placeholder: (context, url) => Container(
+                height: 250,
+                color: Colors.grey[200],
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              errorWidget: (context, url, error) => Container(
+                height: 250,
+                color: Colors.grey[200],
+                child: const Icon(Icons.error, size: 64),
+              ),
             ),
           ),
 

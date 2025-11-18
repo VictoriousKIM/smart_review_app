@@ -29,11 +29,15 @@ class CampaignCard extends StatelessWidget {
                     bottomLeft: Radius.circular(12),
                   ),
                   child: campaign.productImageUrl.isNotEmpty
-                      ? Image.network(
-                          campaign.productImageUrl,
+                      ? Container(
                           width: 140,
                           height: 140,
-                          fit: BoxFit.cover,
+                          color: Colors.grey[100],
+                          child: Image.network(
+                            campaign.productImageUrl,
+                            width: 140,
+                            height: 140,
+                            fit: BoxFit.contain,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
                             return Container(
@@ -79,6 +83,7 @@ class CampaignCard extends StatelessWidget {
                               ),
                             );
                           },
+                          ),
                         )
                       : Container(
                           width: 140,

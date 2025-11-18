@@ -173,6 +173,21 @@ class ErrorHandler {
     );
   }
 
+  /// OAuth 클라이언트 ID 관련 에러 확인
+  static bool isOAuthClientIdError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('oauth_client_id') ||
+        errorString.contains('missing destination name oauth_client_id');
+  }
+
+  /// 손상된 세션 에러 확인
+  static bool isCorruptedSessionError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return isOAuthClientIdError(error) ||
+        errorString.contains('disposed') ||
+        errorString.contains('session') && errorString.contains('invalid');
+  }
+
   /// 데이터베이스 에러 처리
   static void handleDatabaseError(dynamic error, {Map<String, dynamic>? context}) {
     logError(

@@ -122,7 +122,12 @@ enabled = true
 # in emails.
 site_url = "http://localhost:3001"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://localhost:3001", "http://127.0.0.1:3001"]
+additional_redirect_urls = [
+  "http://localhost:3001",
+  "http://127.0.0.1:3001",
+  "http://127.0.0.1:54321/auth/v1/callback",
+  "http://localhost:54321/auth/v1/callback"
+]
 # External hosts for mailer
 # external_hosts = ["127.0.0.1", "localhost"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
@@ -265,6 +270,9 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `slack`, `spotify`, `workos`, `zoom`.
+#
+# 로컬 개발 환경: OAuth 비활성화 (이메일/비밀번호만 사용)
+# 프로덕션 환경: OAuth 활성화 (Google, Kakao 등)
 [auth.external.apple]
 enabled = false
 client_id = ""
@@ -277,6 +285,38 @@ redirect_uri = ""
 url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
 skip_nonce_check = false
+
+# Google OAuth 설정
+# 로컬 및 프로덕션 모두 활성화 (이메일과 OAuth 모두 사용)
+# 환경 변수가 설정되지 않으면 OAuth는 비활성화됩니다 (경고만 표시)
+[auth.external.google]
+enabled = true
+# 환경 변수 또는 직접 입력 (로컬 개발용으로 직접 입력 가능)
+# 환경 변수가 없으면 빈 문자열로 처리되어 OAuth가 작동하지 않지만 경고만 표시됩니다
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID, )"
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET, )"
+# Overrides the default auth redirectUrl.
+redirect_uri = ""
+# Overrides the default auth provider URL.
+url = ""
+# 로컬 개발 환경에서는 nonce 체크를 스킵해야 할 수 있음
+skip_nonce_check = true
+
+# Kakao OAuth 설정
+# 로컬 및 프로덕션 모두 활성화 (이메일과 OAuth 모두 사용)
+# 환경 변수가 설정되지 않으면 OAuth는 비활성화됩니다 (경고만 표시)
+[auth.external.kakao]
+enabled = true
+# 환경 변수 또는 직접 입력 (로컬 개발용으로 직접 입력 가능)
+# 환경 변수가 없으면 빈 문자열로 처리되어 OAuth가 작동하지 않지만 경고만 표시됩니다
+client_id = "env(SUPABASE_AUTH_EXTERNAL_KAKAO_CLIENT_ID, )"
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_KAKAO_SECRET, )"
+# Overrides the default auth redirectUrl.
+redirect_uri = ""
+# Overrides the default auth provider URL.
+url = ""
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
