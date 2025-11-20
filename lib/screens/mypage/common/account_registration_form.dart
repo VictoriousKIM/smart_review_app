@@ -8,12 +8,14 @@ class AccountRegistrationForm extends StatefulWidget {
   final UserWallet? userWallet;
   final CompanyWallet? companyWallet;
   final VoidCallback? onSaved;
+  final bool isBusinessTab; // 사업자 탭인지 구분
 
   const AccountRegistrationForm({
     super.key,
     this.userWallet,
     this.companyWallet,
     this.onSaved,
+    this.isBusinessTab = false,
   });
 
   @override
@@ -29,10 +31,28 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
   bool _isEditing = false;
   bool _isSaving = false;
 
-  bool get _isCompanyWallet => widget.companyWallet != null;
-  bool get _canEdit => _isCompanyWallet
-      ? widget.companyWallet?.isOwner == true
-      : true;
+  /// 회사 지갑인지 확인
+  /// 사업자 탭에서는 companyWallet이 null이면 false 반환 (개인 지갑으로 처리하지 않음)
+  bool get _isCompanyWallet {
+    if (widget.isBusinessTab) {
+      // 사업자 탭에서는 companyWallet이 null이면 개인 지갑으로 처리하지 않음
+      return widget.companyWallet != null;
+    }
+    // 리뷰어 탭에서는 companyWallet이 있으면 회사 지갑, 없으면 개인 지갑
+    return widget.companyWallet != null;
+  }
+
+  /// 편집 권한 확인
+  /// - 회사 지갑인 경우: company_role이 'owner'인 경우만 편집 가능
+  /// - 개인 지갑인 경우: 항상 편집 가능
+  bool get _canEdit {
+    if (!_isCompanyWallet) {
+      return true; // 개인 지갑은 항상 편집 가능
+    }
+    // 회사 지갑인 경우 company_role이 'owner'인 경우만 편집 가능
+    final userRole = widget.companyWallet?.userRole;
+    return userRole == 'owner';
+  }
 
   @override
   void initState() {
@@ -43,15 +63,23 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
   @override
   void didUpdateWidget(AccountRegistrationForm oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final userWalletChanged = oldWidget.userWallet?.id != widget.userWallet?.id ||
-        oldWidget.userWallet?.withdrawBankName != widget.userWallet?.withdrawBankName ||
-        oldWidget.userWallet?.withdrawAccountNumber != widget.userWallet?.withdrawAccountNumber ||
-        oldWidget.userWallet?.withdrawAccountHolder != widget.userWallet?.withdrawAccountHolder;
-    final companyWalletChanged = oldWidget.companyWallet?.id != widget.companyWallet?.id ||
-        oldWidget.companyWallet?.withdrawBankName != widget.companyWallet?.withdrawBankName ||
-        oldWidget.companyWallet?.withdrawAccountNumber != widget.companyWallet?.withdrawAccountNumber ||
-        oldWidget.companyWallet?.withdrawAccountHolder != widget.companyWallet?.withdrawAccountHolder;
-    
+    final userWalletChanged =
+        oldWidget.userWallet?.id != widget.userWallet?.id ||
+        oldWidget.userWallet?.withdrawBankName !=
+            widget.userWallet?.withdrawBankName ||
+        oldWidget.userWallet?.withdrawAccountNumber !=
+            widget.userWallet?.withdrawAccountNumber ||
+        oldWidget.userWallet?.withdrawAccountHolder !=
+            widget.userWallet?.withdrawAccountHolder;
+    final companyWalletChanged =
+        oldWidget.companyWallet?.id != widget.companyWallet?.id ||
+        oldWidget.companyWallet?.withdrawBankName !=
+            widget.companyWallet?.withdrawBankName ||
+        oldWidget.companyWallet?.withdrawAccountNumber !=
+            widget.companyWallet?.withdrawAccountNumber ||
+        oldWidget.companyWallet?.withdrawAccountHolder !=
+            widget.companyWallet?.withdrawAccountHolder;
+
     if (userWalletChanged || companyWalletChanged) {
       if (!_isEditing) {
         print('🔄 지갑 데이터 변경 감지, 계좌정보 다시 로드');
@@ -69,26 +97,38 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
   }
 
   void _loadAccountData() {
+    // 사업자 탭에서 companyWallet이 null이면 로드하지 않음
+    if (widget.isBusinessTab && widget.companyWallet == null) {
+      return;
+    }
+
     if (_isCompanyWallet) {
       final bankName = widget.companyWallet?.withdrawBankName ?? '';
       final accountNumber = widget.companyWallet?.withdrawAccountNumber ?? '';
       final accountHolder = widget.companyWallet?.withdrawAccountHolder ?? '';
-      print('📝 회사 지갑 계좌정보 로드: 은행=$bankName, 계좌=$accountNumber, 예금주=$accountHolder');
+      print(
+        '📝 회사 지갑 계좌정보 로드: 은행=$bankName, 계좌=$accountNumber, 예금주=$accountHolder',
+      );
       setState(() {
         _bankNameController.text = bankName;
         _accountNumberController.text = accountNumber;
         _accountHolderController.text = accountHolder;
       });
     } else {
-      final bankName = widget.userWallet?.withdrawBankName ?? '';
-      final accountNumber = widget.userWallet?.withdrawAccountNumber ?? '';
-      final accountHolder = widget.userWallet?.withdrawAccountHolder ?? '';
-      print('📝 개인 지갑 계좌정보 로드: 은행=$bankName, 계좌=$accountNumber, 예금주=$accountHolder');
-      setState(() {
-        _bankNameController.text = bankName;
-        _accountNumberController.text = accountNumber;
-        _accountHolderController.text = accountHolder;
-      });
+      // 리뷰어 탭에서만 개인 지갑 로드
+      if (!widget.isBusinessTab) {
+        final bankName = widget.userWallet?.withdrawBankName ?? '';
+        final accountNumber = widget.userWallet?.withdrawAccountNumber ?? '';
+        final accountHolder = widget.userWallet?.withdrawAccountHolder ?? '';
+        print(
+          '📝 개인 지갑 계좌정보 로드: 은행=$bankName, 계좌=$accountNumber, 예금주=$accountHolder',
+        );
+        setState(() {
+          _bankNameController.text = bankName;
+          _accountNumberController.text = accountNumber;
+          _accountHolderController.text = accountHolder;
+        });
+      }
     }
   }
 
@@ -135,9 +175,9 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('계좌정보가 저장되었습니다')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('계좌정보가 저장되었습니다')));
       }
 
       // 콜백 호출
@@ -147,9 +187,9 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
         _isSaving = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('계좌정보 저장 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('계좌정보 저장 실패: $e')));
       }
     }
   }
@@ -203,6 +243,18 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
 
   @override
   Widget build(BuildContext context) {
+    // 사업자 탭에서 companyWallet이 null이면 아무것도 표시하지 않음
+    if (widget.isBusinessTab && widget.companyWallet == null) {
+      return const SizedBox.shrink();
+    }
+
+    // 개인 지갑도 없으면 아무것도 표시하지 않음
+    if (!widget.isBusinessTab &&
+        widget.userWallet == null &&
+        widget.companyWallet == null) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -348,4 +400,3 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
     );
   }
 }
-

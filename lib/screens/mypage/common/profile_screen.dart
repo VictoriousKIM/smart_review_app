@@ -623,10 +623,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           // 사업자등록폼 통합
           _buildBusinessRegistrationForm(),
           const SizedBox(height: 24),
-          // 계좌정보 섹션
+          // 계좌정보 섹션 (사업자 탭)
           AccountRegistrationForm(
             companyWallet: _companyWallet,
             onSaved: _loadWalletData,
+            isBusinessTab: true,
           ),
           // 사업자 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
           if (_existingCompanyData == null && !_isLoadingCompanyData) ...[
@@ -1039,12 +1040,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       // 개인 지갑 로드
       final userWallet = await WalletService.getUserWallet();
 
-      // 회사 지갑 로드
-      CompanyWallet? companyWallet;
-      if (user.companyId != null) {
-        final companyWallets = await WalletService.getCompanyWallets();
-        companyWallet = companyWallets.isNotEmpty ? companyWallets.first : null;
-      }
+      // 회사 지갑 로드 (company_users 테이블을 직접 조회하므로 user.companyId 체크 불필요)
+      final companyWallets = await WalletService.getCompanyWallets();
+      final companyWallet = companyWallets.isNotEmpty
+          ? companyWallets.first
+          : null;
 
       setState(() {
         _userWallet = userWallet;
