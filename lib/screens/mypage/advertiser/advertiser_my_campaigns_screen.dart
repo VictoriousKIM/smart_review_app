@@ -454,17 +454,19 @@ class _AdvertiserMyCampaignsScreenState
   void _updateFilteredCampaigns() {
     final now = DateTime.now();
 
-    // 모집 (대기중): 시작기간이 되지 않았을 때
+    // 모집 (대기중): 시작기간이 되지 않았을 때 (active 상태만)
     _pendingCampaigns = _allCampaigns.where((campaign) {
-      return campaign.startDate != null &&
-          campaign.startDate!.isAfter(now);
+      if (campaign.status != CampaignStatus.active) return false;
+      // startDate는 필수이므로 null 체크 불필요
+      return campaign.startDate.isAfter(now);
     }).toList();
 
     // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
     _recruitingCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status != CampaignStatus.active) return false;
-      if (campaign.startDate != null && campaign.startDate!.isAfter(now)) return false;
-      if (campaign.endDate != null && campaign.endDate!.isBefore(now)) return false;
+      // 날짜는 필수이므로 null 체크 불필요
+      if (campaign.startDate.isAfter(now)) return false;
+      if (campaign.endDate.isBefore(now)) return false;
       if (campaign.maxParticipants != null &&
           campaign.currentParticipants >= campaign.maxParticipants!) return false;
       return true;
@@ -473,8 +475,8 @@ class _AdvertiserMyCampaignsScreenState
     // 선정완료: 시작기간과 종료기간 사이면서 참여자가 다 찬 경우
     _selectedCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status != CampaignStatus.active) return false;
-      if (campaign.startDate != null && campaign.startDate!.isAfter(now)) return false;
-      if (campaign.endDate != null && campaign.endDate!.isBefore(now)) return false;
+      if (campaign.startDate.isAfter(now)) return false;
+      if (campaign.endDate.isBefore(now)) return false;
       if (campaign.maxParticipants == null) return false;
       return campaign.currentParticipants >= campaign.maxParticipants!;
     }).toList();
@@ -482,16 +484,16 @@ class _AdvertiserMyCampaignsScreenState
     // 등록기간: 종료기간과 만료기간 사이에 있는 경우
     _registeredCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status != CampaignStatus.active) return false;
-      if (campaign.endDate == null || campaign.endDate!.isAfter(now)) return false;
-      if (campaign.expirationDate == null || campaign.expirationDate!.isBefore(now)) return false;
+      if (campaign.endDate.isAfter(now)) return false;
+      if (campaign.expirationDate.isBefore(now)) return false;
       return true;
     }).toList();
 
     // 종료: 만료기간이 지나거나 status가 inactive
     _completedCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status == CampaignStatus.inactive) return true;
-      if (campaign.expirationDate != null && campaign.expirationDate!.isBefore(now)) return true;
-      return false;
+      // expirationDate는 필수이므로 null 체크 불필요
+      return campaign.expirationDate.isBefore(now);
     }).toList();
   }
 
@@ -639,7 +641,17 @@ class _AdvertiserMyCampaignsScreenState
         ],
       ),
       child: InkWell(
-        onTap: () => context.go('/campaigns/${campaign.id}'),
+        onTap: () => context
+            .pushNamed(
+              'advertiser-campaign-detail',
+              pathParameters: {'id': campaign.id},
+            )
+            .then((result) {
+          // 디테일 화면에서 상태 변경이 있었으면 새로고침
+          if (result == true) {
+            _loadCampaigns();
+          }
+        }),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -766,7 +778,7 @@ class _AdvertiserMyCampaignsScreenState
                   Icon(Icons.stars, size: 16, color: Colors.amber[700]),
                   const SizedBox(width: 4),
                   Text(
-                    '${campaign.reviewReward} OP',
+                    '${campaign.campaignReward} P',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,

@@ -142,10 +142,10 @@ class CampaignCard extends StatelessWidget {
           ),
         if (campaign.productPrice != null && campaign.productPrice! > 0)
           const SizedBox(height: 1),
-        if (campaign.reviewReward != null && campaign.reviewReward! > 0)
+        if (campaign.campaignReward > 0)
           _buildPriceRow(
             '리뷰 보상',
-            '${campaign.reviewReward.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
+            '${campaign.campaignReward.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
             isReward: true,
           ),
       ],

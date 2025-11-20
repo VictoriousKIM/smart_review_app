@@ -124,7 +124,11 @@ class ReviewService {
       // 주의: DB에 data 필드가 없으므로 title, reviewContent는 항상 빈 값
       // status로만 필터링
       final reviews = result.data!
-          .where((log) => log.status == 'review_submitted' || log.status == 'review_approved')
+          .where(
+            (log) =>
+                log.status == 'review_submitted' ||
+                log.status == 'review_approved',
+          )
           .map(
             (log) => {
               'id': log.id,
@@ -145,7 +149,7 @@ class ReviewService {
                       'product_image_url': log.campaign!.productImageUrl,
                       'platform': log.campaign!.platform,
                       'product_price': log.campaign!.productPrice,
-                      'review_reward': log.campaign!.reviewReward,
+                      'campaign_reward': log.campaign!.campaignReward,
                     }
                   : null,
             },
@@ -193,7 +197,11 @@ class ReviewService {
       // 주의: DB에 data 필드가 없으므로 title, reviewContent는 항상 빈 값
       // status로만 필터링
       final reviews = result.data!
-          .where((log) => log.status == 'review_submitted' || log.status == 'review_approved')
+          .where(
+            (log) =>
+                log.status == 'review_submitted' ||
+                log.status == 'review_approved',
+          )
           .map(
             (log) => {
               'id': log.id,
@@ -338,9 +346,7 @@ class ReviewService {
       // 현재는 상태만 업데이트
       await _supabase
           .from('campaign_action_logs')
-          .update({
-            'updated_at': DateTime.now().toIso8601String(),
-          })
+          .update({'updated_at': DateTime.now().toIso8601String()})
           .eq('id', reviewId);
 
       // 업데이트된 데이터 반환

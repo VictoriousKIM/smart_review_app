@@ -332,13 +332,13 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
               ),
               const SizedBox(height: 12),
               // 리워드 정보
-              if (campaign.reviewCost > 0)
+              if (campaign.campaignReward > 0)
                 Row(
                   children: [
                     Icon(Icons.stars, size: 16, color: Colors.amber[700]),
                     const SizedBox(width: 4),
                     Text(
-                      '${campaign.reviewCost} OP',
+                      '${campaign.campaignReward} OP',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,

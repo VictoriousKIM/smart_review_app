@@ -231,7 +231,7 @@ class _ReviewerApplicationsScreenState
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '보상: ${(campaign['review_reward'] ?? 0).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
+                  '보상: ${(campaign['campaign_reward'] ?? campaign['review_reward'] ?? 0).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
               ],

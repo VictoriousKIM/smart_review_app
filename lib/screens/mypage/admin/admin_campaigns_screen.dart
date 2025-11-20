@@ -163,7 +163,7 @@ class _AdminCampaignsScreenState extends ConsumerState<AdminCampaignsScreen> {
                                 children: [
                                   Text('상태: ${campaign['status'] ?? ''}'),
                                   Text('참여자: ${campaign['current_participants'] ?? 0} / ${campaign['max_participants'] ?? 0}'),
-                                  Text('보상: ${campaign['review_reward'] ?? 0}P'),
+                                  Text('보상: ${campaign['campaign_reward'] ?? campaign['review_reward'] ?? 0}P'),
                                 ],
                               ),
                               trailing: PopupMenuButton(

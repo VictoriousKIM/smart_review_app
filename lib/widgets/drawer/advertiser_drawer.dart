@@ -104,16 +104,6 @@ class AdvertiserDrawer extends ConsumerWidget {
                 if (user.companyId != null) ...[
                   _buildMenuItem(
                     context: context,
-                    icon: Icons.business_center_outlined,
-                    title: '회사 정보',
-                    routePath: '/mypage/advertiser/company',
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.go('/mypage/advertiser/company');
-                    },
-                  ),
-                  _buildMenuItem(
-                    context: context,
                     icon: Icons.admin_panel_settings_outlined,
                     title: '페널티 관리',
                     routePath: '/mypage/advertiser/penalties',

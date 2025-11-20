@@ -5,15 +5,32 @@ import 'package:go_router/go_router.dart';
 import '../../models/campaign.dart';
 import '../../providers/campaign_provider.dart';
 import '../../widgets/custom_button.dart';
+import '../../services/campaign_duplicate_check_service.dart';
+import '../../services/campaign_application_service.dart';
+import '../../config/supabase_config.dart';
 
-class CampaignDetailScreen extends ConsumerWidget {
+class CampaignDetailScreen extends ConsumerStatefulWidget {
   final String campaignId;
 
   const CampaignDetailScreen({super.key, required this.campaignId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final campaignAsync = ref.watch(campaignDetailProvider(campaignId));
+  ConsumerState<CampaignDetailScreen> createState() =>
+      _CampaignDetailScreenState();
+}
+
+class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
+  bool _isDuplicate = false;
+  String? _duplicateMessage;
+  bool _isCheckingDuplicate = false;
+  final CampaignDuplicateCheckService _duplicateCheckService =
+      CampaignDuplicateCheckService(SupabaseConfig.client);
+  final CampaignApplicationService _applicationService =
+      CampaignApplicationService();
+
+  @override
+  Widget build(BuildContext context) {
+    final campaignAsync = ref.watch(campaignDetailProvider(widget.campaignId));
 
     return Scaffold(
       appBar: AppBar(
@@ -36,7 +53,7 @@ class CampaignDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () =>
-                        ref.invalidate(campaignDetailProvider(campaignId)),
+                        ref.invalidate(campaignDetailProvider(widget.campaignId)),
                     child: const Text('다시 시도'),
                   ),
                 ],
@@ -45,6 +62,10 @@ class CampaignDetailScreen extends ConsumerWidget {
           }
 
           final campaign = response.data!;
+          // 중복 체크 수행 (한 번만)
+          if (!_isCheckingDuplicate && !_isDuplicate) {
+            _checkDuplicate(campaign);
+          }
           return _buildCampaignDetail(context, ref, campaign);
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -58,7 +79,7 @@ class CampaignDetailScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () =>
-                    ref.invalidate(campaignDetailProvider(campaignId)),
+                    ref.invalidate(campaignDetailProvider(widget.campaignId)),
                 child: const Text('다시 시도'),
               ),
             ],
@@ -172,7 +193,7 @@ class CampaignDetailScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${campaign.reviewReward}P',
+                              '${campaign.campaignReward}P',
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: Theme.of(
@@ -258,9 +279,26 @@ class CampaignDetailScreen extends ConsumerWidget {
                 // 참여 버튼
                 CustomButton(
                   text: '캠페인 참여하기',
-                  onPressed: () => _joinCampaign(context, ref, campaign),
+                  onPressed: _isDuplicate || _isCheckingDuplicate
+                      ? null
+                      : () => _joinCampaign(context, ref, campaign),
                   width: double.infinity,
+                  backgroundColor: _isDuplicate ? Colors.grey : null,
                 ),
+
+                // 중복 안내 메시지
+                if (_isDuplicate && _duplicateMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _duplicateMessage!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
 
                 const SizedBox(height: 16),
 
@@ -370,11 +408,105 @@ class CampaignDetailScreen extends ConsumerWidget {
     }
   }
 
-  void _joinCampaign(BuildContext context, WidgetRef ref, Campaign campaign) {
-    // TODO: 캠페인 참여 로직 구현
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('캠페인 참여 기능은 준비 중입니다')));
+  /// 중복 체크 수행
+  Future<void> _checkDuplicate(Campaign campaign) async {
+    final user = SupabaseConfig.client.auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isCheckingDuplicate = true;
+    });
+
+    try {
+      final duplicateCheck =
+          await _duplicateCheckService.checkCampaignDuplicate(
+        userId: user.id,
+        campaign: {
+          'id': campaign.id,
+          'title': campaign.title,
+          'seller': campaign.seller,
+          'prevent_product_duplicate': campaign.preventProductDuplicate,
+          'prevent_store_duplicate': campaign.preventStoreDuplicate,
+          'duplicate_prevent_days': campaign.duplicatePreventDays,
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _isDuplicate = duplicateCheck['isDuplicate'] ?? false;
+          _duplicateMessage = duplicateCheck['message'];
+          _isCheckingDuplicate = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCheckingDuplicate = false;
+        });
+      }
+    }
+  }
+
+  /// 캠페인 참여
+  Future<void> _joinCampaign(
+    BuildContext context,
+    WidgetRef ref,
+    Campaign campaign,
+  ) async {
+    if (_isDuplicate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_duplicateMessage ?? '중복 참여는 불가능합니다.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // 로딩 표시
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final result = await _applicationService.applyToCampaign(
+        campaignId: campaign.id,
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+
+        if (result.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('캠페인 신청이 완료되었습니다.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // 캠페인 상세 정보 새로고침
+          ref.invalidate(campaignDetailProvider(widget.campaignId));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.error ?? '신청에 실패했습니다.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _shareCampaign(BuildContext context, Campaign campaign) {

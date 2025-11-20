@@ -21,6 +21,7 @@ import '../screens/mypage/common/point_transaction_detail_screen.dart';
 import '../screens/mypage/common/profile_screen.dart';
 import '../screens/mypage/reviewer/sns_connection_screen.dart';
 import '../screens/mypage/advertiser/advertiser_my_campaigns_screen.dart';
+import '../screens/mypage/advertiser/advertiser_campaign_detail_screen.dart';
 import '../screens/common/notices_screen.dart';
 import '../screens/common/events_screen.dart';
 import '../screens/common/inquiry_screen.dart';
@@ -28,7 +29,6 @@ import '../screens/common/advertisement_inquiry_screen.dart';
 import '../screens/mypage/advertiser/advertiser_analytics_screen.dart';
 import '../screens/mypage/advertiser/advertiser_participants_screen.dart';
 import '../screens/mypage/advertiser/advertiser_manager_screen.dart';
-import '../screens/mypage/advertiser/advertiser_company_screen.dart';
 import '../screens/mypage/advertiser/advertiser_penalties_screen.dart';
 import '../screens/mypage/admin/admin_dashboard_screen.dart';
 import '../screens/mypage/admin/admin_users_screen.dart';
@@ -286,6 +286,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 name: 'advertiser-my-campaigns-create',
                 builder: (context, state) => const CampaignCreationScreen(),
               ),
+              GoRoute(
+                path: ':id',
+                name: 'advertiser-campaign-detail',
+                builder: (context, state) {
+                  final campaignId = state.pathParameters['id']!;
+                  return AdvertiserCampaignDetailScreen(campaignId: campaignId);
+                },
+              ),
             ],
           ),
           GoRoute(
@@ -302,11 +310,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/mypage/advertiser/managers',
             name: 'advertiser-managers',
             builder: (context, state) => const AdvertiserManagerScreen(),
-          ),
-          GoRoute(
-            path: '/mypage/advertiser/company',
-            name: 'advertiser-company',
-            builder: (context, state) => const AdvertiserCompanyScreen(),
           ),
           GoRoute(
             path: '/mypage/advertiser/penalties',

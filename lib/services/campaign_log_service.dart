@@ -2,11 +2,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/campaign_log.dart';
 import '../models/api_response.dart';
 import '../utils/date_time_utils.dart';
+import 'campaign_duplicate_check_service.dart';
 
 class CampaignLogService {
   final SupabaseClient _supabase;
+  final CampaignDuplicateCheckService _duplicateCheckService;
 
-  CampaignLogService(this._supabase);
+  CampaignLogService(this._supabase)
+      : _duplicateCheckService = CampaignDuplicateCheckService(_supabase);
 
   // 캠페인 신청
   Future<ApiResponse<String>> applyToCampaign({
@@ -16,7 +19,38 @@ class CampaignLogService {
     // rewardType, rewardAmount는 DB에 없으므로 제거
   }) async {
     try {
-      // 이미 신청했는지 확인
+      // 1. 캠페인 정보 조회
+      final campaignResponse = await _supabase
+          .from('campaigns')
+          .select(
+              'id, title, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, status')
+          .eq('id', campaignId)
+          .single();
+
+      // 2. 캠페인 상태 확인
+      if (campaignResponse['status'] != 'active') {
+        return ApiResponse<String>(
+          success: false,
+          error: '신청할 수 없는 캠페인입니다.',
+        );
+      }
+
+      // 3. 중복 체크
+      final duplicateCheck =
+          await _duplicateCheckService.checkCampaignDuplicate(
+        userId: userId,
+        campaign: campaignResponse,
+        excludeCampaignId: campaignId,
+      );
+
+      if (duplicateCheck['isDuplicate']) {
+        return ApiResponse<String>(
+          success: false,
+          error: duplicateCheck['message'] ?? '중복 참여는 불가능합니다.',
+        );
+      }
+
+      // 4. 이미 신청했는지 확인
       final existingLog = await _supabase
           .from('campaign_action_logs')
           .select('id')
@@ -25,10 +59,13 @@ class CampaignLogService {
           .maybeSingle();
 
       if (existingLog != null) {
-        return ApiResponse<String>(success: false, error: '이미 신청한 캠페인입니다.');
+        return ApiResponse<String>(
+          success: false,
+          error: '이미 신청한 캠페인입니다.',
+        );
       }
 
-      // 새 로그 생성
+      // 5. 신청 처리
       // action 필드는 JSONB 형식: {"type": "join", "data": {...}}
       final response = await _supabase
           .from('campaign_action_logs')

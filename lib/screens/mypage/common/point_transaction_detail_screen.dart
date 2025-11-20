@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../utils/date_time_utils.dart';
 import '../../../services/wallet_service.dart';
+import '../../../services/auth_service.dart';
 
 class PointTransactionDetailScreen extends StatefulWidget {
   final String transactionId;
@@ -23,6 +24,8 @@ class _PointTransactionDetailScreenState
   Map<String, dynamic>? _transaction;
   bool _isLoading = true;
   bool _isCancelling = false;
+  String? _createdByUserName;
+  bool _isLoadingCreator = false;
 
   @override
   void initState() {
@@ -44,6 +47,9 @@ class _PointTransactionDetailScreenState
         // 현재는 transactionData를 사용
         _transaction = widget.transactionData;
       }
+
+      // 신청자 정보 로드
+      await _loadCreatorInfo();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -54,6 +60,52 @@ class _PointTransactionDetailScreenState
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadCreatorInfo() async {
+    if (_transaction == null) return;
+
+    // created_by_user_name이 이미 있으면 사용
+    final existingName = _transaction!['created_by_user_name'] as String?;
+    if (existingName != null && existingName.isNotEmpty) {
+      setState(() {
+        _createdByUserName = existingName;
+      });
+      return;
+    }
+
+    // created_by_user_id가 있으면 사용자 정보 조회
+    final createdByUserId = _transaction!['created_by_user_id'] as String?;
+    if (createdByUserId == null || createdByUserId.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingCreator = true;
+    });
+
+    try {
+      final authService = AuthService();
+      final user = await authService.getUserProfile(createdByUserId);
+      
+      if (mounted && user != null) {
+        setState(() {
+          _createdByUserName = user.displayName ?? user.email;
+          _isLoadingCreator = false;
+        });
+      } else if (mounted) {
+        setState(() {
+          _isLoadingCreator = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('신청자 정보 조회 실패: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCreator = false;
+        });
+      }
     }
   }
 
@@ -224,6 +276,16 @@ class _PointTransactionDetailScreenState
           // 설명
           if (description.isNotEmpty) ...[
             _buildInfoRow('설명', description),
+            const SizedBox(height: 12),
+          ],
+          // 신청자 (created_by_user_id가 있을 때만)
+          if (_transaction!['created_by_user_id'] != null) ...[
+            _buildInfoRow(
+              '신청자',
+              _isLoadingCreator
+                  ? '로딩 중...'
+                  : (_createdByUserName ?? '알 수 없음'),
+            ),
             const SizedBox(height: 12),
           ],
           // 신청일시

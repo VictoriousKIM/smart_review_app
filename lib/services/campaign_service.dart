@@ -5,6 +5,7 @@ import '../models/campaign.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
+import 'campaign_duplicate_check_service.dart';
 
 class CampaignService {
   static final CampaignService _instance = CampaignService._internal();
@@ -12,6 +13,8 @@ class CampaignService {
   CampaignService._internal();
 
   final SupabaseClient _supabase = SupabaseConfig.client;
+  final CampaignDuplicateCheckService _duplicateCheckService =
+      CampaignDuplicateCheckService(SupabaseConfig.client);
 
   // 캠페인 목록 가져오기 (RLS + 직접 쿼리 - 최적화)
   Future<ApiResponse<List<Campaign>>> getCampaigns({
@@ -21,11 +24,11 @@ class CampaignService {
     String? sortBy = 'latest',
   }) async {
     try {
-      // 필요한 필드만 선택하여 성능 최적화
+      // 필요한 필드만 선택하여 성능 최적화 (중복 체크를 위한 필드 추가)
       dynamic query = _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, review_reward, current_participants, max_participants, created_at, end_date',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
           )
           .eq('status', 'active');
 
@@ -58,7 +61,13 @@ class CampaignService {
           .map((json) => Campaign.fromJson(json))
           .toList();
 
-      return ApiResponse<List<Campaign>>(success: true, data: campaigns);
+      // 중복 체크 필터링
+      final filteredCampaigns = await _filterDuplicateCampaigns(campaigns);
+
+      return ApiResponse<List<Campaign>>(
+        success: true,
+        data: filteredCampaigns,
+      );
     } on TimeoutException {
       ErrorHandler.handleNetworkError(
         'Request timeout',
@@ -116,13 +125,19 @@ class CampaignService {
     int limit = 5,
   }) async {
     try {
+      final now = DateTime.now();
+      
       final response = await _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, review_reward, current_participants, max_participants, created_at',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, start_date, end_date, expiration_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
           )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
+          // 날짜 필터링: 모집중인 캠페인만 표시
+          .lte('start_date', now.toIso8601String())
+          .gte('end_date', now.toIso8601String())
+          .gte('expiration_date', now.toIso8601String())
           .order('current_participants', ascending: false)
           .limit(limit);
 
@@ -130,7 +145,13 @@ class CampaignService {
           .map((json) => Campaign.fromJson(json))
           .toList();
 
-      return ApiResponse<List<Campaign>>(success: true, data: campaigns);
+      // 중복 체크 필터링
+      final filteredCampaigns = await _filterDuplicateCampaigns(campaigns);
+
+      return ApiResponse<List<Campaign>>(
+        success: true,
+        data: filteredCampaigns,
+      );
     } catch (e) {
       return ApiResponse<List<Campaign>>(success: false, error: e.toString());
     }
@@ -139,13 +160,19 @@ class CampaignService {
   // 새 캠페인 가져오기 (RLS + 직접 쿼리 - 최적화)
   Future<ApiResponse<List<Campaign>>> getNewCampaigns({int limit = 5}) async {
     try {
+      final now = DateTime.now();
+      
       final response = await _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, review_reward, current_participants, max_participants, created_at',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, start_date, end_date, expiration_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
           )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
+          // 날짜 필터링: 모집중인 캠페인만 표시
+          .lte('start_date', now.toIso8601String())
+          .gte('end_date', now.toIso8601String())
+          .gte('expiration_date', now.toIso8601String())
           .order('created_at', ascending: false)
           .limit(limit);
 
@@ -167,12 +194,18 @@ class CampaignService {
     int limit = 10,
   }) async {
     try {
+      final now = DateTime.now();
+      
       var searchQuery = _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, review_reward, current_participants, max_participants, created_at',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, start_date, end_date, expiration_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
           )
           .eq('status', 'active')
+          // 날짜 필터링: 모집중인 캠페인만 표시
+          .lte('start_date', now.toIso8601String())
+          .gte('end_date', now.toIso8601String())
+          .gte('expiration_date', now.toIso8601String())
           .ilike('title', '%$query%');
 
       if (campaignType != null) {
@@ -189,10 +222,53 @@ class CampaignService {
           .map((json) => Campaign.fromJson(json))
           .toList();
 
-      return ApiResponse<List<Campaign>>(success: true, data: campaigns);
+      // 중복 체크 필터링
+      final filteredCampaigns = await _filterDuplicateCampaigns(campaigns);
+
+      return ApiResponse<List<Campaign>>(
+        success: true,
+        data: filteredCampaigns,
+      );
     } catch (e) {
       return ApiResponse<List<Campaign>>(success: false, error: e.toString());
     }
+  }
+
+  // 중복 체크 필터링 헬퍼 메서드
+  Future<List<Campaign>> _filterDuplicateCampaigns(
+    List<Campaign> campaigns,
+  ) async {
+    // 로그인한 사용자인 경우 중복 체크
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      // 비로그인 사용자는 모든 캠페인 반환
+      return campaigns;
+    }
+
+    final filteredCampaigns = <Campaign>[];
+
+    for (final campaign in campaigns) {
+      // 중복 체크
+      final duplicateCheck =
+          await _duplicateCheckService.checkCampaignDuplicate(
+        userId: user.id,
+        campaign: {
+          'id': campaign.id,
+          'title': campaign.title,
+          'seller': campaign.seller,
+          'prevent_product_duplicate': campaign.preventProductDuplicate,
+          'prevent_store_duplicate': campaign.preventStoreDuplicate,
+          'duplicate_prevent_days': campaign.duplicatePreventDays,
+        },
+      );
+
+      // 중복이 아닌 경우만 추가
+      if (!duplicateCheck['isDuplicate']) {
+        filteredCampaigns.add(campaign);
+      }
+    }
+
+    return filteredCampaigns;
   }
 
   // 캠페인 참여 (RPC 사용 - 비즈니스 로직)
@@ -427,7 +503,7 @@ class CampaignService {
         'platform': previousCampaign.platform,
         'campaign_type': previousCampaign.campaignType.name,
         'product_price': previousCampaign.productPrice,
-        'review_reward': previousCampaign.reviewReward,
+        'campaign_reward': previousCampaign.campaignReward,
         'start_date': startDate.toIso8601String(),
         'end_date': endDate.toIso8601String(),
         'max_participants': maxParticipants,
@@ -465,7 +541,7 @@ class CampaignService {
     required String campaignType,
     required String platform,
     required int productPrice,
-    required int reviewReward,
+    required int campaignReward,
     required DateTime startDate,
     required DateTime endDate,
     required int maxParticipants,
@@ -496,7 +572,7 @@ class CampaignService {
         );
       }
 
-      if (productPrice < 0 || reviewReward < 0) {
+      if (productPrice < 0 || campaignReward < 0) {
         return ApiResponse<Campaign>(
           success: false,
           error: '가격과 보상은 0원 이상이어야 합니다.',
@@ -511,7 +587,7 @@ class CampaignService {
           'p_description': description.trim(),
           'p_campaign_type': campaignType,
           'p_product_price': productPrice,
-          'p_review_reward': reviewReward,
+          'p_campaign_reward': campaignReward,
           'p_max_participants': maxParticipants,
           'p_start_date': startDate.toIso8601String(),
           'p_end_date': endDate.toIso8601String(),
@@ -613,11 +689,11 @@ class CampaignService {
     required String description,
     required String campaignType,
     required String platform,
-    required int reviewReward,
+    required int campaignReward,
     required int maxParticipants,
     required DateTime startDate,
     required DateTime endDate,
-    DateTime? expirationDate,
+    required DateTime expirationDate,
     String? keyword,
     String? option,
     int? quantity,
@@ -667,11 +743,11 @@ class CampaignService {
           'p_title': title,
           'p_description': description,
           'p_campaign_type': campaignType,
-          'p_review_reward': reviewReward,
+          'p_campaign_reward': campaignReward,
           'p_max_participants': maxParticipants,
           'p_start_date': startDate.toIso8601String(),
           'p_end_date': endDate.toIso8601String(),
-          'p_expiration_date': expirationDate?.toIso8601String(),
+          'p_expiration_date': expirationDate.toIso8601String(),
           'p_platform': platform,
           'p_keyword': keyword,
           'p_option': option,
@@ -740,6 +816,83 @@ class CampaignService {
       return ApiResponse<Campaign>(
         success: false,
         error: '캠페인 생성 중 오류가 발생했습니다: ${e.toString()}',
+      );
+    }
+  }
+
+  /// 캠페인 상태 업데이트
+  Future<ApiResponse<Campaign>> updateCampaignStatus({
+    required String campaignId,
+    required CampaignStatus status,
+  }) async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '로그인이 필요합니다.',
+        );
+      }
+
+      final response = await _supabase.rpc(
+        'update_campaign_status',
+        params: {
+          'p_campaign_id': campaignId,
+          'p_status': status.name,
+        },
+      );
+
+      if (response['success'] == true) {
+        // 업데이트된 캠페인 조회
+        final updatedCampaign = await getCampaignById(campaignId);
+        return updatedCampaign;
+      } else {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: response['error'] ?? '상태 업데이트에 실패했습니다',
+        );
+      }
+    } catch (e) {
+      return ApiResponse<Campaign>(
+        success: false,
+        error: '상태 업데이트 중 오류가 발생했습니다: ${e.toString()}',
+      );
+    }
+  }
+
+  /// 캠페인 삭제 (소프트 삭제)
+  Future<ApiResponse<void>> deleteCampaign(String campaignId) async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<void>(
+          success: false,
+          error: '로그인이 필요합니다.',
+        );
+      }
+
+      final response = await _supabase.rpc(
+        'delete_campaign',
+        params: {
+          'p_campaign_id': campaignId,
+        },
+      );
+
+      if (response['success'] == true) {
+        return ApiResponse<void>(
+          success: true,
+          message: response['message'] ?? '캠페인이 삭제되었습니다',
+        );
+      } else {
+        return ApiResponse<void>(
+          success: false,
+          error: response['error'] ?? '캠페인 삭제에 실패했습니다',
+        );
+      }
+    } catch (e) {
+      return ApiResponse<void>(
+        success: false,
+        error: '캠페인 삭제 중 오류가 발생했습니다: ${e.toString()}',
       );
     }
   }

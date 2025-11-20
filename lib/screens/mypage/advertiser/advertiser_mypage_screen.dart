@@ -174,17 +174,19 @@ class _AdvertiserMyPageScreenState
         // 상태별 카운트 계산
         final now = DateTime.now();
 
-        // 모집 (대기중): 시작기간이 되지 않았을 때
+        // 모집 (대기중): 시작기간이 되지 않았을 때 (active 상태만)
         _pendingCount = allCampaigns.where((campaign) {
-          return campaign.startDate != null &&
-              campaign.startDate!.isAfter(now);
+          if (campaign.status != CampaignStatus.active) return false;
+          // startDate는 필수이므로 null 체크 불필요
+          return campaign.startDate.isAfter(now);
         }).length;
 
         // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
         final recruitingCampaigns = allCampaigns.where((campaign) {
           if (campaign.status != CampaignStatus.active) return false;
-          if (campaign.startDate != null && campaign.startDate!.isAfter(now)) return false;
-          if (campaign.endDate != null && campaign.endDate!.isBefore(now)) return false;
+          // 날짜는 필수이므로 null 체크 불필요
+          if (campaign.startDate.isAfter(now)) return false;
+          if (campaign.endDate.isBefore(now)) return false;
           if (campaign.maxParticipants != null &&
               campaign.currentParticipants >= campaign.maxParticipants!) return false;
           return true;
@@ -195,8 +197,8 @@ class _AdvertiserMyPageScreenState
         // 선정완료: 시작기간과 종료기간 사이면서 참여자가 다 찬 경우
         _selectedCount = allCampaigns.where((campaign) {
           if (campaign.status != CampaignStatus.active) return false;
-          if (campaign.startDate != null && campaign.startDate!.isAfter(now)) return false;
-          if (campaign.endDate != null && campaign.endDate!.isBefore(now)) return false;
+          if (campaign.startDate.isAfter(now)) return false;
+          if (campaign.endDate.isBefore(now)) return false;
           if (campaign.maxParticipants == null) return false;
           return campaign.currentParticipants >= campaign.maxParticipants!;
         }).length;
@@ -204,8 +206,8 @@ class _AdvertiserMyPageScreenState
         // 등록기간: 종료기간과 만료기간 사이에 있는 경우
         _registeredCount = allCampaigns.where((campaign) {
           if (campaign.status != CampaignStatus.active) return false;
-          if (campaign.endDate == null || campaign.endDate!.isAfter(now)) return false;
-          if (campaign.expirationDate == null || campaign.expirationDate!.isBefore(now)) return false;
+          if (campaign.endDate.isAfter(now)) return false;
+          if (campaign.expirationDate.isBefore(now)) return false;
           return true;
         }).length;
 

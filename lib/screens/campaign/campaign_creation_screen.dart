@@ -56,7 +56,7 @@ class _CampaignCreationScreenState
   final _sellerController = TextEditingController();
   final _productNumberController = TextEditingController();
   final _paymentAmountController = TextEditingController();
-  final _reviewRewardController = TextEditingController();
+  final _campaignRewardController = TextEditingController();
   final _reviewTextLengthController = TextEditingController(text: '100');
   final _reviewImageCountController = TextEditingController(text: '1');
   final _maxParticipantsController = TextEditingController(text: '10');
@@ -74,6 +74,7 @@ class _CampaignCreationScreenState
   String _reviewType = 'star_only';
   DateTime? _startDateTime;
   DateTime? _endDateTime;
+  DateTime? _expirationDateTime;
   bool _preventProductDuplicate = false;
   bool _preventStoreDuplicate = false;
 
@@ -95,6 +96,7 @@ class _CampaignCreationScreenState
   // DateTime 컨트롤러
   late final TextEditingController _startDateTimeController;
   late final TextEditingController _endDateTimeController;
+  late final TextEditingController _expirationDateTimeController;
 
   // ✅ 5. 포맷팅 캐싱
   String? _cachedFormattedBalance;
@@ -109,6 +111,7 @@ class _CampaignCreationScreenState
     // 가벼운 작업만 동기 실행
     _startDateTimeController = TextEditingController();
     _endDateTimeController = TextEditingController();
+    _expirationDateTimeController = TextEditingController();
 
     // 무거운 작업은 프레임 렌더링 후 단계별 실행
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -151,7 +154,7 @@ class _CampaignCreationScreenState
     _sellerController.dispose();
     _productNumberController.dispose();
     _paymentAmountController.dispose();
-    _reviewRewardController.dispose();
+    _campaignRewardController.dispose();
     _reviewTextLengthController.dispose();
     _reviewImageCountController.dispose();
     _maxParticipantsController.dispose();
@@ -159,12 +162,13 @@ class _CampaignCreationScreenState
     _productProvisionOtherController.dispose();
     _startDateTimeController.dispose();
     _endDateTimeController.dispose();
+    _expirationDateTimeController.dispose();
     super.dispose();
   }
 
   void _setupCostListeners() {
     _paymentAmountController.addListener(_calculateCostDebounced);
-    _reviewRewardController.addListener(_calculateCostDebounced);
+    _campaignRewardController.addListener(_calculateCostDebounced);
     _maxParticipantsController.addListener(_calculateCostDebounced);
   }
 
@@ -223,12 +227,12 @@ class _CampaignCreationScreenState
   // ✅ 5. 비용 계산 최적화 (값 변경 시만 setState)
   void _calculateCost() {
     final paymentAmount = int.tryParse(_paymentAmountController.text) ?? 0;
-    final reviewReward = int.tryParse(_reviewRewardController.text) ?? 0;
+    final campaignReward = int.tryParse(_campaignRewardController.text) ?? 0;
     final maxParticipants = int.tryParse(_maxParticipantsController.text) ?? 1;
 
     int cost = 0;
     if (_paymentType == 'platform') {
-      cost = (paymentAmount + reviewReward + 500) * maxParticipants;
+      cost = (paymentAmount + campaignReward + 500) * maxParticipants;
     } else {
       cost = 500 * maxParticipants;
     }
@@ -1062,15 +1066,58 @@ class _CampaignCreationScreenState
         }
       }
 
+      // 날짜 검증
+      if (_startDateTime == null) {
+        setState(() {
+          _errorMessage = '시작일을 선택해주세요';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      if (_endDateTime == null) {
+        setState(() {
+          _errorMessage = '종료일을 선택해주세요';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      if (_expirationDateTime == null) {
+        setState(() {
+          _errorMessage = '만기일을 선택해주세요';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      if (_startDateTime!.isAfter(_endDateTime!)) {
+        setState(() {
+          _errorMessage = '시작일은 종료일보다 빠를 수 없습니다';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      if (_endDateTime!.isAfter(_expirationDateTime!) ||
+          _endDateTime!.isAtSameMomentAs(_expirationDateTime!)) {
+        setState(() {
+          _errorMessage = '종료일은 만기일보다 빠를 수 없습니다';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
       final response = await _campaignService.createCampaignV2(
         title: _productNameController.text.trim(),
         description: '', // ✅ product_description 제거
         campaignType: _campaignType,
         platform: _platform,
-        reviewReward: int.tryParse(_reviewRewardController.text) ?? 0,
+        campaignReward: int.tryParse(_campaignRewardController.text) ?? 0,
         maxParticipants: int.tryParse(_maxParticipantsController.text) ?? 10,
         startDate: _startDateTime!,
         endDate: _endDateTime!,
+        expirationDate: _expirationDateTime!,
         keyword: _keywordController.text.trim(),
         option: _optionController.text.trim(),
         quantity: int.tryParse(_quantityController.text) ?? 1,
@@ -1768,7 +1815,7 @@ class _CampaignCreationScreenState
             ],
             const SizedBox(height: 16),
             CustomTextField(
-              controller: _reviewRewardController,
+              controller: _campaignRewardController,
               labelText: '리뷰비',
               hintText: '선택사항, 미입력 시 0',
               keyboardType: TextInputType.number,
@@ -1828,6 +1875,29 @@ class _CampaignCreationScreenState
               ],
             ),
             const SizedBox(height: 16),
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: '만기일 *',
+                hintText: 'YYYY-MM-DD HH:00',
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.calendar_today),
+              ),
+              readOnly: true,
+              onTap: () => _selectExpirationDateTime(context),
+              controller: _expirationDateTimeController,
+              validator: (value) {
+                if (_expirationDateTime == null) {
+                  return '만기일을 선택해주세요';
+                }
+                if (_endDateTime != null && 
+                    (_expirationDateTime!.isBefore(_endDateTime!) ||
+                    _expirationDateTime!.isAtSameMomentAs(_endDateTime!))) {
+                  return '만기일은 종료일 이후여야 합니다';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
             CustomTextField(
               controller: _maxParticipantsController,
               labelText: '모집 인원 *',
@@ -1880,13 +1950,63 @@ class _CampaignCreationScreenState
                 _startDateTime!.isAfter(_endDateTime!)) {
               _endDateTime = _startDateTime!.add(const Duration(days: 7));
             }
+            // 종료일이 변경되면 만기일도 자동 조정
+            if (_endDateTime != null) {
+              if (_expirationDateTime == null ||
+                  _expirationDateTime!.isBefore(_endDateTime!) ||
+                  _expirationDateTime!.isAtSameMomentAs(_endDateTime!)) {
+                _expirationDateTime = _endDateTime!.add(const Duration(days: 30));
+              }
+            }
           } else {
             _endDateTime = dateTime;
+            // 종료일이 변경되면 만기일도 자동 조정
+            if (_expirationDateTime == null ||
+                _expirationDateTime!.isBefore(dateTime) ||
+                _expirationDateTime!.isAtSameMomentAs(dateTime)) {
+              _expirationDateTime = dateTime.add(const Duration(days: 30));
+            }
           }
           _updateDateTimeControllers();
         });
       }
     }
+  }
+
+  Future<void> _selectExpirationDateTime(BuildContext context) async {
+    final now = DateTime.now();
+    final initialDate = _expirationDateTime ?? 
+        (_endDateTime?.add(const Duration(days: 30)) ?? 
+         now.add(const Duration(days: 31)));
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: _endDateTime?.add(const Duration(days: 1)) ?? now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+
+    if (date == null) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
+
+    if (time == null) return;
+
+    final dateTime = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      0,
+    );
+
+    setState(() {
+      _expirationDateTime = dateTime;
+      _updateDateTimeControllers();
+    });
   }
 
   Widget _buildDuplicatePreventSection() {
@@ -2159,6 +2279,7 @@ class _CampaignCreationScreenState
     return productName.isNotEmpty &&
         _startDateTime != null &&
         _endDateTime != null &&
+        _expirationDateTime != null &&
         _totalCost <= _currentBalance &&
         (int.tryParse(maxParticipants) ?? 0) > 0 &&
         !_isUploadingImage &&

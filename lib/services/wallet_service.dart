@@ -304,14 +304,14 @@ class WalletService {
   /// 캠페인 생성 가능 여부 확인
   static Future<bool> canCreateCampaign({
     required String companyId,
-    required int reviewReward,
+    required int campaignReward,
     required int maxParticipants,
   }) async {
     try {
       final wallet = await getCompanyWalletByCompanyId(companyId);
       if (wallet == null) return false;
 
-      final requiredPoints = reviewReward * maxParticipants;
+      final requiredPoints = campaignReward * maxParticipants;
       return wallet.currentPoints >= requiredPoints;
     } catch (e) {
       print('❌ 캠페인 생성 가능 여부 확인 실패: $e');
@@ -321,24 +321,24 @@ class WalletService {
 
   /// 필요한 포인트 계산
   static int calculateRequiredPoints({
-    required int reviewReward,
+    required int campaignReward,
     required int maxParticipants,
   }) {
-    return reviewReward * maxParticipants;
+    return campaignReward * maxParticipants;
   }
 
   /// 부족한 포인트 계산
   static Future<int> calculateShortage({
     required String companyId,
-    required int reviewReward,
+    required int campaignReward,
     required int maxParticipants,
   }) async {
     try {
       final wallet = await getCompanyWalletByCompanyId(companyId);
-      if (wallet == null) return reviewReward * maxParticipants;
+      if (wallet == null) return campaignReward * maxParticipants;
 
       final required = calculateRequiredPoints(
-        reviewReward: reviewReward,
+        campaignReward: campaignReward,
         maxParticipants: maxParticipants,
       );
 
@@ -420,7 +420,9 @@ class WalletService {
                 'withdraw_bank_name': bankName,
                 'withdraw_account_number': accountNumber,
                 'withdraw_account_holder': accountHolder,
-                'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
+                'updated_at': DateTimeUtils.toIso8601StringKST(
+                  DateTimeUtils.nowKST(),
+                ),
               })
               .eq('id', wallet.id)
               .eq('user_id', userId);
@@ -499,7 +501,9 @@ class WalletService {
                 'withdraw_bank_name': bankName,
                 'withdraw_account_number': accountNumber,
                 'withdraw_account_holder': accountHolder,
-                'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST()),
+                'updated_at': DateTimeUtils.toIso8601StringKST(
+                  DateTimeUtils.nowKST(),
+                ),
               })
               .eq('id', wallet.id)
               .eq('company_id', companyId);
@@ -674,8 +678,7 @@ class WalletService {
 
   /// 대기중인 현금 거래 목록 조회 (Admin 전용)
   static Future<List<Map<String, dynamic>>> getPendingCashTransactions({
-    String?
-    status, // 'pending', 'approved', 'rejected', 'cancelled'
+    String? status, // 'pending', 'approved', 'rejected', 'cancelled'
     String? transactionType, // 'deposit', 'withdraw'
     String? userType, // 'advertiser', 'reviewer'
     int limit = 50,
@@ -717,9 +720,7 @@ class WalletService {
     try {
       final response = await _supabase.rpc(
         'cancel_cash_transaction',
-        params: {
-          'p_transaction_id': transactionId,
-        },
+        params: {'p_transaction_id': transactionId},
       );
 
       print('✅ 현금 거래 취소 성공');

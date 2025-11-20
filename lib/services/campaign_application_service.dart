@@ -120,7 +120,7 @@ class CampaignApplicationService {
                       'product_image_url': log.campaign!.productImageUrl,
                       'platform': log.campaign!.platform,
                       'product_price': log.campaign!.productPrice,
-                      'review_reward': log.campaign!.reviewReward,
+                      'campaign_reward': log.campaign!.campaignReward,
                       'start_date': log.campaign!.startDate?.toIso8601String(),
                       'end_date': log.campaign!.endDate?.toIso8601String(),
                       'max_participants': log.campaign!.maxParticipants,

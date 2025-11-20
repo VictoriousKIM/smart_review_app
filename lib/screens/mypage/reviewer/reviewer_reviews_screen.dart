@@ -256,7 +256,7 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '${(campaign['review_reward'] ?? 0).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
+                  '${(campaign['campaign_reward'] ?? campaign['review_reward'] ?? 0).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
               ],
