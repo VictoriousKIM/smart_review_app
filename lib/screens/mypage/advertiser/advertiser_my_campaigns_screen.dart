@@ -310,44 +310,7 @@ class _AdvertiserMyCampaignsScreenState
       _allCampaigns = loadedCampaigns;
 
       // 상태별 필터링
-      final now = DateTime.now();
-
-      // 대기중: upcoming 상태 또는 시작일이 아직 지나지 않음
-      _pendingCampaigns = _allCampaigns.where((campaign) {
-        final status = campaign.status.toString().split('.').last;
-        return status == 'upcoming' ||
-            (campaign.startDate != null && campaign.startDate!.isAfter(now));
-      }).toList();
-
-      // 모집중: active 상태이고 현재 기간 내
-      _recruitingCampaigns = _allCampaigns.where((campaign) {
-        final status = campaign.status.toString().split('.').last;
-        return status == 'active' &&
-            (campaign.startDate == null || campaign.startDate!.isBefore(now)) &&
-            (campaign.endDate == null || campaign.endDate!.isAfter(now));
-      }).toList();
-
-      // 선정완료: active 상태이지만 참여자 선정이 완료된 경우
-      // (실제로는 campaign_events의 approved 상태를 확인해야 하지만, 여기서는 간단히 처리)
-      _selectedCampaigns = _recruitingCampaigns.where((campaign) {
-        return campaign.currentParticipants >= (campaign.maxParticipants ?? 0);
-      }).toList();
-
-      // 등록기간: active 상태이지만 모집이 완료되고 진행 중인 상태
-      _registeredCampaigns = _allCampaigns.where((campaign) {
-        final status = campaign.status.toString().split('.').last;
-        return status == 'active' &&
-            campaign.currentParticipants > 0 &&
-            (campaign.maxParticipants == null ||
-                campaign.currentParticipants < campaign.maxParticipants!);
-      }).toList();
-
-      // 종료: completed 상태 또는 종료일이 지남
-      _completedCampaigns = _allCampaigns.where((campaign) {
-        final status = campaign.status.toString().split('.').last;
-        return status == 'completed' ||
-            (campaign.endDate != null && campaign.endDate!.isBefore(now));
-      }).toList();
+      _updateFilteredCampaigns();
 
       // 디버깅 로그
       debugPrint('📊 캠페인 상태 분류:');
@@ -491,40 +454,44 @@ class _AdvertiserMyCampaignsScreenState
   void _updateFilteredCampaigns() {
     final now = DateTime.now();
 
-    // 대기중: upcoming 상태 또는 시작일이 아직 지나지 않음
+    // 모집 (대기중): 시작기간이 되지 않았을 때
     _pendingCampaigns = _allCampaigns.where((campaign) {
-      final status = campaign.status.toString().split('.').last;
-      return status == 'upcoming' ||
-          (campaign.startDate != null && campaign.startDate!.isAfter(now));
+      return campaign.startDate != null &&
+          campaign.startDate!.isAfter(now);
     }).toList();
 
-    // 모집중: active 상태이고 현재 기간 내
+    // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
     _recruitingCampaigns = _allCampaigns.where((campaign) {
-      final status = campaign.status.toString().split('.').last;
-      return status == 'active' &&
-          (campaign.startDate == null || campaign.startDate!.isBefore(now)) &&
-          (campaign.endDate == null || campaign.endDate!.isAfter(now));
+      if (campaign.status != CampaignStatus.active) return false;
+      if (campaign.startDate != null && campaign.startDate!.isAfter(now)) return false;
+      if (campaign.endDate != null && campaign.endDate!.isBefore(now)) return false;
+      if (campaign.maxParticipants != null &&
+          campaign.currentParticipants >= campaign.maxParticipants!) return false;
+      return true;
     }).toList();
 
-    // 선정완료: active 상태이지만 참여자 선정이 완료된 경우
-    _selectedCampaigns = _recruitingCampaigns.where((campaign) {
-      return campaign.currentParticipants >= (campaign.maxParticipants ?? 0);
+    // 선정완료: 시작기간과 종료기간 사이면서 참여자가 다 찬 경우
+    _selectedCampaigns = _allCampaigns.where((campaign) {
+      if (campaign.status != CampaignStatus.active) return false;
+      if (campaign.startDate != null && campaign.startDate!.isAfter(now)) return false;
+      if (campaign.endDate != null && campaign.endDate!.isBefore(now)) return false;
+      if (campaign.maxParticipants == null) return false;
+      return campaign.currentParticipants >= campaign.maxParticipants!;
     }).toList();
 
-    // 등록기간: active 상태이지만 모집이 완료되고 진행 중인 상태
+    // 등록기간: 종료기간과 만료기간 사이에 있는 경우
     _registeredCampaigns = _allCampaigns.where((campaign) {
-      final status = campaign.status.toString().split('.').last;
-      return status == 'active' &&
-          campaign.currentParticipants > 0 &&
-          (campaign.maxParticipants == null ||
-              campaign.currentParticipants < campaign.maxParticipants!);
+      if (campaign.status != CampaignStatus.active) return false;
+      if (campaign.endDate == null || campaign.endDate!.isAfter(now)) return false;
+      if (campaign.expirationDate == null || campaign.expirationDate!.isBefore(now)) return false;
+      return true;
     }).toList();
 
-    // 종료: completed 상태 또는 종료일이 지남
+    // 종료: 만료기간이 지나거나 status가 inactive
     _completedCampaigns = _allCampaigns.where((campaign) {
-      final status = campaign.status.toString().split('.').last;
-      return status == 'completed' ||
-          (campaign.endDate != null && campaign.endDate!.isBefore(now));
+      if (campaign.status == CampaignStatus.inactive) return true;
+      if (campaign.expirationDate != null && campaign.expirationDate!.isBefore(now)) return true;
+      return false;
     }).toList();
   }
 
@@ -625,15 +592,35 @@ class _AdvertiserMyCampaignsScreenState
   Widget _buildCampaignCard(Campaign campaign) {
     String statusText;
     Color statusColor;
+    final now = DateTime.now();
 
-    if (campaign.status == CampaignStatus.upcoming) {
-      statusText = '대기중';
+    // Status와 날짜를 기반으로 상태 결정
+    if (campaign.status == CampaignStatus.inactive) {
+      statusText = '종료';
+      statusColor = Colors.grey;
+    } else if (campaign.startDate != null && campaign.startDate!.isAfter(now)) {
+      statusText = '모집';
       statusColor = Colors.orange;
     } else if (campaign.status == CampaignStatus.active) {
-      statusText = '모집중';
-      statusColor = Colors.green;
+      if (campaign.endDate != null && campaign.endDate!.isBefore(now)) {
+        if (campaign.expirationDate != null && campaign.expirationDate!.isAfter(now)) {
+          statusText = '등록기간';
+          statusColor = Colors.blue;
+        } else {
+          statusText = '종료';
+          statusColor = Colors.grey;
+        }
+      } else {
+        if (campaign.maxParticipants != null &&
+            campaign.currentParticipants >= campaign.maxParticipants!) {
+          statusText = '선정완료';
+          statusColor = Colors.purple;
+        } else {
+          statusText = '모집중';
+          statusColor = Colors.green;
+        }
+      }
     } else {
-      // CampaignStatus.completed
       statusText = '종료';
       statusColor = Colors.grey;
     }

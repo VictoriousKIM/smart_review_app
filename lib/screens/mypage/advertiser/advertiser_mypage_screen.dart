@@ -174,35 +174,46 @@ class _AdvertiserMyPageScreenState
         // 상태별 카운트 계산
         final now = DateTime.now();
 
+        // 모집 (대기중): 시작기간이 되지 않았을 때
         _pendingCount = allCampaigns.where((campaign) {
-          return campaign.status == CampaignStatus.upcoming ||
-              (campaign.startDate != null && campaign.startDate!.isAfter(now));
+          return campaign.startDate != null &&
+              campaign.startDate!.isAfter(now);
         }).length;
 
+        // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
         final recruitingCampaigns = allCampaigns.where((campaign) {
-          return campaign.status == CampaignStatus.active &&
-              (campaign.startDate == null ||
-                  campaign.startDate!.isBefore(now)) &&
-              (campaign.endDate == null || campaign.endDate!.isAfter(now));
+          if (campaign.status != CampaignStatus.active) return false;
+          if (campaign.startDate != null && campaign.startDate!.isAfter(now)) return false;
+          if (campaign.endDate != null && campaign.endDate!.isBefore(now)) return false;
+          if (campaign.maxParticipants != null &&
+              campaign.currentParticipants >= campaign.maxParticipants!) return false;
+          return true;
         }).toList();
 
         _recruitingCount = recruitingCampaigns.length;
 
-        _selectedCount = recruitingCampaigns.where((campaign) {
-          return campaign.currentParticipants >=
-              (campaign.maxParticipants ?? 0);
+        // 선정완료: 시작기간과 종료기간 사이면서 참여자가 다 찬 경우
+        _selectedCount = allCampaigns.where((campaign) {
+          if (campaign.status != CampaignStatus.active) return false;
+          if (campaign.startDate != null && campaign.startDate!.isAfter(now)) return false;
+          if (campaign.endDate != null && campaign.endDate!.isBefore(now)) return false;
+          if (campaign.maxParticipants == null) return false;
+          return campaign.currentParticipants >= campaign.maxParticipants!;
         }).length;
 
+        // 등록기간: 종료기간과 만료기간 사이에 있는 경우
         _registeredCount = allCampaigns.where((campaign) {
-          return campaign.status == CampaignStatus.active &&
-              campaign.currentParticipants > 0 &&
-              (campaign.maxParticipants == null ||
-                  campaign.currentParticipants < campaign.maxParticipants!);
+          if (campaign.status != CampaignStatus.active) return false;
+          if (campaign.endDate == null || campaign.endDate!.isAfter(now)) return false;
+          if (campaign.expirationDate == null || campaign.expirationDate!.isBefore(now)) return false;
+          return true;
         }).length;
 
+        // 종료: 만료기간이 지나거나 status가 inactive
         _completedCount = allCampaigns.where((campaign) {
-          return campaign.status == CampaignStatus.completed ||
-              (campaign.endDate != null && campaign.endDate!.isBefore(now));
+          if (campaign.status == CampaignStatus.inactive) return true;
+          if (campaign.expirationDate != null && campaign.expirationDate!.isBefore(now)) return true;
+          return false;
         }).length;
       }
 

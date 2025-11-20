@@ -364,7 +364,7 @@ $$;
 ALTER FUNCTION "public"."create_campaign_with_points"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_product_price" integer, "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_product_image_url" "text", "p_platform" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_product_name" "text" DEFAULT NULL::"text", "p_product_price" integer DEFAULT NULL::integer, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_product_description" "text" DEFAULT NULL::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT NULL::integer, "p_review_image_count" integer DEFAULT NULL::integer, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_review_reward" integer, "p_max_participants" integer, "p_start_date" timestamp with time zone, "p_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_product_name" "text" DEFAULT NULL::"text", "p_product_price" integer DEFAULT NULL::integer, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_product_description" "text" DEFAULT NULL::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT NULL::integer, "p_review_image_count" integer DEFAULT NULL::integer, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text", "p_expiration_date" timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -440,7 +440,7 @@ BEGIN
       purchase_method,
       review_type, review_text_length, review_image_count,
       review_reward, review_cost, max_participants, current_participants,
-      start_date, end_date,
+      start_date, end_date, expiration_date,
       prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days,
       payment_method, total_cost,
       status, created_at, updated_at
@@ -452,7 +452,8 @@ BEGIN
       p_purchase_method,
       p_review_type, p_review_text_length, p_review_image_count,
       p_review_reward, p_review_reward, p_max_participants, 0,
-      p_start_date, p_end_date,
+      p_start_date, p_end_date, 
+      COALESCE(p_expiration_date, p_end_date + INTERVAL '30 days'),
       p_prevent_product_duplicate, p_prevent_store_duplicate, p_duplicate_prevent_days,
       p_payment_method, v_total_cost,
       'active', NOW(), NOW()

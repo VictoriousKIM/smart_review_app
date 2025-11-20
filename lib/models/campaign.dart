@@ -13,6 +13,7 @@ class Campaign {
   final int? reviewReward;
   final DateTime? startDate;
   final DateTime? endDate;
+  final DateTime? expirationDate;
   final int currentParticipants;
   final int? maxParticipants;
   final CampaignStatus status;
@@ -55,6 +56,7 @@ class Campaign {
     this.reviewReward,
     this.startDate,
     this.endDate,
+    this.expirationDate,
     this.currentParticipants = 0,
     this.maxParticipants,
     this.status = CampaignStatus.active,
@@ -112,6 +114,9 @@ class Campaign {
           : null,
       endDate: json['end_date'] != null
           ? DateTime.parse(json['end_date'])
+          : null,
+      expirationDate: json['expiration_date'] != null
+          ? DateTime.parse(json['expiration_date'])
           : null,
       currentParticipants: json['current_participants'] ?? 0,
       maxParticipants: json['max_participants'],
@@ -173,6 +178,7 @@ class Campaign {
       'review_reward': reviewReward,
       'start_date': startDate?.toIso8601String(),
       'end_date': endDate?.toIso8601String(),
+      'expiration_date': expirationDate?.toIso8601String(),
       'current_participants': currentParticipants,
       'max_participants': maxParticipants,
       'status': status.name,
@@ -213,6 +219,7 @@ class Campaign {
     int? reviewReward,
     DateTime? startDate,
     DateTime? endDate,
+    DateTime? expirationDate,
     int? currentParticipants,
     int? maxParticipants,
     CampaignStatus? status,
@@ -251,6 +258,7 @@ class Campaign {
       reviewReward: reviewReward ?? this.reviewReward,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
+      expirationDate: expirationDate ?? this.expirationDate,
       currentParticipants: currentParticipants ?? this.currentParticipants,
       maxParticipants: maxParticipants ?? this.maxParticipants,
       status: status ?? this.status,
@@ -289,4 +297,4 @@ class Campaign {
 /// - all -> Flutter 전용 (DB에는 없음, 기본값으로 'reviewer' 사용)
 enum CampaignCategory { all, reviewer, press, visit }
 
-enum CampaignStatus { active, completed, upcoming }
+enum CampaignStatus { active, inactive }
