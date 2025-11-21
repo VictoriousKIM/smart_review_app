@@ -30,7 +30,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
   int _registeredCount = 0;
   int _completedCount = 0;
   bool _isLoadingStats = true;
-  
+
   // 포인트 관련 상태
   int? _currentPoints;
   bool _isLoadingPoints = true;
