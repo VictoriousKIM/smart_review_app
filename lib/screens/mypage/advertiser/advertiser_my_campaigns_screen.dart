@@ -126,17 +126,22 @@ class _AdvertiserMyCampaignsScreenState
         // 중복 체크
         if (!_allCampaigns.any((c) => c.id == campaignId)) {
           debugPrint('➕ 캠페인을 목록에 추가 - ${campaign.title}');
-          _allCampaigns.insert(0, campaign);
-          _updateFilteredCampaigns();
-
+          
           if (mounted) {
             setState(() {
+              _allCampaigns.insert(0, campaign);
+              _updateFilteredCampaigns();
               _isLoading = false;
             });
             debugPrint('✅ UI 업데이트 완료 - 총 캠페인 수: ${_allCampaigns.length}');
           }
         } else {
           debugPrint('ℹ️ 캠페인이 이미 목록에 있습니다: $campaignId');
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
         }
       } else {
         debugPrint('⚠️ 캠페인을 찾을 수 없습니다. 일반 새로고침 실행...');

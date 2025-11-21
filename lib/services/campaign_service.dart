@@ -860,7 +860,7 @@ class CampaignService {
     }
   }
 
-  /// 캠페인 삭제 (소프트 삭제)
+  /// 캠페인 삭제 (하드 삭제)
   Future<ApiResponse<void>> deleteCampaign(String campaignId) async {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
@@ -878,18 +878,35 @@ class CampaignService {
         },
       );
 
-      if (response['success'] == true) {
-        return ApiResponse<void>(
-          success: true,
-          message: response['message'] ?? '캠페인이 삭제되었습니다',
-        );
+      // response가 Map인지 확인
+      if (response is Map<String, dynamic>) {
+        if (response['success'] == true) {
+          return ApiResponse<void>(
+            success: true,
+            message: response['message'] ?? '캠페인이 삭제되었습니다',
+          );
+        } else {
+          // 에러 메시지 상세 출력
+          final errorMsg = response['error'] ?? '캠페인 삭제에 실패했습니다';
+          print('❌ 캠페인 삭제 실패: $errorMsg');
+          print('❌ 전체 응답: $response');
+          return ApiResponse<void>(
+            success: false,
+            error: errorMsg,
+          );
+        }
       } else {
+        // 예상치 못한 응답 형식
+        print('❌ 예상치 못한 응답 형식: $response (${response.runtimeType})');
         return ApiResponse<void>(
           success: false,
-          error: response['error'] ?? '캠페인 삭제에 실패했습니다',
+          error: '서버 응답 형식이 올바르지 않습니다: ${response.toString()}',
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // 에러 상세 정보 출력
+      print('❌ 캠페인 삭제 예외 발생: $e');
+      print('❌ 스택 트레이스: $stackTrace');
       return ApiResponse<void>(
         success: false,
         error: '캠페인 삭제 중 오류가 발생했습니다: ${e.toString()}',

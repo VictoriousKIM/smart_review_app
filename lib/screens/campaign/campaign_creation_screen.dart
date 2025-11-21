@@ -1192,7 +1192,7 @@ class _CampaignCreationScreenState
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/mypage/advertiser/my-campaigns'),
+          onPressed: () => context.pop(),
         ),
       ),
       body: Form(
@@ -2293,6 +2293,10 @@ class _CampaignCreationScreenState
 
     _endDateTimeController.text = _endDateTime != null
         ? '${_endDateTime!.year}-${_endDateTime!.month.toString().padLeft(2, '0')}-${_endDateTime!.day.toString().padLeft(2, '0')} ${_endDateTime!.hour.toString().padLeft(2, '0')}:00'
+        : '';
+
+    _expirationDateTimeController.text = _expirationDateTime != null
+        ? '${_expirationDateTime!.year}-${_expirationDateTime!.month.toString().padLeft(2, '0')}-${_expirationDateTime!.day.toString().padLeft(2, '0')} ${_expirationDateTime!.hour.toString().padLeft(2, '0')}:00'
         : '';
   }
 
