@@ -214,7 +214,7 @@ class _AdvertiserMyPageScreenState
         // 종료: 만료기간이 지나거나 status가 inactive
         _completedCount = allCampaigns.where((campaign) {
           if (campaign.status == CampaignStatus.inactive) return true;
-          if (campaign.expirationDate != null && campaign.expirationDate!.isBefore(now)) return true;
+          if (campaign.expirationDate.isBefore(now)) return true;
           return false;
         }).length;
       }
@@ -277,6 +277,13 @@ class _AdvertiserMyPageScreenState
               },
               switchButtonText: '리뷰어 전환',
               showRating: false,
+              showAdminButton: user.userType == app_user.UserType.admin,
+              onAdminPressed: user.userType == app_user.UserType.admin
+                  ? () {
+                      // 관리자 대시보드로 이동
+                      context.pushReplacement('/mypage/admin');
+                    }
+                  : null,
               onProfileTap: () {
                 // 프로필 화면의 사업자 탭으로 이동
                 context.go('/mypage/profile?tab=business');

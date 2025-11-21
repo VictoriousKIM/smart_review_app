@@ -196,6 +196,13 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
                         },
                   switchButtonText: '사업자 전환',
                   showRating: true,
+                  showAdminButton: user.userType == app_user.UserType.admin,
+                  onAdminPressed: user.userType == app_user.UserType.admin
+                      ? () {
+                          // 관리자 대시보드로 이동
+                          context.pushReplacement('/mypage/admin');
+                        }
+                      : null,
                   onProfileTap: () {
                     // 프로필 화면의 리뷰어 탭으로 이동 (기본 탭)
                     context.go('/mypage/profile');

@@ -14,6 +14,8 @@ class MyPageCommonWidgets {
     VoidCallback? onPointsTap,
     int? currentPoints,
     bool isLoadingPoints = false,
+    bool showAdminButton = false,
+    VoidCallback? onAdminPressed,
   }) {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -60,28 +62,61 @@ class MyPageCommonWidgets {
                   ),
                 ),
               ),
-              // 전환 버튼 (흰색 배경)
-              ElevatedButton(
-                onPressed: onSwitchPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF137fec),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              // 버튼들 (전환 버튼 + 관리자 버튼)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 관리자 전환 버튼 (관리자일 때만 표시)
+                  if (showAdminButton && onAdminPressed != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ElevatedButton(
+                        onPressed: onAdminPressed,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.admin_panel_settings, size: 16),
+                            const SizedBox(width: 4),
+                            const Text('관리자 전환'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  // 전환 버튼 (흰색 배경)
+                  ElevatedButton(
+                    onPressed: onSwitchPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF137fec),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.swap_horiz, size: 16, color: const Color(0xFF137fec).withValues(alpha: 0.7)),
+                        const SizedBox(width: 4),
+                        Text(switchButtonText),
+                      ],
+                    ),
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.swap_horiz, size: 16, color: const Color(0xFF137fec).withValues(alpha: 0.7)),
-                    const SizedBox(width: 4),
-                    Text(switchButtonText),
-                  ],
-                ),
+                ],
               ),
             ],
           ),
