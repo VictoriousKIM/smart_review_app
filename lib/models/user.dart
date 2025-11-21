@@ -49,6 +49,17 @@ class User {
     return companyId != null;
   }
 
+  /// 광고주 여부 확인 (동기 처리)
+  /// companyRole이 'owner' 또는 'manager'인 경우 true
+  bool get isAdvertiser {
+    return companyRole == CompanyRole.owner || 
+           companyRole == CompanyRole.manager;
+  }
+  
+  /// 리뷰어 여부 확인 (동기 처리)
+  /// 모든 유저는 기본적으로 리뷰어
+  bool get isReviewer => true;
+
   factory User.fromSupabaseUser(supabase.User user) {
     final metadata = user.userMetadata ?? {};
     return User(

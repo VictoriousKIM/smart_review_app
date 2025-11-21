@@ -78,16 +78,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     debugLogDiagnostics: true,
-    initialLocation: '/loading', // 초기 로딩 화면 표시
+    // initialLocation 제거 - 브라우저 URL을 유지하도록 함
     refreshListenable: GoRouterRefreshStream(authService.authStateChanges),
     redirect: (context, state) async {
       final isLoggingIn = state.matchedLocation == '/login';
       final isRoot = state.matchedLocation == '/';
       final isLoading = state.matchedLocation == '/loading';
+      
+      // 로컬 redirect에서 처리하는 경로들은 전역 redirect에서 건드리지 않음
+      final isMypageReviewer = state.matchedLocation == '/mypage/reviewer';
+      final isMypageAdvertiser = state.matchedLocation == '/mypage/advertiser';
+      final isMypage = state.matchedLocation == '/mypage';
+      final isMypageAdmin = state.matchedLocation.startsWith('/mypage/admin');
 
       // 로딩 페이지는 항상 허용 (로딩 화면에서 직접 인증 상태 확인 및 리다이렉트 처리)
       if (isLoading) {
         return null;
+      }
+      
+      // 로컬 redirect에서 처리하는 경로들은 전역 redirect에서 건드리지 않음
+      if (isMypageReviewer || isMypageAdvertiser || isMypage || isMypageAdmin) {
+        return null; // 로컬 redirect에서 처리
       }
 
       // 초기화 완료 후 정상적인 리다이렉트 로직
@@ -95,9 +106,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final user = await authService.currentUser;
         final isLoggedIn = user != null;
 
-        // 루트 경로 접근 시 인증 상태에 따라 적절한 페이지로 리다이렉트
+        // 루트 경로 접근 시 로딩 화면으로 이동 (초기 로딩 처리)
         if (isRoot) {
-          return isLoggedIn ? '/home' : '/login';
+          return '/loading';
         }
 
         // 로그인되지 않은 상태에서 보호된 경로 접근 시 로그인 페이지로 리다이렉트
@@ -184,43 +195,140 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/mypage',
             name: 'mypage',
-            redirect: (context, state) async {
+            redirect: (context, state) {
               // 정확히 /mypage 경로일 때만 리다이렉트 (하위 경로는 유지)
               final matchedLocation = state.matchedLocation;
               if (matchedLocation != '/mypage') {
                 return null; // 하위 경로는 리다이렉트하지 않음
               }
 
-              // 현재 사용자 정보 가져오기
-              final authService = ref.read(authServiceProvider);
-              final user = await authService.currentUser;
+              // 동기 처리 - await 제거
+              final userAsync = ref.read(currentUserProvider);
+              
+              // AsyncValue의 상태를 명시적으로 처리
+              return userAsync.when(
+                data: (user) {
+                  if (user == null) {
+                    return '/login';
+                  }
 
-              if (user == null) {
-                return '/login';
-              }
+                  // 관리자인 경우 어드민 대시보드로 리다이렉트
+                  if (user.userType == app_user.UserType.admin) {
+                    return '/mypage/admin';
+                  }
 
-              // 관리자인 경우 어드민 대시보드로 리다이렉트
-              if (user.userType == app_user.UserType.admin) {
-                return '/mypage/admin';
-              }
-
-              // 광고주 인증 여부에 따라 적절한 페이지로 리다이렉트
-              if (user.companyId != null) {
-                return '/mypage/advertiser';
-              } else {
-                return '/mypage/reviewer';
-              }
+                  // User 모델의 isAdvertiser getter 사용 (가독성 향상)
+                  if (user.isAdvertiser) {
+                    return '/mypage/advertiser';
+                  } else {
+                    return '/mypage/reviewer';
+                  }
+                },
+                loading: () {
+                  // 로딩 중일 때는 현재 경로 유지
+                  return null;
+                },
+                error: (error, stackTrace) {
+                  // 에러 발생 시 로그인 페이지로 이동
+                  return '/login';
+                },
+              );
             },
           ),
           GoRoute(
             path: '/mypage/reviewer',
             name: 'mypage-reviewer',
-            builder: (context, state) => const ReviewerMyPageScreen(),
+            redirect: (context, state) {
+              // 동기 처리 - await 사용 금지
+              final userAsync = ref.read(currentUserProvider);
+              
+              // AsyncValue의 상태를 명시적으로 처리
+              return userAsync.when(
+                data: (user) {
+                  if (user == null) {
+                    return '/login';
+                  }
+                  // 모든 로그인한 유저는 리뷰어 페이지 접근 가능
+                  return null; // 접근 허용
+                },
+                loading: () {
+                  // 로딩 중일 때는 현재 경로 유지 (builder에서 로딩 UI 표시)
+                  return null;
+                },
+                error: (error, stackTrace) {
+                  // 에러 발생 시 로그인 페이지로 이동
+                  return '/login';
+                },
+              );
+            },
+            builder: (context, state) {
+              // builder에서 currentUserProvider를 watch하여 로딩 상태 처리
+              final userAsync = ref.watch(currentUserProvider);
+              return userAsync.when(
+                data: (user) {
+                  if (user == null) {
+                    // redirect에서 처리되므로 도달하지 않음
+                    return const Center(child: Text('로그인이 필요합니다'));
+                  }
+                  return ReviewerMyPageScreen(user: user);
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stackTrace) => const Center(child: Text('오류가 발생했습니다')),
+              );
+            },
           ),
           GoRoute(
             path: '/mypage/advertiser',
             name: 'mypage-advertiser',
-            builder: (context, state) => const AdvertiserMyPageScreen(),
+            redirect: (context, state) {
+              // 동기 처리 - await 사용 금지
+              final userAsync = ref.read(currentUserProvider);
+              
+              // AsyncValue의 상태를 명시적으로 처리
+              return userAsync.when(
+                data: (user) {
+                  if (user == null) {
+                    return '/login';
+                  }
+                  
+                  // 관리자는 접근 가능
+                  if (user.userType == app_user.UserType.admin) {
+                    return null; // 접근 허용
+                  }
+                  
+                  // User 모델의 isAdvertiser getter 사용 (가독성 향상)
+                  if (user.isAdvertiser) {
+                    return null; // 접근 허용
+                  }
+                  
+                  // 광고주가 아닌 경우 리뷰어 페이지로 리다이렉트
+                  return '/mypage/reviewer';
+                },
+                loading: () {
+                  // 로딩 중일 때는 현재 경로 유지 (builder에서 로딩 UI 표시)
+                  return null;
+                },
+                error: (error, stackTrace) {
+                  // 에러 발생 시 로그인 페이지로 이동
+                  return '/login';
+                },
+              );
+            },
+            builder: (context, state) {
+              // builder에서 currentUserProvider를 watch하여 로딩 상태 처리
+              final userAsync = ref.watch(currentUserProvider);
+              return userAsync.when(
+                data: (user) {
+                  if (user == null) {
+                    // redirect에서 처리되므로 도달하지 않음
+                    return const Center(child: Text('로그인이 필요합니다'));
+                  }
+                  return AdvertiserMyPageScreen(user: user);
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stackTrace) => const Center(child: Text('오류가 발생했습니다')),
+              );
+            },
           ),
 
           // 리뷰어 관련 라우트
