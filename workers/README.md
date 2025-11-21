@@ -46,7 +46,7 @@ Supabase 자격 증명도 설정해야 합니다 (필요시):
 
 ```bash
 # Supabase URL (로컬 개발용)
-echo "http://127.0.0.1:54321" | npx wrangler secret put SUPABASE_URL
+echo "http://127.0.0.1:54500" | npx wrangler secret put SUPABASE_URL
 
 # Supabase Service Role Key
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY

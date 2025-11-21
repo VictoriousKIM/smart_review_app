@@ -11,7 +11,7 @@
 
 2. **브라우저 탭 열기** (Playwright MCP 사용)
    - 첫 번째 탭: Flutter 웹 앱 (http://localhost:3001/) - 개발자 계정으로 로그인
-   - 두 번째 탭: Supabase 대시보드 (http://127.0.0.1:54323)
+   - 두 번째 탭: Supabase 대시보드 (http://127.0.0.1:54503)
    - 세 번째 탭: Cloudflare Workers 대시보드 (https://dash.cloudflare.com)
 
 3. **접근성 활성화** (Flutter 웹 앱에서 필수!)
@@ -54,11 +54,16 @@ await page.evaluate(() => {
 **Flutter 웹 앱 포트:**
 - http://localhost:3001/
 
-**Supabase 대시보드:**
-- http://127.0.0.1:54323
+**Supabase 서비스:**
+- API URL: http://127.0.0.1:54500
+- Studio (대시보드): http://127.0.0.1:54503
+- Database: postgresql://postgres:postgres@127.0.0.1:54501/postgres
+- Mailpit (이메일 테스트): http://127.0.0.1:54504
 
 **Cloudflare Workers 대시보드:**
 - https://dash.cloudflare.com
+
+**참고:** Windows에서 포트 54276-54475 범위가 WSL2/Docker Desktop에 의해 예약되어 있어, Supabase 포트를 54500 이상으로 변경했습니다.
 
 ## 👤 개발용 계정 정보
 
@@ -84,11 +89,11 @@ npx supabase start
 성공적으로 시작되면 다음과 같은 정보가 출력됩니다:
 
 ```
-         API URL: http://127.0.0.1:54321
-     GraphQL URL: http://127.0.0.1:54321/graphql/v1
-    Database URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-      Studio URL: http://127.0.0.1:54323
-     Mailpit URL: http://127.0.0.1:54324
+         API URL: http://127.0.0.1:54500
+     GraphQL URL: http://127.0.0.1:54500/graphql/v1
+    Database URL: postgresql://postgres:postgres@127.0.0.1:54501/postgres
+      Studio URL: http://127.0.0.1:54503
+     Mailpit URL: http://127.0.0.1:54504
  Publishable key: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
       Secret key: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
 ```

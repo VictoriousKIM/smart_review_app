@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SupabaseConfig {
   // 개발 모드에서는 로컬 Supabase 사용, 프로덕션에서는 원격 Supabase 사용
   static const String supabaseUrl = kDebugMode
-      ? 'http://127.0.0.1:54321' // 로컬 개발 환경
+      ? 'http://127.0.0.1:54500' // 로컬 개발 환경
       : 'https://ythmnhadeyfusmfhcgdr.supabase.co'; // 프로덕션 환경
 
   static const String supabaseAnonKey = kDebugMode
