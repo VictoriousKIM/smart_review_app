@@ -187,23 +187,58 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/mypage',
             name: 'mypage',
-            redirect: (context, state) {
-              if (state.matchedLocation != '/mypage') return null;
-
-              // 동기적 상태 읽기
+            builder: (context, state) {
+              // 사용자 타입에 따라 적절한 화면으로 리다이렉트
               final userAsync = ref.read(currentUserProvider);
 
               return userAsync.when(
                 data: (user) {
-                  if (user == null) return '/login';
-                  if (user.userType == app_user.UserType.admin)
-                    return '/mypage/admin';
-                  if (user.isAdvertiser) return '/mypage/advertiser';
-                  return '/mypage/reviewer';
+                  if (user == null) {
+                    // 비로그인 시 로그인으로 리다이렉트
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (context.mounted) {
+                        context.go('/login');
+                      }
+                    });
+                    return const LoadingScreen();
+                  }
+
+                  // 사용자 타입에 따라 적절한 화면으로 리다이렉트
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (context.mounted) {
+                      if (user.userType == app_user.UserType.admin) {
+                        context.go('/mypage/admin');
+                      } else if (user.isAdvertiser) {
+                        context.go('/mypage/advertiser');
+                      } else {
+                        context.go('/mypage/reviewer');
+                      }
+                    }
+                  });
+                  return const LoadingScreen();
                 },
-                // 🔥 [핵심] 로딩이나 에러 시 절대 리다이렉트 하지 않음 (현재 경로 유지)
-                loading: () => null,
-                error: (_, __) => null,
+                loading: () => const LoadingScreen(),
+                error: (err, stack) => Scaffold(
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text('데이터 로드 실패: $err'),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => context.go('/home'),
+                          child: const Text('홈으로 이동'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               );
             },
           ),
@@ -236,6 +271,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) =>
                     const PointsScreen(userType: 'reviewer'),
                 routes: [
+                  GoRoute(
+                    path: 'withdraw',
+                    name: 'reviewer-points-withdraw',
+                    builder: (context, state) =>
+                        const PointRefundScreen(userType: 'reviewer'),
+                  ),
+                  // 기존 refund 경로도 유지 (하위 호환성)
                   GoRoute(
                     path: 'refund',
                     name: 'reviewer-points-refund',
@@ -326,6 +368,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) =>
                     const PointsScreen(userType: 'advertiser'),
                 routes: [
+                  GoRoute(
+                    path: 'deposit',
+                    name: 'advertiser-points-deposit',
+                    builder: (context, state) =>
+                        const PointChargeScreen(userType: 'advertiser'),
+                  ),
+                  GoRoute(
+                    path: 'withdraw',
+                    name: 'advertiser-points-withdraw',
+                    builder: (context, state) =>
+                        const PointRefundScreen(userType: 'advertiser'),
+                  ),
+                  // 기존 charge/refund 경로도 유지 (하위 호환성)
                   GoRoute(
                     path: 'charge',
                     name: 'advertiser-points-charge',

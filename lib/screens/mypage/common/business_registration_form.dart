@@ -12,10 +12,12 @@ import '../../../config/supabase_config.dart';
 
 class BusinessRegistrationForm extends ConsumerStatefulWidget {
   final bool hasPendingManagerRequest;
+  final VoidCallback? onVerificationComplete;
 
   const BusinessRegistrationForm({
     super.key,
     this.hasPendingManagerRequest = false,
+    this.onVerificationComplete,
   });
 
   @override
@@ -100,7 +102,9 @@ class _BusinessRegistrationFormState
           ),
           const SizedBox(height: 20),
           // 매니저 등록 신청 중일 때 업로드 차단
-          if (widget.hasPendingManagerRequest && _selectedFileBytes == null && _existingImageUrl == null) ...[
+          if (widget.hasPendingManagerRequest &&
+              _selectedFileBytes == null &&
+              _existingImageUrl == null) ...[
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -114,11 +118,7 @@ class _BusinessRegistrationFormState
               ),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 32,
-                    color: Colors.orange[700],
-                  ),
+                  Icon(Icons.info_outline, size: 32, color: Colors.orange[700]),
                   const SizedBox(height: 12),
                   Text(
                     '매니저 등록 신청 중',
@@ -131,16 +131,15 @@ class _BusinessRegistrationFormState
                   const SizedBox(height: 8),
                   Text(
                     '매니저 등록 신청이 진행 중인 경우 사업자 등록을 할 수 없습니다.\n매니저 등록 신청이 완료되거나 취소된 후 다시 시도해주세요.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[700],
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
-          ] else if (_selectedFileBytes == null && _existingImageUrl == null && !widget.hasPendingManagerRequest) ...[
+          ] else if (_selectedFileBytes == null &&
+              _existingImageUrl == null &&
+              !widget.hasPendingManagerRequest) ...[
             GestureDetector(
               onTap: _selectFile,
               child: Container(
@@ -248,7 +247,9 @@ class _BusinessRegistrationFormState
                 ),
                 const SizedBox(height: 16),
                 // 검증하기 버튼 (파일 선택되었고 아직 처리되지 않았을 때만 표시, 매니저 신청 중이 아닐 때만)
-                if (!_isProcessing && !_isDataSaved && !widget.hasPendingManagerRequest)
+                if (!_isProcessing &&
+                    !_isDataSaved &&
+                    !widget.hasPendingManagerRequest)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -314,9 +315,10 @@ class _BusinessRegistrationFormState
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: FutureBuilder<String>(
-                      future: CloudflareWorkersService.getPresignedUrlForViewing(
-                        _existingImageUrl!,
-                      ),
+                      future:
+                          CloudflareWorkersService.getPresignedUrlForViewing(
+                            _existingImageUrl!,
+                          ),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -1010,6 +1012,11 @@ class _BusinessRegistrationFormState
 
             // 기존 회사 데이터 다시 로드
             await _loadExistingCompanyData();
+
+            // 부모 스크린에 알림 (사업자 인증 완료)
+            if (widget.onVerificationComplete != null) {
+              widget.onVerificationComplete!();
+            }
           } catch (error) {
             // 에러 발생 시 처리
             print('❌ 처리 실패: $error');

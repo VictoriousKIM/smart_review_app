@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../widgets/drawer/admin_drawer.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
@@ -371,7 +372,20 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
               const Text('관리자 권한이 필요합니다'),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  final currentUser = ref.read(currentUserProvider).value;
+                  if (currentUser != null) {
+                    if (currentUser.userType == app_user.UserType.admin) {
+                      context.go('/mypage/admin');
+                    } else if (currentUser.companyId != null) {
+                      context.go('/mypage/advertiser');
+                    } else {
+                      context.go('/mypage/reviewer');
+                    }
+                  } else {
+                    context.go('/mypage');
+                  }
+                },
                 child: const Text('돌아가기'),
               ),
             ],

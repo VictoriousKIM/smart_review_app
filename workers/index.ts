@@ -174,7 +174,17 @@ async function handlePresignedUrlForViewing(request: Request, env: Env): Promise
 
 async function handlePresignedUrl(request: Request, env: Env): Promise<Response> {
   try {
-    const { fileName, userId, contentType, fileType, method = 'PUT' } = await request.json();
+    const { 
+      fileName, 
+      userId, 
+      contentType, 
+      fileType, 
+      method = 'PUT',
+      // 새로운 파라미터
+      companyId,      // 캠페인 이미지용
+      productName,    // 캠페인 이미지용
+      companyName     // 사업자등록증용
+    } = await request.json();
 
     if (!fileName || !userId || !contentType || !fileType) {
       return new Response(
@@ -187,13 +197,37 @@ async function handlePresignedUrl(request: Request, env: Env): Promise<Response>
     }
 
     // 파일 경로 생성
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const timestamp = Date.now();
+    const now = new Date();
+    const timestamp = formatTimestampWithMillis(now);
+    let filePath: string;
 
-    const filePath = `${fileType}/${year}/${month}/${day}/${userId}_${timestamp}_${fileName}`;
+    if (fileType === 'campaign-images') {
+      // 캠페인 이미지: campaign-images/{companyId}/product/{timestamp}_{productName}.jpg
+      if (!companyId || !productName) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'companyId and productName are required for campaign-images' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const extension = fileName.substring(fileName.lastIndexOf('.'));
+      const sanitized = sanitizeFileName(productName);
+      filePath = `${fileType}/${companyId}/product/${timestamp}_${sanitized}${extension}`;
+    } else if (fileType === 'business-registration') {
+      // 사업자등록증: business-registration/{timestamp}_{companyName}.png
+      if (!companyName) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'companyName is required for business-registration' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const extension = fileName.substring(fileName.lastIndexOf('.'));
+      const sanitized = sanitizeFileName(companyName);
+      filePath = `${fileType}/${timestamp}_${sanitized}${extension}`;
+    } else {
+      // 기타 파일 타입은 기존 방식 유지
+      const sanitized = sanitizeFileName(fileName);
+      filePath = `${fileType}/${timestamp}_${sanitized}`;
+    }
 
     // Presigned URL 생성 (AWS Signature V4)
     const expiresIn = method === 'GET' ? 3600 : 900; // GET: 1시간, PUT: 15분
@@ -232,6 +266,21 @@ async function handlePresignedUrl(request: Request, env: Env): Promise<Response>
   }
 }
 
+// AWS Signature V4 호환 경로 인코딩
+// RFC 3986에 따라 경로 세그먼트를 인코딩하되, 슬래시는 유지
+function encodePathSegment(segment: string): string {
+  if (!segment) return segment;
+  // encodeURIComponent는 대부분의 특수 문자를 인코딩하지만,
+  // AWS Signature V4에서는 추가로 일부 문자를 인코딩해야 할 수 있음
+  // 현재는 encodeURIComponent로 충분하지만, 필요시 추가 인코딩 가능
+  return encodeURIComponent(segment);
+}
+
+// 전체 경로 인코딩 (슬래시는 유지, 각 세그먼트만 인코딩)
+function encodePath(path: string): string {
+  return path.split('/').map(encodePathSegment).join('/');
+}
+
 // AWS Signature V4를 사용한 Presigned URL 생성
 async function createPresignedUrlSignature(
   method: string,
@@ -244,8 +293,11 @@ async function createPresignedUrlSignature(
   const service = 's3';
   const algorithm = 'AWS4-HMAC-SHA256';
   
-  const url = `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${filePath}`;
-  const urlObj = new URL(url);
+  // 경로 인코딩 (Canonical Request와 실제 URL에서 동일하게 사용)
+  const encodedPath = encodePath(filePath);
+  const canonicalPath = `/${env.R2_BUCKET_NAME}/${encodedPath}`;
+  
+  const host = `${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
   const date = new Date();
   const dateStamp = date.toISOString().slice(0, 10).replace(/-/g, '');
   const amzDate = date.toISOString().replace(/[:\-]|\.\d{3}/g, '');
@@ -259,12 +311,12 @@ async function createPresignedUrlSignature(
     'X-Amz-SignedHeaders': 'host',
   });
   
-  // Canonical Request
-  const canonicalHeaders = `host:${urlObj.host}\n`;
+  // Canonical Request (인코딩된 경로 사용)
+  const canonicalHeaders = `host:${host}\n`;
   const signedHeaders = 'host';
   const canonicalRequest = [
     method,
-    urlObj.pathname,
+    canonicalPath,  // 인코딩된 경로 사용
     queryParams.toString(),
     canonicalHeaders,
     signedHeaders,
@@ -293,9 +345,10 @@ async function createPresignedUrlSignature(
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
   
-  // Presigned URL 생성
+  // Presigned URL 생성 (동일한 인코딩된 경로 사용)
   queryParams.set('X-Amz-Signature', signature);
-  return `${url}?${queryParams.toString()}`;
+  const fullPath = `/${env.R2_BUCKET_NAME}/${encodedPath}`;
+  return `https://${host}${fullPath}?${queryParams.toString()}`;
 }
 
 async function sha256(data: string): Promise<string> {
@@ -339,13 +392,10 @@ async function handleUpload(request: Request, env: Env): Promise<Response> {
     }
 
     // 파일 경로 생성
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const timestamp = Date.now();
+    const now = new Date();
+    const timestamp = formatTimestamp(now);
 
-    const key = `${fileType}/${year}/${month}/${day}/${userId}_${timestamp}_${file.name}`;
+    const key = `${fileType}/${timestamp}_${file.name}`;
 
     // R2에 업로드
     await env.FILES.put(key, file.stream(), {
@@ -527,7 +577,41 @@ async function handleVerifyAndRegister(request: Request, env: Env): Promise<Resp
       } catch (extractError) {
         const errorMessage = extractError instanceof Error ? extractError.message : String(extractError);
         console.error('❌ AI 추출 실패:', errorMessage);
-        throw new Error(`AI 추출 실패: ${errorMessage}`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `AI 추출 실패: ${errorMessage}`,
+            step: 'extraction',
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // AI 추출 데이터 검증 (회사명 확인)
+      if (!extractedData || !extractedData.business_name) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: '회사명을 추출할 수 없습니다. 이미지를 다시 확인해주세요.',
+            extractedData: extractedData || undefined,
+            step: 'extraction',
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 회사명 정규화
+      const companyName = sanitizeFileName(extractedData.business_name);
+      if (!companyName || companyName === 'unknown') {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: '유효한 회사명을 추출할 수 없습니다.',
+            extractedData,
+            step: 'extraction',
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       // 2단계: 사업자등록번호 검증
@@ -545,9 +629,9 @@ async function handleVerifyAndRegister(request: Request, env: Env): Promise<Resp
         );
       }
 
-      // 3단계: Presigned URL 생성 (Flutter에서 직접 업로드)
+      // 3단계: Presigned URL 생성 (모든 검증 통과 후에만 생성)
       const contentType = fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/png';
-      const filePath = generateFilePath(userId, fileName);
+      const filePath = generateFilePath(userId, fileName, companyName);
       const presignedUrl = await createPresignedUrlSignature(
         'PUT',
         filePath,
@@ -951,14 +1035,59 @@ async function validateBusinessNumber(businessNumber: string, env: Env): Promise
   return { isValid: false, errorMessage: '사업자 정보를 찾을 수 없습니다.' };
 }
 
-function generateFilePath(userId: string, fileName: string): string {
+function formatTimestamp(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}${month}${day}${hours}${minutes}${seconds}`;
+}
+
+// 밀리초까지 포함한 타임스탬프 (중복 파일명 방지용)
+function formatTimestampWithMillis(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const millis = String(date.getMilliseconds()).padStart(3, '0');
+  return `${year}${month}${day}${hours}${minutes}${seconds}${millis}`;
+}
+
+// 파일명 정규화 함수 (기본적인 특수 문자 처리)
+function sanitizeFileName(name: string): string {
+  if (!name || name.trim().length === 0) {
+    return 'unknown';
+  }
+
+  return name
+    // 파일 시스템 예약 문자만 제거 (슬래시는 경로 구분자이므로 제거)
+    .replace(/[<>:"/\\|?*]/g, '_')
+    // 공백을 언더스코어로 변환
+    .replace(/\s+/g, '_')
+    // 연속된 언더스코어를 하나로
+    .replace(/_{2,}/g, '_')
+    // 앞뒤 언더스코어 제거
+    .replace(/^_+|_+$/g, '')
+    .trim() || 'unknown';
+}
+
+function generateFilePath(userId: string, fileName: string, companyName?: string): string {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const timestamp = now.getTime();
+  const timestamp = formatTimestampWithMillis(now);
   const extension = fileName.substring(fileName.lastIndexOf('.'));
-  return `business-registration/${year}/${month}/${day}/${userId}_${timestamp}${extension}`;
+  
+  if (companyName) {
+    // 사업자등록증: AI가 추출한 회사명 사용
+    const sanitized = sanitizeFileName(companyName);
+    return `business-registration/${timestamp}_${sanitized}${extension}`;
+  }
+  
+  // 기본값 (사용되지 않을 예정)
+  return `business-registration/${timestamp}_${sanitizeFileName(fileName)}`;
 }
 
 async function uploadBusinessRegistrationFile(
@@ -995,7 +1124,7 @@ async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
     }
 
     // R2 Public URL에서 파일 경로 추출
-    // 예: https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/business-registration/2025/11/02/userId_timestamp.png
+    // 예: https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/business-registration/20250115143025_filename.png
     const urlObj = new URL(fileUrl);
     const filePath = urlObj.pathname.substring(1); // 첫 번째 '/' 제거
 

@@ -91,7 +91,20 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  final currentUser = ref.read(currentUserProvider).value;
+                  if (currentUser != null) {
+                    if (currentUser.userType == app_user.UserType.admin) {
+                      context.go('/mypage/admin');
+                    } else if (currentUser.companyId != null) {
+                      context.go('/mypage/advertiser');
+                    } else {
+                      context.go('/mypage/reviewer');
+                    }
+                  } else {
+                    context.go('/mypage');
+                  }
+                },
                 child: const Text('돌아가기'),
               ),
             ],

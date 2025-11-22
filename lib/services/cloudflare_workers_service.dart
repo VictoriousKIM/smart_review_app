@@ -35,6 +35,9 @@ class CloudflareWorkersService {
     required String contentType,
     required String fileType,
     String method = 'PUT',
+    String? companyId, // 캠페인 이미지용
+    String? productName, // 캠페인 이미지용
+    String? companyName, // 사업자등록증용
   }) async {
     try {
       final response = await http.post(
@@ -46,6 +49,9 @@ class CloudflareWorkersService {
           'contentType': contentType,
           'fileType': fileType,
           'method': method,
+          if (companyId != null) 'companyId': companyId,
+          if (productName != null) 'productName': productName,
+          if (companyName != null) 'companyName': companyName,
         }),
       );
 
@@ -185,9 +191,7 @@ class CloudflareWorkersService {
       final response = await http.post(
         Uri.parse('$_baseUrl/api/presigned-url-view'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'filePath': filePath,
-        }),
+        body: json.encode({'filePath': filePath}),
       );
 
       if (response.statusCode == 200) {

@@ -200,12 +200,11 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
+            // userType에 따라 적절한 마이페이지로 리다이렉트
             if (widget.userType == 'advertiser') {
               context.go('/mypage/advertiser');
-            } else if (widget.userType == 'reviewer') {
-              context.go('/mypage/reviewer');
             } else {
-              context.go('/mypage');
+              context.go('/mypage/reviewer');
             }
           },
         ),
@@ -561,15 +560,22 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   }
 
   void _navigateToRefund() {
-    final routeName = widget.userType == 'reviewer'
-        ? 'reviewer-points-refund'
-        : 'advertiser-points-refund';
-    context.pushNamed(routeName).then((result) {
-      // 환급 신청 성공 시 포인트 정보 다시 로드
-      if (result == true) {
-        _loadPointsData();
-      }
-    });
+    // withdraw 하위 URL 사용
+    if (widget.userType == 'reviewer') {
+      context.push('/mypage/reviewer/points/withdraw').then((result) {
+        // 환급 신청 성공 시 포인트 정보 다시 로드
+        if (result == true) {
+          _loadPointsData();
+        }
+      });
+    } else {
+      context.push('/mypage/advertiser/points/withdraw').then((result) {
+        // 환급 신청 성공 시 포인트 정보 다시 로드
+        if (result == true) {
+          _loadPointsData();
+        }
+      });
+    }
   }
 
   void _navigateToCharge() {
@@ -577,7 +583,8 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
     if (widget.userType == 'reviewer') {
       return;
     }
-    context.pushNamed('advertiser-points-charge').then((result) {
+    // deposit 하위 URL 사용
+    context.push('/mypage/advertiser/points/deposit').then((result) {
       // 충전 신청 성공 시 포인트 정보 다시 로드
       if (result == true) {
         _loadPointsData();

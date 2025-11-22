@@ -57,3 +57,17 @@ git commit -m "feat: 포인트 취소 기능 추가"
 - 한글 커밋 메시지는 Windows PowerShell에서 깨져 보일 수 있습니다
 - GitHub에서는 정상 표시되지만, 로컬 터미널에서 가독성이 떨어집니다
 - 커밋 타입: `feat`, `fix`, `chore`, `refactor`, `docs`, `style`, `test` 등
+
+## 📱 Flutter 웹 앱 접근성 활성화
+
+Flutter 웹 앱에서 접근성 버튼을 활성화하는 방법:
+
+```javascript
+// 접근성 활성화 (필수!)
+await page.evaluate(() => {
+  const accessibilityButton = document.querySelector('flt-semantics-placeholder[aria-label="Enable accessibility"]');
+  if (accessibilityButton) {
+    accessibilityButton.click();
+  }
+});
+```

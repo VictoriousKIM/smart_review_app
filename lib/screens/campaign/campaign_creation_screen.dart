@@ -13,6 +13,7 @@ import '../../widgets/image_crop_editor.dart';
 import '../../services/campaign_service.dart';
 import '../../services/wallet_service.dart';
 import '../../services/cloudflare_workers_service.dart';
+import '../../services/company_user_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../config/supabase_config.dart';
@@ -776,9 +777,20 @@ class _CampaignCreationScreenState
           throw Exception('로그인이 필요합니다.');
         }
 
-        // 파일명 생성
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final fileName = 'product_${timestamp}.jpg';
+        // 회사 ID 가져오기
+        final companyId = await CompanyUserService.getUserCompanyId(user.id);
+        if (companyId == null) {
+          throw Exception('회사 정보를 찾을 수 없습니다.');
+        }
+
+        // 상품명 가져오기
+        final productName = _productNameController.text.trim();
+        if (productName.isEmpty) {
+          throw Exception('상품명을 입력해주세요.');
+        }
+
+        // 파일명 생성 (확장자만 사용)
+        final fileName = 'product.jpg';
 
         // 1. Presigned URL 요청
         setState(() {
@@ -792,6 +804,8 @@ class _CampaignCreationScreenState
               contentType: 'image/jpeg',
               fileType: 'campaign-images',
               method: 'PUT',
+              companyId: companyId,
+              productName: productName,
             ).timeout(
               const Duration(seconds: 10),
               onTimeout: () {
@@ -1889,9 +1903,9 @@ class _CampaignCreationScreenState
                 if (_expirationDateTime == null) {
                   return '만기일을 선택해주세요';
                 }
-                if (_endDateTime != null && 
+                if (_endDateTime != null &&
                     (_expirationDateTime!.isBefore(_endDateTime!) ||
-                    _expirationDateTime!.isAtSameMomentAs(_endDateTime!))) {
+                        _expirationDateTime!.isAtSameMomentAs(_endDateTime!))) {
                   return '만기일은 종료일 이후여야 합니다';
                 }
                 return null;
@@ -1955,7 +1969,9 @@ class _CampaignCreationScreenState
               if (_expirationDateTime == null ||
                   _expirationDateTime!.isBefore(_endDateTime!) ||
                   _expirationDateTime!.isAtSameMomentAs(_endDateTime!)) {
-                _expirationDateTime = _endDateTime!.add(const Duration(days: 30));
+                _expirationDateTime = _endDateTime!.add(
+                  const Duration(days: 30),
+                );
               }
             }
           } else {
@@ -1975,9 +1991,10 @@ class _CampaignCreationScreenState
 
   Future<void> _selectExpirationDateTime(BuildContext context) async {
     final now = DateTime.now();
-    final initialDate = _expirationDateTime ?? 
-        (_endDateTime?.add(const Duration(days: 30)) ?? 
-         now.add(const Duration(days: 31)));
+    final initialDate =
+        _expirationDateTime ??
+        (_endDateTime?.add(const Duration(days: 30)) ??
+            now.add(const Duration(days: 31)));
 
     final date = await showDatePicker(
       context: context,
@@ -1995,13 +2012,7 @@ class _CampaignCreationScreenState
 
     if (time == null) return;
 
-    final dateTime = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      0,
-    );
+    final dateTime = DateTime(date.year, date.month, date.day, time.hour, 0);
 
     setState(() {
       _expirationDateTime = dateTime;

@@ -5,7 +5,6 @@ import '../../../widgets/custom_button.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/company_service.dart';
 import '../../../services/wallet_service.dart';
-import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../models/wallet_models.dart';
 import 'business_registration_form.dart';
@@ -123,18 +122,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            final user = ref.read(currentUserProvider).value;
-            if (user != null) {
-              if (user.userType == app_user.UserType.admin) {
-                context.go('/mypage/admin');
-              } else if (user.companyId != null) {
-                context.go('/mypage/advertiser');
-              } else {
-                context.go('/mypage/reviewer');
-              }
-            } else {
-              context.go('/mypage');
-            }
+            // 공용 페이지에서는 무조건 리뷰어 마이페이지로 리다이렉트
+            context.go('/mypage/reviewer');
           },
         ),
       ),
@@ -656,6 +645,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       ),
       child: BusinessRegistrationForm(
         hasPendingManagerRequest: _pendingManagerRequest != null,
+        onVerificationComplete: () {
+          // 사업자 인증 완료 시 프로필 및 회사 데이터 다시 로드
+          _loadUserProfile();
+          _loadCompanyData();
+          _loadPendingManagerRequest();
+        },
       ),
     );
   }
