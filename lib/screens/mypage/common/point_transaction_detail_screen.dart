@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../../utils/date_time_utils.dart';
 import '../../../services/wallet_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/campaign_service.dart';
 import '../admin/widgets/approve_dialog.dart';
 import '../admin/widgets/reject_dialog.dart';
+import 'package:flutter/services.dart';
 
 class PointTransactionDetailScreen extends ConsumerStatefulWidget {
   final String transactionId;
@@ -33,6 +35,8 @@ class _PointTransactionDetailScreenState
   bool _isRejecting = false;
   String? _createdByUserName;
   bool _isLoadingCreator = false;
+  String? _campaignTitle;
+  bool _isLoadingCampaign = false;
 
   @override
   void initState() {
@@ -57,6 +61,8 @@ class _PointTransactionDetailScreenState
 
       // 신청자 정보 로드
       await _loadCreatorInfo();
+      // 캠페인 정보 로드
+      await _loadCampaignInfo();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -111,6 +117,42 @@ class _PointTransactionDetailScreenState
       if (mounted) {
         setState(() {
           _isLoadingCreator = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadCampaignInfo() async {
+    if (_transaction == null) return;
+
+    final campaignId = _transaction!['campaign_id'] as String?;
+    if (campaignId == null || campaignId.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingCampaign = true;
+    });
+
+    try {
+      final campaignService = CampaignService();
+      final response = await campaignService.getCampaignById(campaignId);
+
+      if (mounted && response.success && response.data != null) {
+        setState(() {
+          _campaignTitle = response.data!.title;
+          _isLoadingCampaign = false;
+        });
+      } else if (mounted) {
+        setState(() {
+          _isLoadingCampaign = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('캠페인 정보 조회 실패: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCampaign = false;
         });
       }
     }
@@ -209,6 +251,8 @@ class _PointTransactionDetailScreenState
     final amount = rawAmount.abs(); // 항상 양수로 표시
     final cashAmount = _transaction!['cash_amount'] as num?;
     final rejectionReason = _transaction!['rejection_reason'] as String?;
+    final campaignId = _transaction!['campaign_id'] as String?;
+    final completedAt = _transaction!['completed_at'] as String?;
 
     return Container(
       width: double.infinity,
@@ -323,12 +367,40 @@ class _PointTransactionDetailScreenState
               '${cashAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
             ),
           ],
+          // 완료일시 (status가 'approved' 또는 'completed'일 때)
+          if ((status == 'approved' || status == 'completed') &&
+              completedAt != null) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow(
+              '완료일시',
+              DateTimeUtils.formatKST(DateTimeUtils.parseKST(completedAt)),
+            ),
+          ],
           // 거절 사유 (status가 'rejected'이고 rejection_reason이 있을 때만)
           if (status == 'rejected' &&
               rejectionReason != null &&
               rejectionReason.isNotEmpty) ...[
             const SizedBox(height: 12),
             _buildInfoRow('거절 사유', rejectionReason),
+          ],
+          // 캠페인 정보 (캠페인 거래인 경우)
+          if (campaignId != null && campaignId.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow('캠페인 ID', campaignId),
+            if (_isLoadingCampaign) ...[
+              const SizedBox(height: 12),
+              _buildInfoRow('캠페인 제목', '로딩 중...'),
+            ] else if (_campaignTitle != null) ...[
+              const SizedBox(height: 12),
+              _buildInfoRow('캠페인 제목', _campaignTitle!),
+            ],
+          ],
+          // 결제 및 계좌 정보 섹션 (cash 거래인 경우)
+          if (isCashTransaction) ...[
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+            _buildPaymentInfoSection(transactionType),
           ],
           // 영수증 정보 섹션
           if (isCashTransaction) ...[
@@ -339,6 +411,70 @@ class _PointTransactionDetailScreenState
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildPaymentInfoSection(String transactionType) {
+    final paymentMethod = _transaction!['payment_method'] as String?;
+    final bankName = _transaction!['bank_name'] as String?;
+    final accountNumber = _transaction!['account_number'] as String?;
+    final accountHolder = _transaction!['account_holder'] as String?;
+
+    // 결제 정보나 계좌 정보가 없으면 섹션 표시 안 함
+    if (paymentMethod == null &&
+        bankName == null &&
+        accountNumber == null &&
+        accountHolder == null) {
+      return const SizedBox.shrink();
+    }
+
+    // 결제 방법 한글 변환
+    String paymentMethodText = '';
+    if (paymentMethod != null) {
+      switch (paymentMethod) {
+        case 'bank_transfer':
+          paymentMethodText = '계좌이체';
+          break;
+        case 'card':
+          paymentMethodText = '카드';
+          break;
+        default:
+          paymentMethodText = paymentMethod;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '결제 및 계좌 정보',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF333333),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // 결제 방법 (입금인 경우)
+        if (transactionType == 'deposit' && paymentMethodText.isNotEmpty) ...[
+          _buildInfoRow('결제 방법', paymentMethodText),
+          const SizedBox(height: 12),
+        ],
+        // 계좌 정보 (출금인 경우)
+        if (transactionType == 'withdraw') ...[
+          if (bankName != null && bankName.isNotEmpty) ...[
+            _buildInfoRow('은행명', bankName),
+            const SizedBox(height: 12),
+          ],
+          if (accountNumber != null && accountNumber.isNotEmpty) ...[
+            _buildInfoRow('계좌번호', accountNumber),
+            const SizedBox(height: 12),
+          ],
+          if (accountHolder != null && accountHolder.isNotEmpty) ...[
+            _buildInfoRow('예금주', accountHolder),
+          ],
+        ],
+      ],
     );
   }
 

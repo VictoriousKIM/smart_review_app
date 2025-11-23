@@ -140,6 +140,39 @@ class WalletService {
 
   // ==================== 포인트 내역 조회 ====================
 
+  /// 개인 포인트 내역 조회 (통합: 캠페인 + 현금 거래)
+  static Future<List<Map<String, dynamic>>> getUserPointHistoryUnified({
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        print('❌ 로그인되지 않음');
+        return [];
+      }
+
+      final response =
+          await _supabase.rpc(
+                'get_user_point_history_unified',
+                params: {
+                  'p_user_id': userId,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
+
+      final logs = response.map((e) => e as Map<String, dynamic>).toList();
+
+      print('✅ 개인 포인트 내역 통합 조회 성공: ${logs.length}건');
+      return logs;
+    } catch (e) {
+      print('❌ 개인 포인트 내역 통합 조회 실패: $e');
+      return [];
+    }
+  }
+
   /// 개인 포인트 내역 조회 (point_transactions 테이블)
   static Future<List<UserPointLog>> getUserPointHistory({
     int limit = 50,

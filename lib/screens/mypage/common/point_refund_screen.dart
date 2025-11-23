@@ -256,8 +256,57 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
       accountNumber = _userWallet!.withdrawAccountNumber;
     }
 
+    // 계좌 정보가 없으면 안내 메시지 표시
     if (accountHolder == null || bankName == null || accountNumber == null) {
-      return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Text(
+                '계좌정보',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF333333),
+                ),
+              ),
+              Text(
+                '*',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.red,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange[200]!),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '출금 계좌 정보가 등록되어 있지 않습니다. 계좌 정보를 등록한 후 출금 신청이 가능합니다.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
     }
 
     return Column(
@@ -434,11 +483,31 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
     );
   }
 
+  bool _hasAccountInfo() {
+    String? accountHolder, bankName, accountNumber;
+
+    if (_isCompanyWallet && _companyWallet != null) {
+      accountHolder = _companyWallet!.withdrawAccountHolder;
+      bankName = _companyWallet!.withdrawBankName;
+      accountNumber = _companyWallet!.withdrawAccountNumber;
+    } else if (_userWallet != null) {
+      accountHolder = _userWallet!.withdrawAccountHolder;
+      bankName = _userWallet!.withdrawBankName;
+      accountNumber = _userWallet!.withdrawAccountNumber;
+    }
+
+    return accountHolder != null &&
+        bankName != null &&
+        accountNumber != null;
+  }
+
   Widget _buildRefundButton() {
     final amount = int.tryParse(_amountController.text.replaceAll(',', ''));
+    final hasAccount = _hasAccountInfo();
     final isEnabled = amount != null &&
         amount >= _minRefundAmount &&
-        amount <= _currentPoints;
+        amount <= _currentPoints &&
+        hasAccount;
 
     return SizedBox(
       width: double.infinity,

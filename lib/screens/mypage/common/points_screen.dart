@@ -53,30 +53,36 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
         _currentPoints = wallet?.currentPoints ?? 0;
         _isOwner = true; // 리뷰어는 항상 자신의 지갑에 대한 권한이 있음
 
-        // 포인트 내역 조회
-        final logs = await WalletService.getUserPointHistory(limit: 50);
-        _pointHistory = logs
-            .map(
-              (log) => {
-                'id': log.id,
-                'type': log.amount > 0 ? 'earned' : 'spent',
-                'amount': log.amount,
-                'description': log.description ?? '포인트 거래',
-                'date': DateTimeUtils.formatKST(
-                  DateTimeUtils.toKST(log.createdAt),
-                ),
-                'transaction_category': 'campaign',
-                'transaction_type': log.transactionType,
-                'raw_data': {
-                  'id': log.id,
-                  'transaction_type': log.transactionType,
-                  'amount': log.amount,
-                  'description': log.description,
-                  'created_at': log.createdAt.toIso8601String(),
-                },
-              },
-            )
-            .toList();
+        // 포인트 내역 조회 (통합: 캠페인 + 현금 거래)
+        final unifiedLogs = await WalletService.getUserPointHistoryUnified(limit: 50);
+
+        _pointHistory = unifiedLogs.map((log) {
+          final amount = log['point_amount'] ?? log['amount'] ?? 0;
+          return {
+            'id': log['id'] ?? '',
+            'type': log['transaction_category'] == 'cash'
+                ? (log['transaction_type'] == 'deposit'
+                      ? 'charge'
+                      : 'withdraw')
+                : (amount > 0 ? 'earned' : 'spent'),
+            'amount': amount,
+            'description':
+                log['description'] ??
+                (log['transaction_category'] == 'cash'
+                    ? (log['transaction_type'] == 'deposit'
+                          ? '포인트 충전'
+                          : '포인트 출금')
+                    : '포인트 거래'),
+            'date': DateTimeUtils.formatKST(
+              DateTimeUtils.parseKST(log['created_at']),
+            ),
+            'status': log['status'],
+            'transaction_category':
+                log['transaction_category'] ?? 'campaign',
+            'transaction_type': log['transaction_type'] ?? '',
+            'raw_data': log, // 전체 데이터 저장
+          };
+        }).toList();
       } else {
         // 광고주: owner 여부 확인 후 지갑 조회
         final isOwner = await UserTypeHelper.isAdvertiserOwner(user.uid);
@@ -139,35 +145,53 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
             _pointHistory = [];
           }
         } else {
-          // manager: 개인 지갑 조회 (읽기 전용)
-          final wallet = await WalletService.getUserWallet();
-          _currentPoints = wallet?.currentPoints ?? 0;
-          _isOwner = false; // owner가 아니면 입금/출금 권한 없음
+          // manager: 회사 지갑 조회 (읽기 전용)
+          final companyId = await CompanyUserService.getUserCompanyId(user.uid);
+          if (companyId != null) {
+            final companyWallet =
+                await WalletService.getCompanyWalletByCompanyId(companyId);
+            _currentPoints = companyWallet?.currentPoints ?? 0;
+            _isOwner = false; // owner가 아니면 입금/출금 권한 없음
 
-          // 포인트 내역 조회
-          final logs = await WalletService.getUserPointHistory(limit: 50);
-          _pointHistory = logs
-              .map(
-                (log) => {
-                  'id': log.id,
-                  'type': log.amount > 0 ? 'earned' : 'spent',
-                  'amount': log.amount,
-                  'description': log.description ?? '포인트 거래',
-                  'date': DateTimeUtils.formatKST(
-                    DateTimeUtils.toKST(log.createdAt),
-                  ),
-                  'transaction_category': 'campaign',
-                  'transaction_type': log.transactionType,
-                  'raw_data': {
-                    'id': log.id,
-                    'transaction_type': log.transactionType,
-                    'amount': log.amount,
-                    'description': log.description,
-                    'created_at': log.createdAt.toIso8601String(),
-                  },
-                },
-              )
-              .toList();
+            // 회사 지갑 포인트 내역 조회 (통합: 캠페인 + 현금 거래)
+            final unifiedLogs =
+                await WalletService.getCompanyPointHistoryUnified(
+                  companyId: companyId,
+                  limit: 50,
+                );
+
+            _pointHistory = unifiedLogs.map((log) {
+              final amount = log['point_amount'] ?? log['amount'] ?? 0;
+              return {
+                'id': log['id'] ?? '',
+                'type': log['transaction_category'] == 'cash'
+                    ? (log['transaction_type'] == 'deposit'
+                          ? 'charge'
+                          : 'withdraw')
+                    : (amount > 0 ? 'earned' : 'spent'),
+                'amount': amount,
+                'description':
+                    log['description'] ??
+                    (log['transaction_category'] == 'cash'
+                        ? (log['transaction_type'] == 'deposit'
+                              ? '포인트 충전'
+                              : '포인트 출금')
+                        : '포인트 거래'),
+                'date': DateTimeUtils.formatKST(
+                  DateTimeUtils.parseKST(log['created_at']),
+                ),
+                'status': log['status'],
+                'transaction_category':
+                    log['transaction_category'] ?? 'campaign',
+                'transaction_type': log['transaction_type'] ?? '',
+                'raw_data': log, // 전체 데이터 저장
+              };
+            }).toList();
+          } else {
+            _currentPoints = 0;
+            _isOwner = false;
+            _pointHistory = [];
+          }
         }
       }
 
