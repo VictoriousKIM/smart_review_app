@@ -1165,9 +1165,9 @@ class _CampaignCreationScreenState
               backgroundColor: Colors.green,
             ),
           );
-          // pushNamed().then() 패턴: 생성된 캠페인 ID를 전달하여 상위 화면에서 직접 조회
-          final campaignId = response.data?.id;
-          context.pop(campaignId); // 생성된 캠페인 ID를 반환
+          // pushNamed().then() 패턴: 생성된 캠페인 객체 전체를 반환하여 즉시 목록에 추가
+          final campaign = response.data;
+          context.pop(campaign); // 생성된 Campaign 객체 전체를 반환
         }
       } else {
         // ✅ 에러 시에도 플래그 해제

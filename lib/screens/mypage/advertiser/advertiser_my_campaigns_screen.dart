@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/campaign.dart';
 import '../../../services/campaign_service.dart';
 import '../../../config/supabase_config.dart';
@@ -91,12 +92,16 @@ class _AdvertiserMyCampaignsScreenState
   /// 캠페인 생성 화면으로 이동 (pushNamed().then() 패턴)
   void _navigateToCreateCampaign() {
     context.pushNamed('advertiser-my-campaigns-create').then((result) {
-      // result는 생성된 캠페인 ID (String) 또는 null
-      if (result != null && result is String) {
+      if (result != null && result is Campaign) {
+        // 1단계: 생성된 Campaign 객체를 직접 목록에 추가 (즉시 반영)
+        final campaign = result;
+        debugPrint('✅ 캠페인 생성 완료 - campaignId: ${campaign.id}, title: ${campaign.title}');
+        _addCampaignDirectly(campaign);
+      } else if (result != null && result is String) {
+        // fallback: ID만 반환된 경우 폴링 방식으로 조회
         final campaignId = result;
-        debugPrint('✅ 캠페인 생성 완료 - campaignId: $campaignId');
-        // 생성된 캠페인을 직접 조회하여 목록에 추가 (Eventual Consistency 문제 해결)
-        _addCampaignByIdDirectly(campaignId);
+        debugPrint('⚠️ Campaign 객체 대신 ID만 반환됨 - campaignId: $campaignId');
+        _addCampaignByIdWithPolling(campaignId);
       } else if (result == true) {
         // fallback: true가 반환된 경우 일반 새로고침
         debugPrint('🔄 일반 새로고침 실행');
@@ -105,56 +110,89 @@ class _AdvertiserMyCampaignsScreenState
     });
   }
 
-  /// 생성된 캠페인을 직접 조회하여 목록에 추가 (Eventual Consistency 문제 해결)
-  Future<void> _addCampaignByIdDirectly(String campaignId) async {
+  /// 생성된 Campaign 객체를 직접 목록에 추가 (1단계: 주 방법)
+  void _addCampaignDirectly(Campaign campaign) {
     if (!mounted) return;
 
-    debugPrint('🔍 생성된 캠페인 직접 조회 시작 - campaignId: $campaignId');
+    debugPrint('➕ 생성된 캠페인을 목록에 직접 추가 - ${campaign.title}');
 
-    try {
-      // 짧은 지연 후 조회 (트랜잭션 커밋 대기)
-      await Future.delayed(const Duration(milliseconds: 300));
+    // 중복 체크
+    if (!_allCampaigns.any((c) => c.id == campaign.id)) {
+      if (mounted) {
+        setState(() {
+          _allCampaigns.insert(0, campaign);
+          _updateFilteredCampaigns();
+          _isLoading = false;
+        });
+        debugPrint('✅ UI 업데이트 완료 - 총 캠페인 수: ${_allCampaigns.length}');
+      }
+    } else {
+      debugPrint('ℹ️ 캠페인이 이미 목록에 있습니다: ${campaign.id}');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
-      final result = await _campaignService.getCampaignById(campaignId);
-      debugPrint(
-        '📥 캠페인 조회 결과 - success: ${result.success}, data: ${result.data != null}',
+  /// 생성된 캠페인을 폴링 방식으로 조회 (2단계: fallback)
+  Future<void> _addCampaignByIdWithPolling(String campaignId) async {
+    if (!mounted) return;
+
+    debugPrint('🔍 생성된 캠페인 폴링 조회 시작 - campaignId: $campaignId');
+
+    const maxAttempts = 5;
+    const initialDelay = Duration(milliseconds: 300);
+    const maxDelay = Duration(milliseconds: 2000);
+
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      // 지수 백오프 (exponential backoff)
+      final delay = Duration(
+        milliseconds: (initialDelay.inMilliseconds * (1 << attempt))
+            .clamp(initialDelay.inMilliseconds, maxDelay.inMilliseconds),
       );
 
-      if (result.success && result.data != null && mounted) {
-        final campaign = result.data!;
+      await Future.delayed(delay);
 
-        // 중복 체크
-        if (!_allCampaigns.any((c) => c.id == campaignId)) {
-          debugPrint('➕ 캠페인을 목록에 추가 - ${campaign.title}');
-          
-          if (mounted) {
-            setState(() {
-              _allCampaigns.insert(0, campaign);
-              _updateFilteredCampaigns();
-              _isLoading = false;
-            });
-            debugPrint('✅ UI 업데이트 완료 - 총 캠페인 수: ${_allCampaigns.length}');
-          }
-        } else {
-          debugPrint('ℹ️ 캠페인이 이미 목록에 있습니다: $campaignId');
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
+      if (!mounted) return;
+
+      try {
+        final result = await _campaignService.getCampaignById(campaignId);
+
+        if (result.success && result.data != null) {
+          final campaign = result.data!;
+
+          // 중복 체크
+          if (!_allCampaigns.any((c) => c.id == campaignId)) {
+            if (mounted) {
+              setState(() {
+                _allCampaigns.insert(0, campaign);
+                _updateFilteredCampaigns();
+                _isLoading = false;
+              });
+              debugPrint('✅ 캠페인 조회 성공 (시도 ${attempt + 1}/${maxAttempts})');
+              return; // 성공 시 종료
+            }
+          } else {
+            debugPrint('ℹ️ 캠페인이 이미 목록에 있습니다');
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+            return;
           }
         }
-      } else {
-        debugPrint('⚠️ 캠페인을 찾을 수 없습니다. 일반 새로고침 실행...');
-        // 직접 조회 실패 시 일반 새로고침
-        _loadCampaigns();
+      } catch (e) {
+        debugPrint('⚠️ 캠페인 조회 실패 (시도 ${attempt + 1}/${maxAttempts}): $e');
       }
-    } catch (e, stackTrace) {
-      debugPrint('❌ 캠페인 직접 조회 실패: $e');
-      debugPrint('❌ Stack trace: $stackTrace');
-      // 에러 발생 시 일반 새로고침
-      if (mounted) {
-        _loadCampaigns();
-      }
+    }
+
+    // 모든 시도 실패 시 일반 새로고침
+    debugPrint('❌ 폴링 실패 - 일반 새로고침 실행');
+    if (mounted) {
+      _loadCampaigns();
     }
   }
 
@@ -670,26 +708,20 @@ class _AdvertiserMyCampaignsScreenState
                   if (campaign.productImageUrl.isNotEmpty)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        campaign.productImageUrl,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            width: 80,
-                            height: 80,
-                            color: Colors.grey[200],
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                value:
-                                    loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                    : null,
-                              ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
+                      child: CachedNetworkImage(
+                        imageUrl: campaign.productImageUrl,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          width: 80,
+                          height: 80,
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) {
                           debugPrint(
                             '🖼️ 이미지 로딩 실패: ${campaign.productImageUrl}',
                           );
@@ -704,9 +736,6 @@ class _AdvertiserMyCampaignsScreenState
                             ),
                           );
                         },
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
                       ),
                     )
                   else

@@ -6,6 +6,7 @@ import '../models/api_response.dart';
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
 import 'campaign_duplicate_check_service.dart';
+import 'cloudflare_workers_service.dart';
 
 class CampaignService {
   static final CampaignService _instance = CampaignService._internal();
@@ -126,7 +127,7 @@ class CampaignService {
   }) async {
     try {
       final now = DateTime.now();
-      
+
       final response = await _supabase
           .from('campaigns')
           .select(
@@ -161,7 +162,7 @@ class CampaignService {
   Future<ApiResponse<List<Campaign>>> getNewCampaigns({int limit = 5}) async {
     try {
       final now = DateTime.now();
-      
+
       final response = await _supabase
           .from('campaigns')
           .select(
@@ -195,7 +196,7 @@ class CampaignService {
   }) async {
     try {
       final now = DateTime.now();
-      
+
       var searchQuery = _supabase
           .from('campaigns')
           .select(
@@ -249,18 +250,18 @@ class CampaignService {
 
     for (final campaign in campaigns) {
       // 중복 체크
-      final duplicateCheck =
-          await _duplicateCheckService.checkCampaignDuplicate(
-        userId: user.id,
-        campaign: {
-          'id': campaign.id,
-          'title': campaign.title,
-          'seller': campaign.seller,
-          'prevent_product_duplicate': campaign.preventProductDuplicate,
-          'prevent_store_duplicate': campaign.preventStoreDuplicate,
-          'duplicate_prevent_days': campaign.duplicatePreventDays,
-        },
-      );
+      final duplicateCheck = await _duplicateCheckService
+          .checkCampaignDuplicate(
+            userId: user.id,
+            campaign: {
+              'id': campaign.id,
+              'title': campaign.title,
+              'seller': campaign.seller,
+              'prevent_product_duplicate': campaign.preventProductDuplicate,
+              'prevent_store_duplicate': campaign.preventStoreDuplicate,
+              'duplicate_prevent_days': campaign.duplicatePreventDays,
+            },
+          );
 
       // 중복이 아닌 경우만 추가
       if (!duplicateCheck['isDuplicate']) {
@@ -828,18 +829,12 @@ class CampaignService {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
       if (user == null) {
-        return ApiResponse<Campaign>(
-          success: false,
-          error: '로그인이 필요합니다.',
-        );
+        return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
       }
 
       final response = await _supabase.rpc(
         'update_campaign_status',
-        params: {
-          'p_campaign_id': campaignId,
-          'p_status': status.name,
-        },
+        params: {'p_campaign_id': campaignId, 'p_status': status.name},
       );
 
       if (response['success'] == true) {
@@ -865,22 +860,44 @@ class CampaignService {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
       if (user == null) {
-        return ApiResponse<void>(
-          success: false,
-          error: '로그인이 필요합니다.',
-        );
+        return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
+      }
+
+      // 캠페인 삭제 전에 이미지 URL 가져오기
+      String? productImageUrl;
+      try {
+        final campaignResult = await getCampaignById(campaignId);
+        if (campaignResult.success && campaignResult.data != null) {
+          productImageUrl = campaignResult.data!.productImageUrl;
+          print('🔍 캠페인 이미지 URL: $productImageUrl');
+        }
+      } catch (e) {
+        print('⚠️ 캠페인 정보 조회 실패 (이미지 삭제 스킵): $e');
       }
 
       final response = await _supabase.rpc(
         'delete_campaign',
-        params: {
-          'p_campaign_id': campaignId,
-        },
+        params: {'p_campaign_id': campaignId},
       );
 
       // response가 Map인지 확인
       if (response is Map<String, dynamic>) {
         if (response['success'] == true) {
+          // 캠페인 삭제 성공 후 R2 이미지도 삭제
+          if (productImageUrl != null && productImageUrl.isNotEmpty) {
+            try {
+              print('🗑️ R2 이미지 삭제 시도: $productImageUrl');
+              await CloudflareWorkersService.deleteFile(productImageUrl);
+              print('✅ 캠페인 이미지 삭제 성공: $productImageUrl');
+            } catch (e, stackTrace) {
+              // 이미지 삭제 실패해도 캠페인 삭제는 성공한 것으로 처리
+              print('⚠️ 캠페인 이미지 삭제 실패 (무시): $e');
+              print('⚠️ 스택 트레이스: $stackTrace');
+            }
+          } else {
+            print('ℹ️ 삭제할 이미지 URL이 없습니다.');
+          }
+
           return ApiResponse<void>(
             success: true,
             message: response['message'] ?? '캠페인이 삭제되었습니다',
@@ -890,10 +907,7 @@ class CampaignService {
           final errorMsg = response['error'] ?? '캠페인 삭제에 실패했습니다';
           print('❌ 캠페인 삭제 실패: $errorMsg');
           print('❌ 전체 응답: $response');
-          return ApiResponse<void>(
-            success: false,
-            error: errorMsg,
-          );
+          return ApiResponse<void>(success: false, error: errorMsg);
         }
       } else {
         // 예상치 못한 응답 형식

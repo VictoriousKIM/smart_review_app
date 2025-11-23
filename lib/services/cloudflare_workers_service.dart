@@ -178,6 +178,33 @@ class CloudflareWorkersService {
     }
   }
 
+  /// R2 파일 삭제 (Workers API 사용)
+  static Future<void> deleteFile(String fileUrl) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/delete-file'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'fileUrl': fileUrl}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        if (data['success'] == true) {
+          debugPrint('✅ 파일 삭제 성공: $fileUrl');
+          return;
+        } else {
+          throw Exception(data['error'] ?? '파일 삭제 실패');
+        }
+      } else {
+        final errorData = json.decode(response.body) as Map<String, dynamic>;
+        throw Exception(errorData['error'] ?? '파일 삭제 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ 파일 삭제 실패: $e');
+      rethrow;
+    }
+  }
+
   /// R2 파일 조회용 Presigned URL 생성 (Workers API 사용)
   static Future<String> getPresignedUrlForViewing(String fileUrl) async {
     try {

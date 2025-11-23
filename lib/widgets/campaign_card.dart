@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/campaign.dart';
 
 class CampaignCard extends StatelessWidget {
@@ -17,114 +18,99 @@ class CampaignCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Container(
           constraints: const BoxConstraints(minHeight: 140),
-          child: Row(
-            children: [
-              // 제품 이미지
-              SizedBox(
-                width: 140,
-                height: 140,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    bottomLeft: Radius.circular(12),
-                  ),
-                  child: campaign.productImageUrl.isNotEmpty
-                      ? Container(
-                          width: 140,
-                          height: 140,
-                          color: Colors.grey[100],
-                          child: Image.network(
-                            campaign.productImageUrl,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 제품 이미지
+                SizedBox(
+                  width: 140,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      bottomLeft: Radius.circular(12),
+                    ),
+                    child: campaign.productImageUrl.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: campaign.productImageUrl,
                             width: 140,
-                            height: 140,
                             fit: BoxFit.contain,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
+                            placeholder: (context, url) => Container(
                               width: 140,
-                              height: 140,
                               color: Colors.grey[200],
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
+                              child: const Center(
+                                child: CircularProgressIndicator(),
                               ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            // 디버깅 로그
-                            debugPrint('🖼️ 이미지 로딩 실패: ${campaign.productImageUrl}');
-                            debugPrint('에러: $error');
-                            return Container(
-                              width: 140,
-                              height: 140,
-                              color: Colors.grey[300],
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.broken_image,
-                                    color: Colors.grey,
-                                    size: 40,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '이미지\n로딩 실패',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey[600],
+                            ),
+                            errorWidget: (context, url, error) {
+                              // 디버깅 로그
+                              debugPrint('🖼️ 이미지 로딩 실패: ${campaign.productImageUrl}');
+                              debugPrint('에러: $error');
+                              return Container(
+                                width: 140,
+                                color: Colors.grey[300],
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.broken_image,
+                                      color: Colors.grey,
+                                      size: 40,
                                     ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '이미지\n로딩 실패',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey[600],
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            width: 140,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.image,
+                              color: Colors.grey,
+                              size: 40,
+                            ),
                           ),
-                        )
-                      : Container(
-                          width: 140,
-                          height: 140,
-                          color: Colors.grey[300],
-                          child: const Icon(
-                            Icons.image,
-                            color: Colors.grey,
-                            size: 40,
-                          ),
-                        ),
-                ),
-              ),
-              // 캠페인 정보
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 제목
-                      Text(
-                        campaign.title.isNotEmpty ? campaign.title : '제목 없음',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 8),
-                      // 가격 정보
-                      _buildPriceInfo(),
-                      const SizedBox(height: 8),
-                      // 플랫폼 정보
-                      _buildPlatformInfo(),
-                    ],
                   ),
                 ),
-              ),
-            ],
+                // 캠페인 정보
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 제목
+                        Text(
+                          campaign.title.isNotEmpty ? campaign.title : '제목 없음',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        // 가격 정보
+                        _buildPriceInfo(),
+                        const SizedBox(height: 8),
+                        // 플랫폼 정보
+                        _buildPlatformInfo(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

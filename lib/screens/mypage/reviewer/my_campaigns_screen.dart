@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/campaign_log.dart';
 import '../../../services/campaign_log_service.dart';
 import '../../../config/supabase_config.dart';
@@ -255,12 +256,20 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
                   if (campaign.productImageUrl.isNotEmpty)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        campaign.productImageUrl,
+                      child: CachedNetworkImage(
+                        imageUrl: campaign.productImageUrl,
                         width: 80,
                         height: 80,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
+                        placeholder: (context, url) => Container(
+                          width: 80,
+                          height: 80,
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) {
                           return Container(
                             width: 80,
                             height: 80,

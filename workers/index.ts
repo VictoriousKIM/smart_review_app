@@ -201,32 +201,25 @@ async function handlePresignedUrl(request: Request, env: Env): Promise<Response>
     const timestamp = formatTimestampWithMillis(now);
     let filePath: string;
 
+    // UUID 생성 (한글/특수문자 문제 해결을 위해 UUID 사용)
+    const fileUuid = crypto.randomUUID();
+    const extension = fileName.substring(fileName.lastIndexOf('.'));
+
     if (fileType === 'campaign-images') {
-      // 캠페인 이미지: campaign-images/{companyId}/product/{timestamp}_{productName}.jpg
-      if (!companyId || !productName) {
+      // 캠페인 이미지: campaign-images/{companyId}/product/{timestamp}_{uuid}.jpg
+      if (!companyId) {
         return new Response(
-          JSON.stringify({ success: false, error: 'companyId and productName are required for campaign-images' }),
+          JSON.stringify({ success: false, error: 'companyId is required for campaign-images' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      const extension = fileName.substring(fileName.lastIndexOf('.'));
-      const sanitized = sanitizeFileName(productName);
-      filePath = `${fileType}/${companyId}/product/${timestamp}_${sanitized}${extension}`;
+      filePath = `${fileType}/${companyId}/product/${timestamp}_${fileUuid}${extension}`;
     } else if (fileType === 'business-registration') {
-      // 사업자등록증: business-registration/{timestamp}_{companyName}.png
-      if (!companyName) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'companyName is required for business-registration' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      const extension = fileName.substring(fileName.lastIndexOf('.'));
-      const sanitized = sanitizeFileName(companyName);
-      filePath = `${fileType}/${timestamp}_${sanitized}${extension}`;
+      // 사업자등록증: business-registration/{timestamp}_{uuid}.png
+      filePath = `${fileType}/${timestamp}_${fileUuid}${extension}`;
     } else {
-      // 기타 파일 타입은 기존 방식 유지
-      const sanitized = sanitizeFileName(fileName);
-      filePath = `${fileType}/${timestamp}_${sanitized}`;
+      // 기타 파일 타입: {fileType}/{timestamp}_{uuid}.{extension}
+      filePath = `${fileType}/${timestamp}_${fileUuid}${extension}`;
     }
 
     // Presigned URL 생성 (AWS Signature V4)
@@ -1035,25 +1028,33 @@ async function validateBusinessNumber(businessNumber: string, env: Env): Promise
   return { isValid: false, errorMessage: '사업자 정보를 찾을 수 없습니다.' };
 }
 
+// UTC 시간을 한국 시간(KST, UTC+9)으로 변환
+function toKST(date: Date): Date {
+  const kstOffset = 9 * 60 * 60 * 1000; // 9시간을 밀리초로 변환
+  return new Date(date.getTime() + kstOffset);
+}
+
 function formatTimestamp(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const kstDate = toKST(date);
+  const year = kstDate.getUTCFullYear();
+  const month = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(kstDate.getUTCDate()).padStart(2, '0');
+  const hours = String(kstDate.getUTCHours()).padStart(2, '0');
+  const minutes = String(kstDate.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(kstDate.getUTCSeconds()).padStart(2, '0');
   return `${year}${month}${day}${hours}${minutes}${seconds}`;
 }
 
 // 밀리초까지 포함한 타임스탬프 (중복 파일명 방지용)
 function formatTimestampWithMillis(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  const millis = String(date.getMilliseconds()).padStart(3, '0');
+  const kstDate = toKST(date);
+  const year = kstDate.getUTCFullYear();
+  const month = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(kstDate.getUTCDate()).padStart(2, '0');
+  const hours = String(kstDate.getUTCHours()).padStart(2, '0');
+  const minutes = String(kstDate.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(kstDate.getUTCSeconds()).padStart(2, '0');
+  const millis = String(kstDate.getUTCMilliseconds()).padStart(3, '0');
   return `${year}${month}${day}${hours}${minutes}${seconds}${millis}`;
 }
 
@@ -1079,15 +1080,11 @@ function generateFilePath(userId: string, fileName: string, companyName?: string
   const now = new Date();
   const timestamp = formatTimestampWithMillis(now);
   const extension = fileName.substring(fileName.lastIndexOf('.'));
+  // UUID 생성 (한글/특수문자 문제 해결을 위해 UUID 사용)
+  const fileUuid = crypto.randomUUID();
   
-  if (companyName) {
-    // 사업자등록증: AI가 추출한 회사명 사용
-    const sanitized = sanitizeFileName(companyName);
-    return `business-registration/${timestamp}_${sanitized}${extension}`;
-  }
-  
-  // 기본값 (사용되지 않을 예정)
-  return `business-registration/${timestamp}_${sanitizeFileName(fileName)}`;
+  // 사업자등록증: business-registration/{timestamp}_{uuid}.png
+  return `business-registration/${timestamp}_${fileUuid}${extension}`;
 }
 
 async function uploadBusinessRegistrationFile(
@@ -1123,25 +1120,45 @@ async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    // R2 Public URL에서 파일 경로 추출
+    // R2 Public URL 또는 Workers API URL에서 파일 경로 추출
     // 예: https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/business-registration/20250115143025_filename.png
+    // 예: https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/campaign-images/{companyId}/product/...
+    // 예: https://workers-url/api/files/campaign-images/{companyId}/product/...
     const urlObj = new URL(fileUrl);
-    const filePath = urlObj.pathname.substring(1); // 첫 번째 '/' 제거
+    let filePath = urlObj.pathname.substring(1); // 첫 번째 '/' 제거
 
-    if (!filePath.startsWith('business-registration/')) {
+    // Workers API URL 형식인 경우 (/api/files/ 제거)
+    if (filePath.startsWith('api/files/')) {
+      filePath = filePath.substring('api/files/'.length);
+    }
+
+    // 허용된 파일 경로 확인
+    if (!filePath.startsWith('business-registration/') && 
+        !filePath.startsWith('campaign-images/')) {
+      console.error('❌ 유효하지 않은 파일 경로:', filePath, '원본 URL:', fileUrl);
       return new Response(
-        JSON.stringify({ success: false, error: '유효하지 않은 파일 경로입니다.' }),
+        JSON.stringify({ 
+          success: false, 
+          error: `유효하지 않은 파일 경로입니다: ${filePath}` 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // R2에서 파일 삭제
-    await env.FILES.delete(filePath);
+    console.log('🗑️ 파일 삭제 시도:', { originalUrl: fileUrl, extractedPath: filePath });
 
-    return new Response(
-      JSON.stringify({ success: true, message: '파일이 삭제되었습니다.' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // R2에서 파일 삭제
+    try {
+      await env.FILES.delete(filePath);
+      console.log('✅ 파일 삭제 성공:', filePath);
+      return new Response(
+        JSON.stringify({ success: true, message: '파일이 삭제되었습니다.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (deleteError) {
+      console.error('❌ R2 파일 삭제 실패:', deleteError);
+      throw deleteError;
+    }
   } catch (error) {
     console.error('❌ 파일 삭제 실패:', error);
     return new Response(
