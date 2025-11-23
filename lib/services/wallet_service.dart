@@ -627,6 +627,20 @@ class WalletService {
     String? accountNumber,
     String? accountHolder,
     String? description,
+    // 영수증 관련 파라미터
+    String? receiptType, // 'cash_receipt', 'tax_invoice', 'none'
+    String? cashReceiptRecipientType, // 'individual', 'business'
+    String? cashReceiptName,
+    String? cashReceiptPhone,
+    String? cashReceiptBusinessName,
+    String? cashReceiptBusinessNumber,
+    String? taxInvoiceRepresentative,
+    String? taxInvoiceCompanyName,
+    String? taxInvoiceBusinessNumber,
+    String? taxInvoiceEmail,
+    String? taxInvoicePostalCode,
+    String? taxInvoiceAddress,
+    String? taxInvoiceDetailAddress,
   }) async {
     try {
       final response = await _supabase.rpc(
@@ -641,6 +655,20 @@ class WalletService {
           'p_account_number': accountNumber,
           'p_account_holder': accountHolder,
           'p_description': description,
+          // 영수증 관련 파라미터
+          'p_receipt_type': receiptType,
+          'p_cash_receipt_recipient_type': cashReceiptRecipientType,
+          'p_cash_receipt_name': cashReceiptName,
+          'p_cash_receipt_phone': cashReceiptPhone,
+          'p_cash_receipt_business_name': cashReceiptBusinessName,
+          'p_cash_receipt_business_number': cashReceiptBusinessNumber,
+          'p_tax_invoice_representative': taxInvoiceRepresentative,
+          'p_tax_invoice_company_name': taxInvoiceCompanyName,
+          'p_tax_invoice_business_number': taxInvoiceBusinessNumber,
+          'p_tax_invoice_email': taxInvoiceEmail,
+          'p_tax_invoice_postal_code': taxInvoicePostalCode,
+          'p_tax_invoice_address': taxInvoiceAddress,
+          'p_tax_invoice_detail_address': taxInvoiceDetailAddress,
         },
       );
 

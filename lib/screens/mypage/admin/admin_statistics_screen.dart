@@ -110,6 +110,10 @@ class _AdminStatisticsScreenState extends ConsumerState<AdminStatisticsScreen> {
         title: const Text('통계'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage/admin'),
+        ),
         actions: [
           Builder(
             builder: (context) => IconButton(

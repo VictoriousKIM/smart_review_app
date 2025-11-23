@@ -100,6 +100,10 @@ class _AdminCompaniesScreenState extends ConsumerState<AdminCompaniesScreen> {
         title: const Text('회사 관리'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage/admin'),
+        ),
         actions: [
           Builder(
             builder: (context) => IconButton(

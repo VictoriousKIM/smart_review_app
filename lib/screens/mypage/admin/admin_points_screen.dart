@@ -194,6 +194,7 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
         builder: (context) => PointTransactionDetailScreen(
           transactionId: transaction['id'] as String,
           transactionData: transaction,
+          showAdminActions: true, // 관리자 화면에서만 관리자 액션 표시
         ),
       ),
     ).then((result) {
@@ -401,6 +402,10 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
         title: const Text('포인트 관리'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage/admin'),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

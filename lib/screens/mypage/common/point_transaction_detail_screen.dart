@@ -1,29 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../utils/date_time_utils.dart';
 import '../../../services/wallet_service.dart';
 import '../../../services/auth_service.dart';
+import '../admin/widgets/approve_dialog.dart';
+import '../admin/widgets/reject_dialog.dart';
 
-class PointTransactionDetailScreen extends StatefulWidget {
+class PointTransactionDetailScreen extends ConsumerStatefulWidget {
   final String transactionId;
   final Map<String, dynamic>? transactionData;
+  final bool showAdminActions; // 관리자 액션(승인/거절) 표시 여부
 
   const PointTransactionDetailScreen({
     super.key,
     required this.transactionId,
     this.transactionData,
+    this.showAdminActions = false, // 기본값은 false
   });
 
   @override
-  State<PointTransactionDetailScreen> createState() =>
+  ConsumerState<PointTransactionDetailScreen> createState() =>
       _PointTransactionDetailScreenState();
 }
 
 class _PointTransactionDetailScreenState
-    extends State<PointTransactionDetailScreen> {
+    extends ConsumerState<PointTransactionDetailScreen> {
   Map<String, dynamic>? _transaction;
   bool _isLoading = true;
   bool _isCancelling = false;
+  bool _isApproving = false;
+  bool _isRejecting = false;
   String? _createdByUserName;
   bool _isLoadingCreator = false;
 
@@ -88,7 +95,7 @@ class _PointTransactionDetailScreenState
     try {
       final authService = AuthService();
       final user = await authService.getUserProfile(createdByUserId);
-      
+
       if (mounted && user != null) {
         setState(() {
           _createdByUserName = user.displayName ?? user.email;
@@ -137,7 +144,7 @@ class _PointTransactionDetailScreenState
                           _transaction!['transaction_type'] == 'withdraw') &&
                       _transaction!['status'] == 'pending') ...[
                     const SizedBox(height: 16),
-                    _buildCancelButton(),
+                    _buildActionButtons(),
                   ],
                 ],
               ),
@@ -197,7 +204,8 @@ class _PointTransactionDetailScreenState
     final description = _transaction!['description'] as String? ?? '';
     final createdAt = _transaction!['created_at'] as String?;
     final updatedAt = _transaction!['updated_at'] as String?;
-    final rawAmount = (_transaction!['point_amount'] ?? _transaction!['amount'] ?? 0) as int;
+    final rawAmount =
+        (_transaction!['point_amount'] ?? _transaction!['amount'] ?? 0) as int;
     final amount = rawAmount.abs(); // 항상 양수로 표시
     final cashAmount = _transaction!['cash_amount'] as num?;
     final rejectionReason = _transaction!['rejection_reason'] as String?;
@@ -282,9 +290,7 @@ class _PointTransactionDetailScreenState
           if (_transaction!['created_by_user_id'] != null) ...[
             _buildInfoRow(
               '신청자',
-              _isLoadingCreator
-                  ? '로딩 중...'
-                  : (_createdByUserName ?? '알 수 없음'),
+              _isLoadingCreator ? '로딩 중...' : (_createdByUserName ?? '알 수 없음'),
             ),
             const SizedBox(height: 12),
           ],
@@ -318,15 +324,309 @@ class _PointTransactionDetailScreenState
             ),
           ],
           // 거절 사유 (status가 'rejected'이고 rejection_reason이 있을 때만)
-          if (status == 'rejected' && rejectionReason != null && rejectionReason.isNotEmpty) ...[
+          if (status == 'rejected' &&
+              rejectionReason != null &&
+              rejectionReason.isNotEmpty) ...[
             const SizedBox(height: 12),
             _buildInfoRow('거절 사유', rejectionReason),
+          ],
+          // 영수증 정보 섹션
+          if (isCashTransaction) ...[
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+            _buildReceiptInfoSection(),
           ],
         ],
       ),
     );
   }
 
+  Widget _buildReceiptInfoSection() {
+    final receiptType = _transaction!['receipt_type'] as String?;
+
+    // receipt_type이 null이면 영수증 정보 섹션 표시 안 함
+    if (receiptType == null) {
+      return const SizedBox.shrink();
+    }
+
+    // 발행 방법 텍스트 변환
+    String receiptTypeText;
+    switch (receiptType) {
+      case 'cash_receipt':
+        receiptTypeText = '현금영수증';
+        break;
+      case 'tax_invoice':
+        receiptTypeText = '세금계산서';
+        break;
+      case 'none':
+        receiptTypeText = '발행안함';
+        break;
+      default:
+        receiptTypeText = receiptType;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '영수증 정보',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF333333),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // 발행 방법 표시
+        _buildInfoRow('발행 방법', receiptTypeText),
+        // 발행안함이 아닐 때만 상세 정보 표시
+        if (receiptType != 'none') ...[
+          const SizedBox(height: 12),
+          if (receiptType == 'cash_receipt') ...[
+            _buildCashReceiptInfo(),
+          ] else if (receiptType == 'tax_invoice') ...[
+            _buildTaxInvoiceInfo(),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCashReceiptInfo() {
+    final recipientType =
+        _transaction!['cash_receipt_recipient_type'] as String?;
+
+    if (recipientType == 'individual') {
+      final name = _transaction!['cash_receipt_name'] as String? ?? '';
+      final phone = _transaction!['cash_receipt_phone'] as String? ?? '';
+
+      return Column(
+        children: [
+          _buildInfoRow('수령인 유형', '개인'),
+          if (name.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow('이름', name),
+          ],
+          if (phone.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow('휴대폰 번호', phone),
+          ],
+        ],
+      );
+    } else if (recipientType == 'business') {
+      final businessName =
+          _transaction!['cash_receipt_business_name'] as String? ?? '';
+      final businessNumber =
+          _transaction!['cash_receipt_business_number'] as String? ?? '';
+
+      return Column(
+        children: [
+          _buildInfoRow('수령인 유형', '사업자'),
+          if (businessName.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow('사업자명', businessName),
+          ],
+          if (businessNumber.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow('사업자 번호', businessNumber),
+          ],
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildTaxInvoiceInfo() {
+    final representative =
+        _transaction!['tax_invoice_representative'] as String? ?? '';
+    final companyName =
+        _transaction!['tax_invoice_company_name'] as String? ?? '';
+    final businessNumber =
+        _transaction!['tax_invoice_business_number'] as String? ?? '';
+    final email = _transaction!['tax_invoice_email'] as String? ?? '';
+    final address = _transaction!['tax_invoice_address'] as String? ?? '';
+    final detailAddress =
+        _transaction!['tax_invoice_detail_address'] as String? ?? '';
+
+    return Column(
+      children: [
+        if (representative.isNotEmpty) ...[
+          _buildInfoRow('대표자명', representative),
+        ],
+        if (companyName.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildInfoRow('회사명', companyName),
+        ],
+        if (businessNumber.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildInfoRow('사업자번호', businessNumber),
+        ],
+        if (email.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildInfoRow('이메일', email),
+        ],
+        if (address.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildInfoRow(
+            '주소',
+            address + (detailAddress.isNotEmpty ? ' $detailAddress' : ''),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildActionButtons() {
+    // showAdminActions가 true일 때만 관리자 액션 표시
+    if (widget.showAdminActions) {
+      // 관리자: 승인/거절 버튼
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _isApproving ? null : _handleApprove,
+              icon: const Icon(Icons.check_circle),
+              label: _isApproving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('승인'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _isRejecting ? null : _handleReject,
+              icon: const Icon(Icons.cancel),
+              label: _isRejecting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('거절'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      // 일반 사용자: 신청 취소 버튼
+      return _buildCancelButton();
+    }
+  }
+
+  Future<void> _handleApprove() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => ApproveDialog(transaction: _transaction!),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isApproving = true;
+    });
+
+    try {
+      await WalletService.updatePointCashTransactionStatus(
+        transactionId: widget.transactionId,
+        status: 'approved',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('거래가 승인되었습니다'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // 거래 정보 다시 로드
+        await _loadTransactionDetail();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('승인 처리 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isApproving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleReject() async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => RejectDialog(transaction: _transaction!),
+    );
+
+    if (reason == null || reason.isEmpty) return;
+
+    setState(() {
+      _isRejecting = true;
+    });
+
+    try {
+      await WalletService.updatePointCashTransactionStatus(
+        transactionId: widget.transactionId,
+        status: 'rejected',
+        rejectionReason: reason,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('거래가 거절되었습니다'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        // 거래 정보 다시 로드
+        await _loadTransactionDetail();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('거절 처리 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRejecting = false;
+        });
+      }
+    }
+  }
 
   Future<void> _handleCancel() async {
     final confirmed = await showDialog<bool>(
@@ -341,9 +641,7 @@ class _PointTransactionDetailScreenState
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('예, 취소합니다'),
           ),
         ],

@@ -52,6 +52,10 @@ class AdminSettingsScreen extends ConsumerWidget {
         title: const Text('시스템 설정'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/mypage/admin'),
+        ),
         actions: [
           Builder(
             builder: (context) => IconButton(

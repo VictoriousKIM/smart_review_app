@@ -411,14 +411,52 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
 
-          // Admin 및 공통 라우트들 (기존과 동일)
+          // [5] 관리자 마이페이지
           GoRoute(
             path: '/mypage/admin',
             name: 'admin-dashboard',
             builder: (context, state) => const AdminDashboardScreen(),
+            routes: [
+              GoRoute(
+                path: 'users',
+                name: 'admin-users',
+                builder: (context, state) => const AdminUsersScreen(),
+              ),
+              GoRoute(
+                path: 'companies',
+                name: 'admin-companies',
+                builder: (context, state) => const AdminCompaniesScreen(),
+              ),
+              GoRoute(
+                path: 'campaigns',
+                name: 'admin-campaigns',
+                builder: (context, state) => const AdminCampaignsScreen(),
+              ),
+              GoRoute(
+                path: 'reviews',
+                name: 'admin-reviews',
+                builder: (context, state) => const AdminReviewsScreen(),
+              ),
+              GoRoute(
+                path: 'points',
+                name: 'admin-points',
+                builder: (context, state) {
+                  final tab = state.uri.queryParameters['tab'];
+                  return AdminPointsScreen(initialTab: tab);
+                },
+              ),
+              GoRoute(
+                path: 'statistics',
+                name: 'admin-statistics',
+                builder: (context, state) => const AdminStatisticsScreen(),
+              ),
+              GoRoute(
+                path: 'settings',
+                name: 'admin-settings',
+                builder: (context, state) => const AdminSettingsScreen(),
+              ),
+            ],
           ),
-          // ... (나머지 어드민 및 공통 라우트는 생략 없이 기존 코드를 그대로 유지) ...
-          // 코드 길이 상 생략된 부분은 기존과 동일하게 유지해 주세요.
           GoRoute(
             path: '/mypage/profile',
             name: 'profile',

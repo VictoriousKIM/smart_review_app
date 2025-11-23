@@ -38,7 +38,6 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
   final TextEditingController _taxInvoiceCompanyNameController = TextEditingController();
   final TextEditingController _taxInvoiceBusinessNumberController = TextEditingController();
   final TextEditingController _taxInvoiceEmailController = TextEditingController();
-  final TextEditingController _taxInvoicePostalCodeController = TextEditingController();
   final TextEditingController _taxInvoiceAddressController = TextEditingController();
   final TextEditingController _taxInvoiceDetailAddressController = TextEditingController();
 
@@ -83,7 +82,6 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
     _taxInvoiceCompanyNameController.dispose();
     _taxInvoiceBusinessNumberController.dispose();
     _taxInvoiceEmailController.dispose();
-    _taxInvoicePostalCodeController.dispose();
     _taxInvoiceAddressController.dispose();
     _taxInvoiceDetailAddressController.dispose();
     super.dispose();
@@ -105,7 +103,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
               companyData['business_number']?.toString() ?? '';
           _taxInvoiceEmailController.text = 
               companyData['contact_email']?.toString() ?? '';
-          // 주소는 address 필드에서 가져오기 (우편번호는 별도 필드가 없을 수 있음)
+          // 주소는 address 필드에서 가져오기
           final address = companyData['address']?.toString() ?? '';
           _taxInvoiceAddressController.text = address;
         });
@@ -238,18 +236,6 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
         ).showSnackBar(const SnackBar(content: Text('사업자번호를 입력해주세요.')));
         return;
       }
-      if (_taxInvoiceEmailController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('이메일을 입력해주세요.')));
-        return;
-      }
-      if (_taxInvoicePostalCodeController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('우편번호를 입력해주세요.')));
-        return;
-      }
       if (_taxInvoiceAddressController.text.trim().isEmpty) {
         ScaffoldMessenger.of(
           context,
@@ -271,12 +257,57 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       );
       final cashAmount = selectedOption['cash']!;
 
+      // 영수증 정보 준비
+      String? receiptType = _receiptType;
+      String? cashReceiptRecipientType;
+      String? cashReceiptName;
+      String? cashReceiptPhone;
+      String? cashReceiptBusinessName;
+      String? cashReceiptBusinessNumber;
+      String? taxInvoiceRepresentative;
+      String? taxInvoiceCompanyName;
+      String? taxInvoiceBusinessNumber;
+      String? taxInvoiceEmail;
+      String? taxInvoiceAddress;
+      String? taxInvoiceDetailAddress;
+
+      if (_receiptType == 'cash_receipt') {
+        cashReceiptRecipientType = _cashReceiptRecipientType;
+        if (_cashReceiptRecipientType == 'individual') {
+          cashReceiptName = _cashReceiptNameController.text.trim();
+          cashReceiptPhone = _cashReceiptPhoneController.text.trim();
+        } else if (_cashReceiptRecipientType == 'business') {
+          cashReceiptBusinessName = _cashReceiptBusinessNameController.text.trim();
+          cashReceiptBusinessNumber = _cashReceiptBusinessNumberController.text.trim();
+        }
+      } else if (_receiptType == 'tax_invoice') {
+        taxInvoiceRepresentative = _taxInvoiceRepresentativeController.text.trim();
+        taxInvoiceCompanyName = _taxInvoiceCompanyNameController.text.trim();
+        taxInvoiceBusinessNumber = _taxInvoiceBusinessNumberController.text.trim();
+        taxInvoiceEmail = _taxInvoiceEmailController.text.trim();
+        taxInvoiceAddress = _taxInvoiceAddressController.text.trim();
+        taxInvoiceDetailAddress = _taxInvoiceDetailAddressController.text.trim();
+      }
+
       await WalletService.createPointCashTransaction(
         walletId: _walletId,
         transactionType: 'deposit',
         pointAmount: _selectedAmount!,
         cashAmount: cashAmount,
         description: '포인트 충전 요청',
+        receiptType: receiptType,
+        cashReceiptRecipientType: cashReceiptRecipientType,
+        cashReceiptName: cashReceiptName,
+        cashReceiptPhone: cashReceiptPhone,
+        cashReceiptBusinessName: cashReceiptBusinessName,
+        cashReceiptBusinessNumber: cashReceiptBusinessNumber,
+        taxInvoiceRepresentative: taxInvoiceRepresentative,
+        taxInvoiceCompanyName: taxInvoiceCompanyName,
+        taxInvoiceBusinessNumber: taxInvoiceBusinessNumber,
+        taxInvoiceEmail: taxInvoiceEmail,
+        taxInvoicePostalCode: null,
+        taxInvoiceAddress: taxInvoiceAddress,
+        taxInvoiceDetailAddress: taxInvoiceDetailAddress,
       );
 
       if (mounted) {
@@ -535,7 +566,6 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
                 _taxInvoiceCompanyNameController.clear();
                 _taxInvoiceBusinessNumberController.clear();
                 _taxInvoiceEmailController.clear();
-                _taxInvoicePostalCodeController.clear();
                 _taxInvoiceAddressController.clear();
                 _taxInvoiceDetailAddressController.clear();
               }
@@ -692,7 +722,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
           TextField(
             controller: _taxInvoiceEmailController,
             decoration: const InputDecoration(
-              labelText: '이메일*',
+              labelText: '이메일',
               hintText: 'example@email.com',
               border: OutlineInputBorder(),
               filled: true,
@@ -706,15 +736,16 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
             children: [
               Expanded(
                 child: TextField(
-                  controller: _taxInvoicePostalCodeController,
+                  controller: _taxInvoiceAddressController,
                   decoration: const InputDecoration(
-                    labelText: '우편번호*',
-                    hintText: '우편번호',
+                    labelText: '주소*',
+                    hintText: '주소',
                     border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
                   ),
                   readOnly: true,
+                  onChanged: (value) => setState(() {}),
                 ),
               ),
               const SizedBox(width: 8),
@@ -724,28 +755,14 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
                     context,
                     onComplete: (postalCode, address, extraAddress) {
                       setState(() {
-                        _taxInvoicePostalCodeController.text = postalCode;
                         _taxInvoiceAddressController.text = address + (extraAddress ?? '');
                       });
                     },
                   );
                 },
-                child: const Text('우편번호 찾기'),
+                child: const Text('주소 찾기'),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _taxInvoiceAddressController,
-            decoration: const InputDecoration(
-              labelText: '주소*',
-              hintText: '주소',
-              border: OutlineInputBorder(),
-              filled: true,
-              fillColor: Colors.white,
-            ),
-            readOnly: true,
-            onChanged: (value) => setState(() {}),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -833,8 +850,6 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       return _taxInvoiceRepresentativeController.text.trim().isNotEmpty &&
           _taxInvoiceCompanyNameController.text.trim().isNotEmpty &&
           _taxInvoiceBusinessNumberController.text.trim().isNotEmpty &&
-          _taxInvoiceEmailController.text.trim().isNotEmpty &&
-          _taxInvoicePostalCodeController.text.trim().isNotEmpty &&
           _taxInvoiceAddressController.text.trim().isNotEmpty;
     }
     
