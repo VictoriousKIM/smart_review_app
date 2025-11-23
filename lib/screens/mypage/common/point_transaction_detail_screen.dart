@@ -252,7 +252,6 @@ class _PointTransactionDetailScreenState
     final cashAmount = _transaction!['cash_amount'] as num?;
     final rejectionReason = _transaction!['rejection_reason'] as String?;
     final campaignId = _transaction!['campaign_id'] as String?;
-    final completedAt = _transaction!['completed_at'] as String?;
 
     return Container(
       width: double.infinity,
@@ -365,15 +364,6 @@ class _PointTransactionDetailScreenState
             _buildInfoRow(
               transactionType == 'deposit' ? '입금금액' : '출금금액',
               '${cashAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
-            ),
-          ],
-          // 완료일시 (status가 'approved' 또는 'completed'일 때)
-          if ((status == 'approved' || status == 'completed') &&
-              completedAt != null) ...[
-            const SizedBox(height: 12),
-            _buildInfoRow(
-              '완료일시',
-              DateTimeUtils.formatKST(DateTimeUtils.parseKST(completedAt)),
             ),
           ],
           // 거절 사유 (status가 'rejected'이고 rejection_reason이 있을 때만)

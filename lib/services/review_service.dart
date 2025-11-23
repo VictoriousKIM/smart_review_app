@@ -13,7 +13,7 @@ class ReviewService {
     SupabaseConfig.client,
   );
 
-  // 리뷰 작성
+  // 리뷰 작성 (RPC 사용)
   Future<ApiResponse<Map<String, dynamic>>> createReview({
     required String campaignId,
     required String title,
@@ -30,60 +30,21 @@ class ReviewService {
         );
       }
 
-      // 캠페인 로그 조회
-      final logResult = await _campaignLogService.getCampaignLog(
-        campaignId: campaignId,
-        userId: user.id,
-      );
+      // RPC 함수 호출 (상태 체크는 RPC 함수 내부에서 수행)
+      final response =
+          await _supabase.rpc(
+                'create_review_safe',
+                params: {
+                  'p_campaign_id': campaignId,
+                  'p_title': title,
+                  'p_content': content,
+                  'p_rating': rating,
+                  'p_review_url': reviewUrl,
+                },
+              )
+              as Map<String, dynamic>;
 
-      if (!logResult.success || logResult.data == null) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '캠페인 신청 내역을 찾을 수 없습니다.',
-        );
-      }
-
-      final campaignLog = logResult.data!;
-
-      // 리뷰 작성 가능한 상태인지 확인
-      if (campaignLog.status != 'approved' &&
-          campaignLog.status != 'purchased') {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '선정된 캠페인에만 리뷰를 작성할 수 있습니다.',
-        );
-      }
-
-      // CampaignLogService를 사용하여 리뷰 제출
-      final result = await _campaignLogService.submitReview(
-        campaignLogId: campaignLog.id,
-        title: title,
-        content: content,
-        rating: rating,
-        reviewUrl: reviewUrl,
-      );
-
-      if (!result.success) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: result.error,
-        );
-      }
-
-      // 리뷰 데이터 구성
-      final reviewData = {
-        'id': campaignLog.id,
-        'campaign_id': campaignId,
-        'user_id': user.id,
-        'title': title,
-        'content': content,
-        'rating': rating,
-        'review_url': reviewUrl,
-        'status': 'review_submitted',
-        'submitted_at': DateTime.now().toIso8601String(),
-      };
-
-      return ApiResponse<Map<String, dynamic>>(success: true, data: reviewData);
+      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -92,7 +53,7 @@ class ReviewService {
     }
   }
 
-  // 사용자의 리뷰 목록 조회
+  // 사용자의 리뷰 목록 조회 (RPC 사용)
   Future<ApiResponse<List<Map<String, dynamic>>>> getUserReviews({
     String? status,
     int page = 1,
@@ -107,62 +68,24 @@ class ReviewService {
         );
       }
 
-      // CampaignLogService를 사용하여 로그 조회
-      final result = await _campaignLogService.getUserCampaignLogs(
-        userId: user.id,
-        status: status,
-      );
-
-      if (!result.success) {
-        return ApiResponse<List<Map<String, dynamic>>>(
-          success: false,
-          error: result.error,
-        );
-      }
-
-      // 리뷰가 있는 로그만 필터링
-      // 주의: DB에 data 필드가 없으므로 title, reviewContent는 항상 빈 값
-      // status로만 필터링
-      final reviews = result.data!
-          .where(
-            (log) =>
-                log.status == 'review_submitted' ||
-                log.status == 'review_approved',
-          )
-          .map(
-            (log) => {
-              'id': log.id,
-              'campaign_id': log.campaignId,
-              'user_id': log.userId,
-              'title': log.title,
-              'content': log.reviewContent,
-              'rating': log.rating,
-              'review_url': log.reviewUrl,
-              'status': log.status,
-              'submitted_at': log.reviewSubmittedAt?.toIso8601String(),
-              'approved_at': log.reviewApprovedAt?.toIso8601String(),
-              'campaigns': log.campaign != null
-                  ? {
-                      'id': log.campaign!.id,
-                      'title': log.campaign!.title,
-                      'description': log.campaign!.description,
-                      'product_image_url': log.campaign!.productImageUrl,
-                      'platform': log.campaign!.platform,
-                      'product_price': log.campaign!.productPrice,
-                      'campaign_reward': log.campaign!.campaignReward,
-                    }
-                  : null,
-            },
-          )
-          .toList();
-
-      // 페이지네이션 적용
+      // RPC 함수 호출 (페이지네이션 포함)
       final offset = (page - 1) * limit;
-      final paginatedReviews = reviews.skip(offset).take(limit).toList();
+      final response =
+          await _supabase.rpc(
+                'get_user_reviews_safe',
+                params: {
+                  'p_status': status,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
+
+      final reviews = response.map((e) => e as Map<String, dynamic>).toList();
 
       return ApiResponse<List<Map<String, dynamic>>>(
         success: true,
-        data: paginatedReviews,
+        data: reviews,
       );
     } catch (e) {
       return ApiResponse<List<Map<String, dynamic>>>(
@@ -172,7 +95,7 @@ class ReviewService {
     }
   }
 
-  // 캠페인의 리뷰 목록 조회
+  // 캠페인의 리뷰 목록 조회 (RPC 사용)
   Future<ApiResponse<List<Map<String, dynamic>>>> getCampaignReviews({
     required String campaignId,
     String? status,
@@ -180,59 +103,25 @@ class ReviewService {
     int limit = 20,
   }) async {
     try {
-      // CampaignLogService를 사용하여 로그 조회
-      final result = await _campaignLogService.getCampaignLogs(
-        campaignId: campaignId,
-        status: status,
-      );
-
-      if (!result.success) {
-        return ApiResponse<List<Map<String, dynamic>>>(
-          success: false,
-          error: result.error,
-        );
-      }
-
-      // 리뷰가 있는 로그만 필터링
-      // 주의: DB에 data 필드가 없으므로 title, reviewContent는 항상 빈 값
-      // status로만 필터링
-      final reviews = result.data!
-          .where(
-            (log) =>
-                log.status == 'review_submitted' ||
-                log.status == 'review_approved',
-          )
-          .map(
-            (log) => {
-              'id': log.id,
-              'campaign_id': log.campaignId,
-              'user_id': log.userId,
-              'title': log.title,
-              'content': log.reviewContent,
-              'rating': log.rating,
-              'review_url': log.reviewUrl,
-              'status': log.status,
-              'submitted_at': log.reviewSubmittedAt?.toIso8601String(),
-              'approved_at': log.reviewApprovedAt?.toIso8601String(),
-              'users': log.user != null
-                  ? {
-                      'id': log.user!.uid,
-                      'display_name': log.user!.displayName,
-                      'level': log.user!.level,
-                      'review_count': log.user!.reviewCount,
-                    }
-                  : null,
-            },
-          )
-          .toList();
-
-      // 페이지네이션 적용
+      // RPC 함수 호출 (페이지네이션 포함)
       final offset = (page - 1) * limit;
-      final paginatedReviews = reviews.skip(offset).take(limit).toList();
+      final response =
+          await _supabase.rpc(
+                'get_campaign_reviews_safe',
+                params: {
+                  'p_campaign_id': campaignId,
+                  'p_status': status,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
+
+      final reviews = response.map((e) => e as Map<String, dynamic>).toList();
 
       return ApiResponse<List<Map<String, dynamic>>>(
         success: true,
-        data: paginatedReviews,
+        data: reviews,
       );
     } catch (e) {
       return ApiResponse<List<Map<String, dynamic>>>(
@@ -242,7 +131,7 @@ class ReviewService {
     }
   }
 
-  // 리뷰 상태 업데이트 (광고주용)
+  // 리뷰 상태 업데이트 (광고주용, RPC 사용)
   Future<ApiResponse<Map<String, dynamic>>> updateReviewStatus({
     required String reviewId,
     required String status,
@@ -257,44 +146,19 @@ class ReviewService {
         );
       }
 
-      // 리뷰 정보 조회
-      final review = await _supabase
-          .from('campaign_action_logs')
-          .select('campaign_id, campaigns!inner(user_id)')
-          .eq('id', reviewId)
-          .single();
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      final response =
+          await _supabase.rpc(
+                'update_review_status_safe',
+                params: {
+                  'p_review_id': reviewId,
+                  'p_status': status,
+                  'p_rejection_reason': rejectionReason,
+                },
+              )
+              as Map<String, dynamic>;
 
-      // 권한 확인
-      if (review['campaigns']['user_id'] != user.id) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '권한이 없습니다.',
-        );
-      }
-
-      // CampaignLogService를 사용하여 상태 업데이트
-      // 주의: additionalData는 현재 사용하지 않음 (data 필드 없음)
-      final result = await _campaignLogService.updateStatus(
-        campaignLogId: reviewId,
-        status: status,
-        additionalData: null, // data 필드가 없으므로 사용하지 않음
-      );
-
-      if (!result.success) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: result.error,
-        );
-      }
-
-      // 업데이트된 로그 조회
-      final updatedLog = await _supabase
-          .from('campaign_action_logs')
-          .select()
-          .eq('id', reviewId)
-          .single();
-
-      return ApiResponse<Map<String, dynamic>>(success: true, data: updatedLog);
+      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -303,7 +167,7 @@ class ReviewService {
     }
   }
 
-  // 리뷰 수정
+  // 리뷰 수정 (RPC 사용)
   Future<ApiResponse<Map<String, dynamic>>> updateReview({
     required String reviewId,
     required String title,
@@ -320,49 +184,21 @@ class ReviewService {
         );
       }
 
-      // 리뷰 정보 조회 및 권한 확인
-      final review = await _supabase
-          .from('campaign_action_logs')
-          .select('user_id, status')
-          .eq('id', reviewId)
-          .single();
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      final response =
+          await _supabase.rpc(
+                'update_review_safe',
+                params: {
+                  'p_review_id': reviewId,
+                  'p_title': title,
+                  'p_content': content,
+                  'p_rating': rating,
+                  'p_review_url': reviewUrl,
+                },
+              )
+              as Map<String, dynamic>;
 
-      if (review['user_id'] != user.id) {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '권한이 없습니다.',
-        );
-      }
-
-      if (review['status'] == 'review_approved') {
-        return ApiResponse<Map<String, dynamic>>(
-          success: false,
-          error: '승인된 리뷰는 수정할 수 없습니다.',
-        );
-      }
-
-      // 주의: DB에 data 필드가 없으므로 리뷰 내용은 저장하지 않음
-      // 리뷰 내용 저장이 필요하면 별도 reviews 테이블 생성 또는 data JSONB 컬럼 추가 필요
-      // 현재는 상태만 업데이트
-      await _supabase
-          .from('campaign_action_logs')
-          .update({'updated_at': DateTime.now().toIso8601String()})
-          .eq('id', reviewId);
-
-      // 업데이트된 데이터 반환
-      final responseData = {
-        'id': reviewId,
-        'title': title,
-        'content': content,
-        'rating': rating,
-        'review_url': reviewUrl,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      return ApiResponse<Map<String, dynamic>>(
-        success: true,
-        data: responseData,
-      );
+      return ApiResponse<Map<String, dynamic>>(success: true, data: response);
     } catch (e) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -371,7 +207,7 @@ class ReviewService {
     }
   }
 
-  // 리뷰 삭제
+  // 리뷰 삭제 (RPC 사용)
   Future<ApiResponse<void>> deleteReview(String reviewId) async {
     try {
       final user = _supabase.auth.currentUser;
@@ -379,36 +215,11 @@ class ReviewService {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
-      // 리뷰 정보 조회 및 권한 확인
-      final review = await _supabase
-          .from('campaign_action_logs')
-          .select('user_id, status')
-          .eq('id', reviewId)
-          .single();
-
-      if (review['user_id'] != user.id) {
-        return ApiResponse<void>(success: false, error: '권한이 없습니다.');
-      }
-
-      if (review['status'] == 'review_approved') {
-        return ApiResponse<void>(success: false, error: '승인된 리뷰는 삭제할 수 없습니다.');
-      }
-
-      // 주의: DB에 data 필드가 없으므로 리뷰 데이터 삭제는 불가
-      // 상태만 이전 단계로 되돌리기
-      String previousStatus = 'approved'; // 기본적으로 approved로 되돌림
-      if (review['status'] == 'review_submitted') {
-        previousStatus = 'approved';
-      }
-
-      await _supabase
-          .from('campaign_action_logs')
-          .update({
-            'status': previousStatus,
-            'action': '진행상황_저장',
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', reviewId);
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      await _supabase.rpc(
+        'delete_review_safe',
+        params: {'p_review_id': reviewId},
+      );
 
       return ApiResponse<void>(success: true);
     } catch (e) {

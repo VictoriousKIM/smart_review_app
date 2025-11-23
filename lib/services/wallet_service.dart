@@ -9,7 +9,7 @@ class WalletService {
 
   // ==================== 지갑 조회 ====================
 
-  /// 개인 지갑 조회
+  /// 개인 지갑 조회 (RPC 사용)
   static Future<UserWallet?> getUserWallet() async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -18,13 +18,10 @@ class WalletService {
         return null;
       }
 
-      // wallets 테이블에서 직접 조회
-      final response = await _supabase
-          .from('wallets')
-          .select()
-          .eq('user_id', userId)
-          .isFilter('company_id', null)
-          .maybeSingle();
+      // RPC 함수 호출
+      final response =
+          await _supabase.rpc('get_user_wallet_current_safe')
+              as Map<String, dynamic>?;
 
       if (response == null) {
         print('ℹ️ 개인 지갑이 없습니다');
@@ -50,7 +47,7 @@ class WalletService {
     }
   }
 
-  /// 회사 지갑 목록 조회
+  /// 회사 지갑 목록 조회 (RPC 사용)
   static Future<List<CompanyWallet>> getCompanyWallets() async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -59,60 +56,19 @@ class WalletService {
         return [];
       }
 
-      // company_users를 통해 접근 가능한 회사 조회
-      final companyUsers = await _supabase
-          .from('company_users')
-          .select('company_id, company_role, status')
-          .eq('user_id', userId)
-          .eq('status', 'active')
-          .inFilter('company_role', ['owner', 'manager']);
+      // RPC 함수 호출
+      final response = await _supabase.rpc('get_company_wallets_safe') as List;
 
-      if (companyUsers.isEmpty) {
+      if (response.isEmpty) {
         return [];
       }
 
-      final companyIds = companyUsers
-          .map((cu) => cu['company_id'] as String)
+      final wallets = response
+          .map(
+            (walletData) =>
+                CompanyWallet.fromJson(walletData as Map<String, dynamic>),
+          )
           .toList();
-
-      // wallets 테이블에서 회사 지갑 조회 (계좌정보 포함)
-      final walletsResponse = await _supabase
-          .from('wallets')
-          .select('''
-            id,
-            company_id,
-            current_points,
-            withdraw_bank_name,
-            withdraw_account_number,
-            withdraw_account_holder,
-            companies!inner(id, business_name)
-          ''')
-          .inFilter('company_id', companyIds);
-
-      // company_users 정보와 조인하여 최종 결과 생성
-      final wallets = <CompanyWallet>[];
-      for (final walletData in walletsResponse) {
-        final companyId = walletData['company_id'] as String;
-        final companyUser = companyUsers.firstWhere(
-          (cu) => cu['company_id'] == companyId,
-        );
-        final company = walletData['companies'] as Map<String, dynamic>;
-
-        wallets.add(
-          CompanyWallet.fromJson({
-            'wallet_id': walletData['id'],
-            'id': walletData['id'],
-            'company_id': companyId,
-            'company_name': company['business_name'],
-            'current_points': walletData['current_points'],
-            'user_role': companyUser['company_role'],
-            'status': companyUser['status'],
-            'withdraw_bank_name': walletData['withdraw_bank_name'],
-            'withdraw_account_number': walletData['withdraw_account_number'],
-            'withdraw_account_holder': walletData['withdraw_account_holder'],
-          }),
-        );
-      }
 
       print('✅ 회사 지갑 조회 성공: ${wallets.length}개');
       return wallets;
@@ -122,16 +78,24 @@ class WalletService {
     }
   }
 
-  /// 특정 회사의 지갑 조회
+  /// 특정 회사의 지갑 조회 (RPC 사용)
   static Future<CompanyWallet?> getCompanyWalletByCompanyId(
     String companyId,
   ) async {
     try {
-      final wallets = await getCompanyWallets();
-      return wallets.firstWhere(
-        (w) => w.companyId == companyId,
-        orElse: () => throw Exception('해당 회사의 지갑을 찾을 수 없습니다'),
-      );
+      // RPC 함수 호출
+      final response =
+          await _supabase.rpc(
+                'get_company_wallet_by_company_id_safe',
+                params: {'p_company_id': companyId},
+              )
+              as Map<String, dynamic>?;
+
+      if (response == null) {
+        return null;
+      }
+
+      return CompanyWallet.fromJson(response);
     } catch (e) {
       print('❌ 회사 지갑 조회 실패: $e');
       return null;
@@ -173,7 +137,7 @@ class WalletService {
     }
   }
 
-  /// 개인 포인트 내역 조회 (point_transactions 테이블)
+  /// 개인 포인트 내역 조회 (point_transactions 테이블, RPC 사용)
   static Future<List<UserPointLog>> getUserPointHistory({
     int limit = 50,
     int offset = 0,
@@ -185,22 +149,17 @@ class WalletService {
         return [];
       }
 
-      // 지갑 조회
-      final wallet = await getUserWallet();
-      if (wallet == null) {
-        print('ℹ️ 개인 지갑이 없습니다');
-        return [];
-      }
+      // RPC 함수 호출
+      final response =
+          await _supabase.rpc(
+                'get_user_point_history_safe',
+                params: {'p_limit': limit, 'p_offset': offset},
+              )
+              as List;
 
-      // point_transactions 테이블에서 직접 조회
-      final response = await _supabase
-          .from('point_transactions')
-          .select('*')
-          .eq('wallet_id', wallet.id)
-          .order('created_at', ascending: false)
-          .range(offset, offset + limit - 1);
-
-      final logs = response.map((e) => UserPointLog.fromJson(e)).toList();
+      final logs = response
+          .map((e) => UserPointLog.fromJson(e as Map<String, dynamic>))
+          .toList();
 
       print('✅ 개인 포인트 내역 조회 성공: ${logs.length}건');
       return logs;
@@ -422,50 +381,17 @@ class WalletService {
         throw Exception('지갑을 찾을 수 없습니다');
       }
 
-      // RPC 함수 시도, 실패 시 직접 업데이트
-      bool rpcSuccess = false;
-      try {
-        print('🔄 RPC 함수 호출 시도...');
-        await _supabase.rpc(
-          'update_user_wallet_account',
-          params: {
-            'p_wallet_id': wallet.id,
-            'p_bank_name': bankName,
-            'p_account_number': accountNumber,
-            'p_account_holder': accountHolder,
-          },
-        );
-        rpcSuccess = true;
-        print('✅ 개인 지갑 계좌정보 업데이트 성공 (RPC)');
-      } catch (rpcError) {
-        // RPC 함수가 없거나 실패하면 직접 업데이트
-        print('⚠️ RPC 함수 실패, 직접 업데이트 시도: $rpcError');
-        print('⚠️ RPC 에러 타입: ${rpcError.runtimeType}');
-        rpcSuccess = false;
-      }
-
-      if (!rpcSuccess) {
-        try {
-          print('🔄 직접 업데이트 시도...');
-          await _supabase
-              .from('wallets')
-              .update({
-                'withdraw_bank_name': bankName,
-                'withdraw_account_number': accountNumber,
-                'withdraw_account_holder': accountHolder,
-                'updated_at': DateTimeUtils.toIso8601StringKST(
-                  DateTimeUtils.nowKST(),
-                ),
-              })
-              .eq('id', wallet.id)
-              .eq('user_id', userId);
-          print('✅ 개인 지갑 계좌정보 업데이트 성공 (직접 업데이트)');
-        } catch (updateError) {
-          print('❌ 직접 업데이트도 실패: $updateError');
-          print('❌ 직접 업데이트 에러 타입: ${updateError.runtimeType}');
-          rethrow;
-        }
-      }
+      // RPC 함수 호출 (fallback 제거)
+      await _supabase.rpc(
+        'update_user_wallet_account',
+        params: {
+          'p_wallet_id': wallet.id,
+          'p_bank_name': bankName,
+          'p_account_number': accountNumber,
+          'p_account_holder': accountHolder,
+        },
+      );
+      print('✅ 개인 지갑 계좌정보 업데이트 성공 (RPC)');
     } catch (e) {
       print('❌ 개인 지갑 계좌정보 업데이트 실패: $e');
       rethrow;
@@ -491,61 +417,18 @@ class WalletService {
         throw Exception('회사 지갑을 찾을 수 없습니다');
       }
 
-      // 권한 확인: owner만 가능
-      final companyUsers = await _supabase
-          .from('company_users')
-          .select('company_role')
-          .eq('company_id', companyId)
-          .eq('user_id', userId)
-          .eq('status', 'active')
-          .eq('company_role', 'owner')
-          .maybeSingle();
-
-      if (companyUsers == null) {
-        throw Exception('계좌정보는 회사 소유자만 수정할 수 있습니다');
-      }
-
-      // RPC 함수 시도, 실패 시 직접 업데이트
-      bool rpcSuccess = false;
-      try {
-        await _supabase.rpc(
-          'update_company_wallet_account',
-          params: {
-            'p_wallet_id': wallet.id,
-            'p_company_id': companyId,
-            'p_bank_name': bankName,
-            'p_account_number': accountNumber,
-            'p_account_holder': accountHolder,
-          },
-        );
-        rpcSuccess = true;
-        print('✅ 회사 지갑 계좌정보 업데이트 성공 (RPC)');
-      } catch (rpcError) {
-        // RPC 함수가 없거나 실패하면 직접 업데이트
-        print('⚠️ RPC 함수 실패, 직접 업데이트 시도: $rpcError');
-        rpcSuccess = false;
-      }
-
-      if (!rpcSuccess) {
-        try {
-          await _supabase
-              .from('wallets')
-              .update({
-                'withdraw_bank_name': bankName,
-                'withdraw_account_number': accountNumber,
-                'withdraw_account_holder': accountHolder,
-                'updated_at': DateTimeUtils.toIso8601StringKST(
-                  DateTimeUtils.nowKST(),
-                ),
-              })
-              .eq('id', wallet.id)
-              .eq('company_id', companyId);
-          print('✅ 회사 지갑 계좌정보 업데이트 성공 (직접 업데이트)');
-        } catch (updateError) {
-          print('❌ 직접 업데이트도 실패: $updateError');
-          rethrow;
-        }
-      }
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행, fallback 제거)
+      await _supabase.rpc(
+        'update_company_wallet_account',
+        params: {
+          'p_wallet_id': wallet.id,
+          'p_company_id': companyId,
+          'p_bank_name': bankName,
+          'p_account_number': accountNumber,
+          'p_account_holder': accountHolder,
+        },
+      );
+      print('✅ 회사 지갑 계좌정보 업데이트 성공 (RPC)');
     } catch (e) {
       print('❌ 회사 지갑 계좌정보 업데이트 실패: $e');
       rethrow;

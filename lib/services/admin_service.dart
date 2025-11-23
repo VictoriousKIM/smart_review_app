@@ -11,8 +11,7 @@ class AdminService {
 
   final SupabaseClient _supabase = SupabaseConfig.client;
 
-  /// 관리자 전용: 사용자 목록 조회
-  /// TODO: RPC 함수로 변경 권장 (admin_get_users)
+  /// 관리자 전용: 사용자 목록 조회 (RPC 사용)
   Future<List<app_user.User>> getUsers({
     String? searchQuery,
     String? userTypeFilter,
@@ -21,47 +20,29 @@ class AdminService {
     int offset = 0,
   }) async {
     try {
-      // users 테이블과 auth.users, company_users, sns_connections 조인
-      var query = _supabase
-          .from('users')
-          .select('''
-            *,
-            auth.users!inner(email),
-            company_users!left(company_id, company_role, status),
-            sns_connections!left(*)
-          ''');
-
-      // 검색 (이메일, display_name)
-      if (searchQuery != null && searchQuery.isNotEmpty) {
-        // 검색은 별도로 처리 (auth.users와 조인 시 복잡함)
-        // TODO: RPC 함수에서 처리 권장
-      }
-
-      // 필터링
-      if (userTypeFilter != null && userTypeFilter.isNotEmpty) {
-        query = query.eq('user_type', userTypeFilter);
-      }
-
-      if (statusFilter != null && statusFilter.isNotEmpty) {
-        query = query.eq('status', statusFilter);
-      }
-
-      // 정렬 및 페이지네이션
-      final response = await query
-          .order('created_at', ascending: false)
-          .range(offset, offset + limit - 1);
+      // RPC 함수 호출
+      final response =
+          await _supabase.rpc(
+                'admin_get_users',
+                params: {
+                  'p_search_query': searchQuery,
+                  'p_user_type_filter': userTypeFilter,
+                  'p_status_filter': statusFilter,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
+              )
+              as List;
 
       return response.map<app_user.User>((data) {
-        // auth.users에서 이메일 추출
-        final authUser = (data['auth.users'] as List?)?.first;
-        final email = authUser?['email'] as String? ?? '';
-        
-        // company_users에서 company_id, company_role 추출 (JOIN된 경우)
-        final companyUser = data['company_users'] as List?;
+        final userData = data as Map<String, dynamic>;
+
+        // company_users 배열 처리
+        final companyUsersList = userData['company_users'] as List?;
         String? companyId;
         app_user.CompanyRole? companyRole;
-        if (companyUser != null && companyUser.isNotEmpty) {
-          final cu = companyUser.first as Map<String, dynamic>;
+        if (companyUsersList != null && companyUsersList.isNotEmpty) {
+          final cu = companyUsersList.first as Map<String, dynamic>;
           companyId = cu['company_id'] as String?;
           if (cu['company_role'] != null) {
             companyRole = app_user.CompanyRole.values.firstWhere(
@@ -70,140 +51,79 @@ class AdminService {
             );
           }
         }
-        
-        // sns_connections 추출 (JOIN된 경우)
-        final snsConnectionsList = data['sns_connections'] as List?;
+
+        // sns_connections 배열 처리
+        final snsConnectionsList = userData['sns_connections'] as List?;
         app_user.SNSConnections? snsConnections;
         if (snsConnectionsList != null && snsConnectionsList.isNotEmpty) {
           snsConnections = app_user.SNSConnections.fromJson(
             snsConnectionsList.map((e) => e as Map<String, dynamic>).toList(),
           );
         }
-        
-        // User 객체 생성 (이메일 포함)
+
+        // User 객체 생성
         return app_user.User(
-          uid: data['id'] as String,
-          email: email,
-          displayName: data['display_name'] as String?,
-          createdAt: DateTime.parse(data['created_at'] as String),
-          updatedAt: DateTime.parse(data['updated_at'] as String? ?? data['created_at'] as String),
-          level: data['level'], // nullable로 변경됨
-          reviewCount: data['review_count'], // nullable로 변경됨
+          uid: userData['uid'] as String,
+          email: userData['email'] as String? ?? '',
+          displayName: userData['display_name'] as String?,
+          createdAt: DateTime.parse(userData['created_at'] as String),
+          updatedAt: DateTime.parse(
+            userData['updated_at'] as String? ??
+                userData['created_at'] as String,
+          ),
+          level: userData['level'],
+          reviewCount: userData['review_count'],
           userType: app_user.UserType.values.firstWhere(
-            (e) => e.name == (data['user_type'] as String?)?.toLowerCase(),
+            (e) => e.name == (userData['user_type'] as String?)?.toLowerCase(),
             orElse: () => app_user.UserType.user,
           ),
           companyId: companyId,
           companyRole: companyRole,
           snsConnections: snsConnections,
-          status: data['status'] as String?,
+          status: userData['status'] as String?,
         );
       }).toList();
     } catch (e) {
       debugPrint('사용자 목록 조회 실패: $e');
-        // 조인 실패 시 간단한 쿼리로 재시도 (JOIN 없이)
-        try {
-          var query = _supabase.from('users').select('*');
-        
-        if (userTypeFilter != null && userTypeFilter.isNotEmpty) {
-          query = query.eq('user_type', userTypeFilter);
-        }
-        if (statusFilter != null && statusFilter.isNotEmpty) {
-          query = query.eq('status', statusFilter);
-        }
-        
-        final response = await query
-            .order('created_at', ascending: false)
-            .range(offset, offset + limit - 1);
-        
-        // 이메일은 별도로 조회하지 않고 빈 문자열로 처리 (TODO: RPC 함수에서 처리)
-        final users = <app_user.User>[];
-        for (final data in response) {
-          final userId = data['id'] as String;
-          
-          // company_users에서 company_id, company_role 추출
-          final companyUser = data['company_users'] as List?;
-          String? companyId;
-          app_user.CompanyRole? companyRole;
-          if (companyUser != null && companyUser.isNotEmpty) {
-            final cu = companyUser.first as Map<String, dynamic>;
-            companyId = cu['company_id'] as String?;
-            if (cu['company_role'] != null) {
-              companyRole = app_user.CompanyRole.values.firstWhere(
-                (e) => e.name == cu['company_role'],
-                orElse: () => app_user.CompanyRole.manager,
-              );
-            }
-          }
-          
-          // sns_connections 추출
-          final snsConnectionsList = data['sns_connections'] as List?;
-          app_user.SNSConnections? snsConnections;
-          if (snsConnectionsList != null && snsConnectionsList.isNotEmpty) {
-            snsConnections = app_user.SNSConnections.fromJson(
-              snsConnectionsList.map((e) => e as Map<String, dynamic>).toList(),
-            );
-          }
-          
-          users.add(app_user.User(
-            uid: userId,
-            email: '', // TODO: auth.users에서 이메일 조회 필요 (RPC 함수 권장)
-            displayName: data['display_name'] as String?,
-            createdAt: DateTime.parse(data['created_at'] as String),
-            updatedAt: DateTime.parse(data['updated_at'] as String? ?? data['created_at'] as String),
-            level: data['level'], // nullable로 변경됨
-            reviewCount: data['review_count'], // nullable로 변경됨
-            userType: app_user.UserType.values.firstWhere(
-              (e) => e.name == (data['user_type'] as String?)?.toLowerCase(),
-              orElse: () => app_user.UserType.user,
-            ),
-            companyId: companyId,
-            companyRole: companyRole,
-            snsConnections: snsConnections,
-            status: data['status'] as String?,
-          ));
-        }
-        return users;
-      } catch (e2) {
-        debugPrint('사용자 목록 조회 재시도 실패: $e2');
-        rethrow;
-      }
+      rethrow;
     }
   }
 
-  /// 관리자 전용: 사용자 총 개수 조회
+  /// 관리자 전용: 사용자 총 개수 조회 (RPC 사용)
   Future<int> getUsersCount({
     String? searchQuery,
     String? userTypeFilter,
     String? statusFilter,
   }) async {
     try {
-      var query = _supabase.from('users').select('id');
+      // RPC 함수 호출
+      final response =
+          await _supabase.rpc(
+                'admin_get_users_count',
+                params: {
+                  'p_search_query': searchQuery,
+                  'p_user_type_filter': userTypeFilter,
+                  'p_status_filter': statusFilter,
+                },
+              )
+              as int;
 
-      if (userTypeFilter != null && userTypeFilter.isNotEmpty) {
-        query = query.eq('user_type', userTypeFilter);
-      }
-
-      if (statusFilter != null && statusFilter.isNotEmpty) {
-        query = query.eq('status', statusFilter);
-      }
-
-      final response = await query;
-      return response.length;
+      return response;
     } catch (e) {
       debugPrint('사용자 개수 조회 실패: $e');
       return 0;
     }
   }
 
-  /// 관리자 전용: 사용자 상태 변경
+  /// 관리자 전용: 사용자 상태 변경 (RPC 사용)
   Future<void> updateUserStatus(String userId, String status) async {
     try {
-      await _supabase
-          .from('users')
-          .update({'status': status, 'updated_at': DateTimeUtils.toIso8601StringKST(DateTimeUtils.nowKST())})
-          .eq('id', userId);
-      
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      await _supabase.rpc(
+        'admin_update_user_status',
+        params: {'p_target_user_id': userId, 'p_status': status},
+      );
+
       debugPrint('사용자 상태 변경 성공: $userId -> $status');
     } catch (e) {
       debugPrint('사용자 상태 변경 실패: $e');
@@ -211,4 +131,3 @@ class AdminService {
     }
   }
 }
-
