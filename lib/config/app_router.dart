@@ -165,11 +165,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const CampaignsScreen(),
           ),
           GoRoute(
-            path: '/campaigns/create',
-            name: 'campaigns-create',
-            builder: (context, state) => const CampaignCreationScreen(),
-          ),
-          GoRoute(
             path: '/campaigns/:id',
             name: 'campaign-detail',
             builder: (context, state) {
