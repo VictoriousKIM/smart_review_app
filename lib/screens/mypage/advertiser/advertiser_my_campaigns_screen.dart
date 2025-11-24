@@ -95,7 +95,9 @@ class _AdvertiserMyCampaignsScreenState
       if (result != null && result is Campaign) {
         // 1단계: 생성된 Campaign 객체를 직접 목록에 추가 (즉시 반영)
         final campaign = result;
-        debugPrint('✅ 캠페인 생성 완료 - campaignId: ${campaign.id}, title: ${campaign.title}');
+        debugPrint(
+          '✅ 캠페인 생성 완료 - campaignId: ${campaign.id}, title: ${campaign.title}',
+        );
         _addCampaignDirectly(campaign);
       } else if (result != null && result is String) {
         // fallback: ID만 반환된 경우 폴링 방식으로 조회
@@ -149,8 +151,10 @@ class _AdvertiserMyCampaignsScreenState
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
       // 지수 백오프 (exponential backoff)
       final delay = Duration(
-        milliseconds: (initialDelay.inMilliseconds * (1 << attempt))
-            .clamp(initialDelay.inMilliseconds, maxDelay.inMilliseconds),
+        milliseconds: (initialDelay.inMilliseconds * (1 << attempt)).clamp(
+          initialDelay.inMilliseconds,
+          maxDelay.inMilliseconds,
+        ),
       );
 
       await Future.delayed(delay);
@@ -366,7 +370,7 @@ class _AdvertiserMyCampaignsScreenState
       for (var campaign in _allCampaigns.take(5)) {
         final status = campaign.status.toString().split('.').last;
         debugPrint(
-          '   - ${campaign.title}: status=$status, startDate=${campaign.startDate}, endDate=${campaign.endDate}',
+          '   - ${campaign.title}: status=$status, applyStartDate=${campaign.applyStartDate}, applyEndDate=${campaign.applyEndDate}',
         );
       }
 
@@ -500,43 +504,44 @@ class _AdvertiserMyCampaignsScreenState
     // 모집 (대기중): 시작기간이 되지 않았을 때 (active 상태만)
     _pendingCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status != CampaignStatus.active) return false;
-      // startDate는 필수이므로 null 체크 불필요
-      return campaign.startDate.isAfter(now);
+      // applyStartDate는 필수이므로 null 체크 불필요
+      return campaign.applyStartDate.isAfter(now);
     }).toList();
 
     // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
     _recruitingCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status != CampaignStatus.active) return false;
       // 날짜는 필수이므로 null 체크 불필요
-      if (campaign.startDate.isAfter(now)) return false;
-      if (campaign.endDate.isBefore(now)) return false;
+      if (campaign.applyStartDate.isAfter(now)) return false;
+      if (campaign.applyEndDate.isBefore(now)) return false;
       if (campaign.maxParticipants != null &&
-          campaign.currentParticipants >= campaign.maxParticipants!) return false;
+          campaign.currentParticipants >= campaign.maxParticipants!)
+        return false;
       return true;
     }).toList();
 
     // 선정완료: 시작기간과 종료기간 사이면서 참여자가 다 찬 경우
     _selectedCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status != CampaignStatus.active) return false;
-      if (campaign.startDate.isAfter(now)) return false;
-      if (campaign.endDate.isBefore(now)) return false;
+      if (campaign.applyStartDate.isAfter(now)) return false;
+      if (campaign.applyEndDate.isBefore(now)) return false;
       if (campaign.maxParticipants == null) return false;
       return campaign.currentParticipants >= campaign.maxParticipants!;
     }).toList();
 
-    // 등록기간: 종료기간과 만료기간 사이에 있는 경우
+    // 등록기간: 리뷰 시작일시부터 리뷰 종료일시까지
     _registeredCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status != CampaignStatus.active) return false;
-      if (campaign.endDate.isAfter(now)) return false;
-      if (campaign.expirationDate.isBefore(now)) return false;
+      if (campaign.reviewStartDate.isAfter(now)) return false;
+      if (campaign.reviewEndDate.isBefore(now)) return false;
       return true;
     }).toList();
 
-    // 종료: 만료기간이 지나거나 status가 inactive
+    // 종료: 리뷰 종료일시가 지나거나 status가 inactive
     _completedCampaigns = _allCampaigns.where((campaign) {
       if (campaign.status == CampaignStatus.inactive) return true;
-      // expirationDate는 필수이므로 null 체크 불필요
-      return campaign.expirationDate.isBefore(now);
+      // reviewEndDate는 필수이므로 null 체크 불필요
+      return campaign.reviewEndDate.isBefore(now);
     }).toList();
   }
 
@@ -643,19 +648,16 @@ class _AdvertiserMyCampaignsScreenState
     if (campaign.status == CampaignStatus.inactive) {
       statusText = '종료';
       statusColor = Colors.grey;
-    } else if (campaign.startDate != null && campaign.startDate!.isAfter(now)) {
+    } else if (campaign.applyStartDate.isAfter(now)) {
+      // 신청 시작 전
       statusText = '모집';
       statusColor = Colors.orange;
-    } else if (campaign.status == CampaignStatus.active) {
-      if (campaign.endDate != null && campaign.endDate!.isBefore(now)) {
-        if (campaign.expirationDate != null && campaign.expirationDate!.isAfter(now)) {
-          statusText = '등록기간';
-          statusColor = Colors.blue;
-        } else {
-          statusText = '종료';
-          statusColor = Colors.grey;
-        }
-      } else {
+    } else if (campaign.applyStartDate.isBefore(now) ||
+        campaign.applyStartDate.isAtSameMomentAs(now)) {
+      // 신청 기간 중
+      if (campaign.applyEndDate.isAfter(now) ||
+          campaign.applyEndDate.isAtSameMomentAs(now)) {
+        // 신청 기간 내
         if (campaign.maxParticipants != null &&
             campaign.currentParticipants >= campaign.maxParticipants!) {
           statusText = '선정완료';
@@ -663,6 +665,25 @@ class _AdvertiserMyCampaignsScreenState
         } else {
           statusText = '모집중';
           statusColor = Colors.green;
+        }
+      } else {
+        // 신청 기간 종료 후
+        if (campaign.reviewStartDate.isBefore(now) ||
+            campaign.reviewStartDate.isAtSameMomentAs(now)) {
+          // 리뷰 기간 중
+          if (campaign.reviewEndDate.isAfter(now) ||
+              campaign.reviewEndDate.isAtSameMomentAs(now)) {
+            statusText = '등록기간';
+            statusColor = Colors.blue;
+          } else {
+            // 리뷰 기간 종료
+            statusText = '종료';
+            statusColor = Colors.grey;
+          }
+        } else {
+          // 리뷰 시작 전 (신청 종료 후 ~ 리뷰 시작 전)
+          statusText = '종료';
+          statusColor = Colors.grey;
         }
       }
     } else {
@@ -690,11 +711,11 @@ class _AdvertiserMyCampaignsScreenState
               pathParameters: {'id': campaign.id},
             )
             .then((result) {
-          // 디테일 화면에서 상태 변경이 있었으면 새로고침
-          if (result == true) {
-            _loadCampaigns();
-          }
-        }),
+              // 디테일 화면에서 상태 변경이 있었으면 새로고침
+              if (result == true) {
+                _loadCampaigns();
+              }
+            }),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -821,7 +842,7 @@ class _AdvertiserMyCampaignsScreenState
                   ),
                 ],
               ),
-              if (campaign.startDate != null || campaign.endDate != null) ...[
+              ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -832,7 +853,7 @@ class _AdvertiserMyCampaignsScreenState
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${campaign.startDate != null ? campaign.startDate!.toString().substring(0, 10) : '미정'} ~ ${campaign.endDate != null ? campaign.endDate!.toString().substring(0, 10) : '미정'}',
+                      '${campaign.applyStartDate.toString().substring(0, 10)} ~ ${campaign.applyEndDate.toString().substring(0, 10)}',
                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
                   ],

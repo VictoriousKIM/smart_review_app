@@ -221,9 +221,7 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
                   _buildInfoItem(
                     context,
                     '마감일',
-                    campaign.endDate != null
-                        ? _formatDeadline(campaign.endDate!)
-                        : '상시',
+                    _formatDeadline(campaign.applyEndDate),
                   ),
                   _buildInfoItem(
                     context,

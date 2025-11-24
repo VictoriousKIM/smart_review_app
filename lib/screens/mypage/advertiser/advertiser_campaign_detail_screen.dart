@@ -249,24 +249,26 @@ class _AdvertiserCampaignDetailScreenState
                     '캠페인 타입',
                     _getCategoryName(campaign.campaignType),
                   ),
-                  if (campaign.startDate != null)
-                    _buildInfoItem(
-                      context,
-                      '시작일',
-                      _formatDate(campaign.startDate!),
-                    ),
-                  if (campaign.endDate != null)
-                    _buildInfoItem(
-                      context,
-                      '종료일',
-                      _formatDate(campaign.endDate!),
-                    ),
-                  if (campaign.expirationDate != null)
-                    _buildInfoItem(
-                      context,
-                      '만료일',
-                      _formatDate(campaign.expirationDate!),
-                    ),
+                  _buildInfoItem(
+                    context,
+                    '신청 시작일시',
+                    _formatDate(campaign.applyStartDate),
+                  ),
+                  _buildInfoItem(
+                    context,
+                    '신청 종료일시',
+                    _formatDate(campaign.applyEndDate),
+                  ),
+                  _buildInfoItem(
+                    context,
+                    '리뷰 시작일시',
+                    _formatDate(campaign.reviewStartDate),
+                  ),
+                  _buildInfoItem(
+                    context,
+                    '리뷰 종료일시',
+                    _formatDate(campaign.reviewEndDate),
+                  ),
                   _buildInfoItem(
                     context,
                     '참여자 수',

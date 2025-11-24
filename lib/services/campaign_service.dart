@@ -29,7 +29,7 @@ class CampaignService {
       dynamic query = _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
           )
           .eq('status', 'active');
 
@@ -131,14 +131,13 @@ class CampaignService {
       final response = await _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, start_date, end_date, expiration_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
           )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
-          // 날짜 필터링: 모집중인 캠페인만 표시
-          .lte('start_date', now.toIso8601String())
-          .gte('end_date', now.toIso8601String())
-          .gte('expiration_date', now.toIso8601String())
+          // 날짜 필터링: 모집중인 캠페인만 표시 (신청 기간)
+          .lte('apply_start_date', now.toIso8601String())
+          .gte('apply_end_date', now.toIso8601String())
           .order('current_participants', ascending: false)
           .limit(limit);
 
@@ -166,14 +165,13 @@ class CampaignService {
       final response = await _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, start_date, end_date, expiration_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
           )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
-          // 날짜 필터링: 모집중인 캠페인만 표시
-          .lte('start_date', now.toIso8601String())
-          .gte('end_date', now.toIso8601String())
-          .gte('expiration_date', now.toIso8601String())
+          // 날짜 필터링: 모집중인 캠페인만 표시 (신청 기간)
+          .lte('apply_start_date', now.toIso8601String())
+          .gte('apply_end_date', now.toIso8601String())
           .order('created_at', ascending: false)
           .limit(limit);
 
@@ -200,13 +198,12 @@ class CampaignService {
       var searchQuery = _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, start_date, end_date, expiration_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
           )
           .eq('status', 'active')
-          // 날짜 필터링: 모집중인 캠페인만 표시
-          .lte('start_date', now.toIso8601String())
-          .gte('end_date', now.toIso8601String())
-          .gte('expiration_date', now.toIso8601String())
+          // 날짜 필터링: 모집중인 캠페인만 표시 (신청 기간)
+          .lte('apply_start_date', now.toIso8601String())
+          .gte('apply_end_date', now.toIso8601String())
           .ilike('title', '%$query%');
 
       if (campaignType != null) {
@@ -692,9 +689,11 @@ class CampaignService {
     required String platform,
     required int campaignReward,
     required int maxParticipants,
-    required DateTime startDate,
-    required DateTime endDate,
-    required DateTime expirationDate,
+    int maxPerReviewer = 1,  // 리뷰어당 신청 가능 개수 (기본값: 1)
+    required DateTime applyStartDate,
+    required DateTime applyEndDate,
+    required DateTime reviewStartDate,
+    required DateTime reviewEndDate,
     String? keyword,
     String? option,
     int? quantity,
@@ -723,10 +722,25 @@ class CampaignService {
         return ApiResponse<Campaign>(success: false, error: '제품명을 입력해주세요.');
       }
 
-      if (startDate.isAfter(endDate)) {
+      // 날짜 검증
+      if (applyStartDate.isAfter(applyEndDate)) {
         return ApiResponse<Campaign>(
           success: false,
-          error: '시작일은 종료일보다 빠를 수 없습니다.',
+          error: '신청 시작일시는 종료일시보다 빠를 수 없습니다.',
+        );
+      }
+      
+      if (applyEndDate.isAfter(reviewStartDate)) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '신청 종료일시는 리뷰 시작일시보다 빠를 수 없습니다.',
+        );
+      }
+      
+      if (reviewStartDate.isAfter(reviewEndDate)) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '리뷰 시작일시는 종료일시보다 빠를 수 없습니다.',
         );
       }
 
@@ -746,9 +760,11 @@ class CampaignService {
           'p_campaign_type': campaignType,
           'p_campaign_reward': campaignReward,
           'p_max_participants': maxParticipants,
-          'p_start_date': startDate.toIso8601String(),
-          'p_end_date': endDate.toIso8601String(),
-          'p_expiration_date': expirationDate.toIso8601String(),
+          'p_max_per_reviewer': maxPerReviewer,
+          'p_apply_start_date': applyStartDate.toIso8601String(),
+          'p_apply_end_date': applyEndDate.toIso8601String(),
+          'p_review_start_date': reviewStartDate.toIso8601String(),
+          'p_review_end_date': reviewEndDate.toIso8601String(),
           'p_platform': platform,
           'p_keyword': keyword,
           'p_option': option,

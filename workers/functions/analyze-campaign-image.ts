@@ -48,6 +48,9 @@ export async function analyzeCampaignImage(
     const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
     
+    // 이미지 데이터 추출 (base64에서 실제 데이터 부분만)
+    const imageData = image.includes(',') ? image.split(',')[1] : image;
+    
     // 이미지 크기 추정 (base64 데이터 크기로 대략 계산)
     // base64 데이터 크기로 원본 이미지 크기 추정
     const imageDataSize = imageData.length;
@@ -75,7 +78,7 @@ export async function analyzeCampaignImage(
   "option": "선택된 옵션 (색상, 사이즈 등)",
   "quantity": 구매 개수 (숫자만),
   "seller": "판매자명 또는 브랜드명",
-  "productNumber": "상품번호 또는 SKU",
+  "productNumber": "상품번호 또는 SKU 또는 쿠팡상품번호 (중요: 이미지에서 '상품번호', '상품코드', 'SKU', '쿠팡상품번호', '상품ID' 등의 라벨 텍스트를 먼저 찾고, 그 옆이나 아래에 있는 숫자 문자열을 있는 그대로 추출해주세요. 하이픈(-)이나 공백이 포함되어 있어도 그대로 추출하세요. 예: '9187600264 - 27105558542'인 경우 '9187600264 - 27105558542' 그대로 추출. 상품명 아래나 상세 정보 섹션에 작게 표시되어 있을 수 있습니다. 명확하게 보이지 않으면 null)",
   "paymentAmount": 결제금액 (숫자만, 쉼표 제거),
   "purchaseMethod": "모바일 또는 PC",
   "reviewReward": 리뷰비 또는 적립금 (있다면, 숫자만),
@@ -92,7 +95,16 @@ export async function analyzeCampaignImage(
 2. 숫자 필드는 반드시 숫자 타입으로 (문자열 X)
 3. paymentAmount에서 쉼표, "원", "₩" 등 제거
 4. purchaseMethod는 "mobile" 또는 "pc"만 사용
-5. productImageCrop은 반드시 제공해야 합니다 (null 금지):
+5. productNumber 추출 시 주의사항 (매우 중요):
+   - 이미지 전체를 자세히 스캔하여 "상품번호", "상품코드", "SKU", "쿠팡상품번호", "상품ID", "Product ID" 등의 라벨 텍스트를 찾아주세요
+   - 쿠팡의 경우 다양한 형식이 있습니다 (예: 9187600264, 9187600264 - 27105558542 등)
+   - 이미지에 표시된 텍스트를 있는 그대로 추출해주세요 (하이픈, 공백 포함)
+   - 예: "9187600264 - 27105558542"인 경우 "9187600264 - 27105558542" 그대로 추출
+   - 상품명 아래, 가격 정보 근처, 상세 정보 섹션, 또는 페이지 하단에 작게 표시되어 있을 수 있습니다
+   - URL에 포함된 경우도 있습니다 (예: /products/9187600264)
+   - 텍스트를 있는 그대로 추출하고, 숫자만 추출하거나 변형하지 마세요
+   - 정말 찾을 수 없을 때만 null로 반환하고, 가능한 한 찾아서 반환해주세요
+6. productImageCrop은 반드시 제공해야 합니다 (null 금지):
    - 이미지에서 가장 크고 명확한 제품 메인 이미지의 위치를 찾아주세요
    - 보통 왼쪽 절반 또는 중앙에 위치한 큰 제품 이미지입니다
    - 썸네일이나 작은 이미지가 아닌 메인 제품 사진을 찾아주세요
@@ -101,8 +113,8 @@ export async function analyzeCampaignImage(
    - 제품 이미지가 중앙에 있다면: x=${Math.floor(estimatedWidth/4)}, y=0, width=${Math.floor(estimatedWidth/2)}, height=${estimatedHeight}
    - 정확한 위치를 찾을 수 없어도 대략적인 위치를 추정해서 반환해주세요
    - productImageCrop은 절대 null이면 안 됩니다
-6. JSON만 반환하고 다른 설명은 하지 마세요
-7. 마크다운 코드 블록 없이 순수 JSON만 반환
+7. JSON만 반환하고 다른 설명은 하지 마세요
+8. 마크다운 코드 블록 없이 순수 JSON만 반환
 
 예시:
 {
@@ -111,7 +123,7 @@ export async function analyzeCampaignImage(
   "option": "투명실버",
   "quantity": 1,
   "seller": "브림유",
-  "productNumber": "8325154393",
+  "productNumber": "9187600264 - 27105558542",
   "paymentAmount": 13800,
   "purchaseMethod": "mobile",
   "reviewReward": 1000,
@@ -125,7 +137,6 @@ export async function analyzeCampaignImage(
 `;
 
     // 이미지 분석
-    const imageData = image.includes(',') ? image.split(',')[1] : image;
     const imagePart = {
       inlineData: {
         data: imageData,
@@ -159,6 +170,17 @@ export async function analyzeCampaignImage(
     const extractedData = JSON.parse(jsonMatch[0]);
     
     console.log('Parsed extracted data:', JSON.stringify(extractedData, null, 2));
+    
+    // productNumber 처리 (빈 문자열이나 공백만 있는 경우 null로 변환, 그 외에는 있는 그대로 유지)
+    if (extractedData.productNumber) {
+      const trimmed = String(extractedData.productNumber).trim();
+      if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined') {
+        extractedData.productNumber = null;
+      } else {
+        // 텍스트를 있는 그대로 유지 (하이픈, 공백 포함)
+        extractedData.productNumber = trimmed;
+      }
+    }
     
     // 데이터 타입 검증 및 변환
     if (extractedData.quantity && typeof extractedData.quantity === 'string') {

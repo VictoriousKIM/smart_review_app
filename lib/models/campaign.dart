@@ -11,11 +11,13 @@ class Campaign {
   final int? productPrice;
   final int
   campaignReward; // DB에 있는 필드 (campaign_reward) - review_cost와 review_reward 통합
-  final DateTime startDate;
-  final DateTime endDate;
-  final DateTime expirationDate;
+  final DateTime applyStartDate;  // 신청 시작일시 (기존: startDate)
+  final DateTime applyEndDate;    // 신청 종료일시 (기존: endDate)
+  final DateTime reviewStartDate; // 리뷰 시작일시 (신규)
+  final DateTime reviewEndDate;   // 리뷰 종료일시 (기존: expirationDate)
   final int currentParticipants;
   final int? maxParticipants;
+  final int maxPerReviewer;  // 리뷰어당 신청 가능 개수
   final CampaignStatus status;
   final DateTime createdAt;
   final String? userId; // DB에 있는 필드 추가
@@ -53,12 +55,14 @@ class Campaign {
     required this.campaignType,
     this.productPrice,
     required this.campaignReward,
-    required this.startDate,
-    required this.endDate,
-    required this.expirationDate,
-    this.currentParticipants = 0,
-    this.maxParticipants,
-    this.status = CampaignStatus.active,
+    required this.applyStartDate,
+    required this.applyEndDate,
+    required this.reviewStartDate,
+    required this.reviewEndDate,
+      this.currentParticipants = 0,
+      this.maxParticipants,
+      this.maxPerReviewer = 1,  // 기본값: 1
+      this.status = CampaignStatus.active,
     required this.createdAt,
     this.userId,
     // 상품 상세 정보
@@ -109,17 +113,32 @@ class Campaign {
       campaignReward:
           json['campaign_reward'] ??
           (json['review_reward'] ?? json['review_cost'] ?? 0), // 하위 호환성
-      startDate: json['start_date'] != null
-          ? DateTime.parse(json['start_date'])
-          : DateTime.now().add(const Duration(days: 1)),
-      endDate: json['end_date'] != null
-          ? DateTime.parse(json['end_date'])
-          : DateTime.now().add(const Duration(days: 8)),
-      expirationDate: json['expiration_date'] != null
-          ? DateTime.parse(json['expiration_date'])
-          : DateTime.now().add(const Duration(days: 38)),
+      // 하위 호환성: 기존 필드명도 지원
+      applyStartDate: json['apply_start_date'] != null
+          ? DateTime.parse(json['apply_start_date'])
+          : (json['start_date'] != null
+              ? DateTime.parse(json['start_date'])
+              : DateTime.now().add(const Duration(days: 1))),
+      applyEndDate: json['apply_end_date'] != null
+          ? DateTime.parse(json['apply_end_date'])
+          : (json['end_date'] != null
+              ? DateTime.parse(json['end_date'])
+              : DateTime.now().add(const Duration(days: 8))),
+      reviewStartDate: json['review_start_date'] != null
+          ? DateTime.parse(json['review_start_date'])
+          : (json['apply_end_date'] != null
+              ? DateTime.parse(json['apply_end_date']).add(const Duration(days: 1))
+              : (json['end_date'] != null
+                  ? DateTime.parse(json['end_date']).add(const Duration(days: 1))
+                  : DateTime.now().add(const Duration(days: 9)))),
+      reviewEndDate: json['review_end_date'] != null
+          ? DateTime.parse(json['review_end_date'])
+          : (json['expiration_date'] != null
+              ? DateTime.parse(json['expiration_date'])
+              : DateTime.now().add(const Duration(days: 38))),
       currentParticipants: json['current_participants'] ?? 0,
       maxParticipants: json['max_participants'],
+      maxPerReviewer: json['max_per_reviewer'] ?? 1,
       status: CampaignStatus.values.firstWhere(
         (e) => e.name == (json['status'] ?? 'active'),
         orElse: () => CampaignStatus.active,
@@ -175,11 +194,13 @@ class Campaign {
       'campaign_type': mapCampaignTypeToDb(campaignType),
       'product_price': productPrice,
       'campaign_reward': campaignReward,
-      'start_date': startDate.toIso8601String(),
-      'end_date': endDate.toIso8601String(),
-      'expiration_date': expirationDate.toIso8601String(),
+      'apply_start_date': applyStartDate.toIso8601String(),
+      'apply_end_date': applyEndDate.toIso8601String(),
+      'review_start_date': reviewStartDate.toIso8601String(),
+      'review_end_date': reviewEndDate.toIso8601String(),
       'current_participants': currentParticipants,
       'max_participants': maxParticipants,
+      'max_per_reviewer': maxPerReviewer,
       'status': status.name,
       'created_at': createdAt.toIso8601String(),
       'user_id': userId,
@@ -215,9 +236,10 @@ class Campaign {
     CampaignCategory? campaignType,
     int? productPrice,
     int? campaignReward,
-    DateTime? startDate,
-    DateTime? endDate,
-    DateTime? expirationDate,
+    DateTime? applyStartDate,
+    DateTime? applyEndDate,
+    DateTime? reviewStartDate,
+    DateTime? reviewEndDate,
     int? currentParticipants,
     int? maxParticipants,
     CampaignStatus? status,
@@ -253,9 +275,10 @@ class Campaign {
       campaignType: campaignType ?? this.campaignType,
       productPrice: productPrice ?? this.productPrice,
       campaignReward: campaignReward ?? this.campaignReward,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      expirationDate: expirationDate ?? this.expirationDate,
+      applyStartDate: applyStartDate ?? this.applyStartDate,
+      applyEndDate: applyEndDate ?? this.applyEndDate,
+      reviewStartDate: reviewStartDate ?? this.reviewStartDate,
+      reviewEndDate: reviewEndDate ?? this.reviewEndDate,
       currentParticipants: currentParticipants ?? this.currentParticipants,
       maxParticipants: maxParticipants ?? this.maxParticipants,
       status: status ?? this.status,

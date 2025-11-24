@@ -61,21 +61,23 @@ class _CampaignCreationScreenState
   final _reviewTextLengthController = TextEditingController(text: '100');
   final _reviewImageCountController = TextEditingController(text: '1');
   final _maxParticipantsController = TextEditingController(text: '10');
+  final _maxPerReviewerController = TextEditingController(text: '1');
   final _duplicateCheckDaysController = TextEditingController(text: '0');
   final _productProvisionOtherController = TextEditingController();
 
   // 선택 필드
   String _campaignType = 'reviewer';
   String _platform = 'coupang';
-  String _paymentType = 'platform';
+  String _paymentType = 'direct';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
   String _productProvisionType = 'delivery'; // ✅ 필수, 초기값: 실배송
   String _productProvisionOther = '';
   bool _onlyAllowedReviewers = true;
   String _reviewType = 'star_only';
-  DateTime? _startDateTime;
-  DateTime? _endDateTime;
-  DateTime? _expirationDateTime;
+  DateTime? _applyStartDateTime; // 신청 시작일시
+  DateTime? _applyEndDateTime; // 신청 종료일시
+  DateTime? _reviewStartDateTime; // 리뷰 시작일시
+  DateTime? _reviewEndDateTime; // 리뷰 종료일시
   bool _preventProductDuplicate = false;
   bool _preventStoreDuplicate = false;
 
@@ -95,9 +97,10 @@ class _CampaignCreationScreenState
   bool _throttleActive = false;
 
   // DateTime 컨트롤러
-  late final TextEditingController _startDateTimeController;
-  late final TextEditingController _endDateTimeController;
-  late final TextEditingController _expirationDateTimeController;
+  late final TextEditingController _applyStartDateTimeController;
+  late final TextEditingController _applyEndDateTimeController;
+  late final TextEditingController _reviewStartDateTimeController;
+  late final TextEditingController _reviewEndDateTimeController;
 
   // ✅ 5. 포맷팅 캐싱
   String? _cachedFormattedBalance;
@@ -110,9 +113,10 @@ class _CampaignCreationScreenState
     super.initState();
 
     // 가벼운 작업만 동기 실행
-    _startDateTimeController = TextEditingController();
-    _endDateTimeController = TextEditingController();
-    _expirationDateTimeController = TextEditingController();
+    _applyStartDateTimeController = TextEditingController();
+    _applyEndDateTimeController = TextEditingController();
+    _reviewStartDateTimeController = TextEditingController();
+    _reviewEndDateTimeController = TextEditingController();
 
     // 무거운 작업은 프레임 렌더링 후 단계별 실행
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -161,9 +165,10 @@ class _CampaignCreationScreenState
     _maxParticipantsController.dispose();
     _duplicateCheckDaysController.dispose();
     _productProvisionOtherController.dispose();
-    _startDateTimeController.dispose();
-    _endDateTimeController.dispose();
-    _expirationDateTimeController.dispose();
+    _applyStartDateTimeController.dispose();
+    _applyEndDateTimeController.dispose();
+    _reviewStartDateTimeController.dispose();
+    _reviewEndDateTimeController.dispose();
     super.dispose();
   }
 
@@ -1081,42 +1086,60 @@ class _CampaignCreationScreenState
       }
 
       // 날짜 검증
-      if (_startDateTime == null) {
+      if (_applyStartDateTime == null) {
         setState(() {
-          _errorMessage = '시작일을 선택해주세요';
+          _errorMessage = '신청 시작일시를 선택해주세요';
           _isCreatingCampaign = false;
         });
         return;
       }
 
-      if (_endDateTime == null) {
+      if (_applyEndDateTime == null) {
         setState(() {
-          _errorMessage = '종료일을 선택해주세요';
+          _errorMessage = '신청 종료일시를 선택해주세요';
           _isCreatingCampaign = false;
         });
         return;
       }
 
-      if (_expirationDateTime == null) {
+      if (_reviewStartDateTime == null) {
         setState(() {
-          _errorMessage = '만기일을 선택해주세요';
+          _errorMessage = '리뷰 시작일시를 선택해주세요';
           _isCreatingCampaign = false;
         });
         return;
       }
 
-      if (_startDateTime!.isAfter(_endDateTime!)) {
+      if (_reviewEndDateTime == null) {
         setState(() {
-          _errorMessage = '시작일은 종료일보다 빠를 수 없습니다';
+          _errorMessage = '리뷰 종료일시를 선택해주세요';
           _isCreatingCampaign = false;
         });
         return;
       }
 
-      if (_endDateTime!.isAfter(_expirationDateTime!) ||
-          _endDateTime!.isAtSameMomentAs(_expirationDateTime!)) {
+      if (_applyEndDateTime!.isBefore(_applyStartDateTime!) ||
+          _applyEndDateTime!.isAtSameMomentAs(_applyStartDateTime!)) {
         setState(() {
-          _errorMessage = '종료일은 만기일보다 빠를 수 없습니다';
+          _errorMessage = '신청 종료일시는 시작일시보다 뒤여야 합니다';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      if (_applyEndDateTime!.isAfter(_reviewStartDateTime!) ||
+          _applyEndDateTime!.isAtSameMomentAs(_reviewStartDateTime!)) {
+        setState(() {
+          _errorMessage = '신청 종료일시는 리뷰 시작일시보다 빠를 수 없습니다';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      if (_reviewStartDateTime!.isAfter(_reviewEndDateTime!) ||
+          _reviewStartDateTime!.isAtSameMomentAs(_reviewEndDateTime!)) {
+        setState(() {
+          _errorMessage = '리뷰 시작일시는 종료일시보다 빠를 수 없습니다';
           _isCreatingCampaign = false;
         });
         return;
@@ -1129,9 +1152,11 @@ class _CampaignCreationScreenState
         platform: _platform,
         campaignReward: int.tryParse(_campaignRewardController.text) ?? 0,
         maxParticipants: int.tryParse(_maxParticipantsController.text) ?? 10,
-        startDate: _startDateTime!,
-        endDate: _endDateTime!,
-        expirationDate: _expirationDateTime!,
+        maxPerReviewer: int.tryParse(_maxPerReviewerController.text) ?? 1,
+        applyStartDate: _applyStartDateTime!,
+        applyEndDate: _applyEndDateTime!,
+        reviewStartDate: _reviewStartDateTime!,
+        reviewEndDate: _reviewEndDateTime!,
         keyword: _keywordController.text.trim(),
         option: _optionController.text.trim(),
         quantity: int.tryParse(_quantityController.text) ?? 1,
@@ -1547,13 +1572,23 @@ class _CampaignCreationScreenState
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'coupang', child: Text('쿠팡')),
-                DropdownMenuItem(value: 'naver', child: Text('네이버 쇼핑')),
+                DropdownMenuItem(
+                  value: 'coupang',
+                  child: Text('쿠팡'),
+                  enabled: true,
+                ),
+                DropdownMenuItem(
+                  value: 'naver',
+                  child: Text('네이버 쇼핑 (추가예정)'),
+                  enabled: false,
+                ),
               ],
               onChanged: (value) {
-                setState(() {
-                  _platform = value!;
-                });
+                if (value != null && value == 'coupang') {
+                  setState(() {
+                    _platform = value;
+                  });
+                }
               },
             ),
             const SizedBox(height: 16),
@@ -1859,54 +1894,73 @@ class _CampaignCreationScreenState
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: '시작 일시 *',
-                      border: OutlineInputBorder(),
-                      suffixIcon: Icon(Icons.calendar_today),
-                    ),
-                    readOnly: true,
-                    onTap: () => _selectDateTime(context, true),
-                    controller: _startDateTimeController,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: '종료 일시 *',
-                      border: OutlineInputBorder(),
-                      suffixIcon: Icon(Icons.calendar_today),
-                    ),
-                    readOnly: true,
-                    onTap: () => _selectDateTime(context, false),
-                    controller: _endDateTimeController,
-                  ),
-                ),
-              ],
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: '신청 시작일시 *',
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.calendar_today),
+              ),
+              readOnly: true,
+              onTap: () => _selectApplyStartDateTime(context),
+              controller: _applyStartDateTimeController,
             ),
             const SizedBox(height: 16),
             TextFormField(
               decoration: const InputDecoration(
-                labelText: '만기일 *',
+                labelText: '신청 종료일시 *',
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.calendar_today),
+              ),
+              readOnly: true,
+              onTap: () => _selectApplyEndDateTime(context),
+              controller: _applyEndDateTimeController,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: '리뷰 시작일시 *',
                 hintText: 'YYYY-MM-DD HH:00',
                 border: OutlineInputBorder(),
                 suffixIcon: Icon(Icons.calendar_today),
               ),
               readOnly: true,
-              onTap: () => _selectExpirationDateTime(context),
-              controller: _expirationDateTimeController,
+              onTap: () => _selectReviewStartDateTime(context),
+              controller: _reviewStartDateTimeController,
               validator: (value) {
-                if (_expirationDateTime == null) {
-                  return '만기일을 선택해주세요';
+                if (_reviewStartDateTime == null) {
+                  return '리뷰 시작일시를 선택해주세요';
                 }
-                if (_endDateTime != null &&
-                    (_expirationDateTime!.isBefore(_endDateTime!) ||
-                        _expirationDateTime!.isAtSameMomentAs(_endDateTime!))) {
-                  return '만기일은 종료일 이후여야 합니다';
+                if (_applyEndDateTime != null &&
+                    (_reviewStartDateTime!.isBefore(_applyEndDateTime!) ||
+                        _reviewStartDateTime!.isAtSameMomentAs(
+                          _applyEndDateTime!,
+                        ))) {
+                  return '리뷰 시작일시는 신청 종료일시 이후여야 합니다';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: '리뷰 종료일시 *',
+                hintText: 'YYYY-MM-DD HH:00',
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.calendar_today),
+              ),
+              readOnly: true,
+              onTap: () => _selectReviewEndDateTime(context),
+              controller: _reviewEndDateTimeController,
+              validator: (value) {
+                if (_reviewEndDateTime == null) {
+                  return '리뷰 종료일시를 선택해주세요';
+                }
+                if (_reviewStartDateTime != null &&
+                    (_reviewEndDateTime!.isBefore(_reviewStartDateTime!) ||
+                        _reviewEndDateTime!.isAtSameMomentAs(
+                          _reviewStartDateTime!,
+                        ))) {
+                  return '리뷰 종료일시는 리뷰 시작일시 이후여야 합니다';
                 }
                 return null;
               },
@@ -1928,16 +1982,44 @@ class _CampaignCreationScreenState
                 return null;
               },
             ),
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: _maxPerReviewerController,
+              labelText: '리뷰어당 신청 가능 개수',
+              hintText: '1',
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return '리뷰어당 신청 가능 개수를 입력해주세요';
+                }
+                final count = int.tryParse(value);
+                if (count == null || count < 1) {
+                  return '1 이상의 숫자를 입력해주세요';
+                }
+                // 모집 인원을 넘지 않아야 함
+                final maxParticipants =
+                    int.tryParse(_maxParticipantsController.text) ?? 0;
+                if (maxParticipants > 0 && count > maxParticipants) {
+                  return '모집 인원($maxParticipants명)을 넘을 수 없습니다';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '한 리뷰어가 이 캠페인에 신청할 수 있는 최대 횟수',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _selectDateTime(BuildContext context, bool isStart) async {
+  Future<void> _selectApplyStartDateTime(BuildContext context) async {
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _applyStartDateTime ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
@@ -1945,7 +2027,9 @@ class _CampaignCreationScreenState
     if (date != null) {
       final time = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.now(),
+        initialTime: _applyStartDateTime != null
+            ? TimeOfDay.fromDateTime(_applyStartDateTime!)
+            : TimeOfDay.now(),
       );
 
       if (time != null) {
@@ -1958,30 +2042,46 @@ class _CampaignCreationScreenState
         );
 
         setState(() {
-          if (isStart) {
-            _startDateTime = dateTime;
-            if (_endDateTime != null &&
-                _startDateTime!.isAfter(_endDateTime!)) {
-              _endDateTime = _startDateTime!.add(const Duration(days: 7));
+          _applyStartDateTime = dateTime;
+          // 신청 종료일시 자동 조정 (종료일이 시작일보다 앞이거나 같으면 조정)
+          if (_applyEndDateTime == null ||
+              _applyEndDateTime!.isBefore(_applyStartDateTime!) ||
+              _applyEndDateTime!.isAtSameMomentAs(_applyStartDateTime!)) {
+            // 같은 날이지만 시간을 1시간 뒤로 설정
+            if (_applyStartDateTime!.hour < 23) {
+              _applyEndDateTime = DateTime(
+                _applyStartDateTime!.year,
+                _applyStartDateTime!.month,
+                _applyStartDateTime!.day,
+                _applyStartDateTime!.hour + 1,
+                0,
+              );
+            } else {
+              // 23시인 경우 다음 날 0시로 설정
+              _applyEndDateTime = DateTime(
+                _applyStartDateTime!.year,
+                _applyStartDateTime!.month,
+                _applyStartDateTime!.day + 1,
+                0,
+                0,
+              );
             }
-            // 종료일이 변경되면 만기일도 자동 조정
-            if (_endDateTime != null) {
-              if (_expirationDateTime == null ||
-                  _expirationDateTime!.isBefore(_endDateTime!) ||
-                  _expirationDateTime!.isAtSameMomentAs(_endDateTime!)) {
-                _expirationDateTime = _endDateTime!.add(
-                  const Duration(days: 30),
-                );
-              }
-            }
-          } else {
-            _endDateTime = dateTime;
-            // 종료일이 변경되면 만기일도 자동 조정
-            if (_expirationDateTime == null ||
-                _expirationDateTime!.isBefore(dateTime) ||
-                _expirationDateTime!.isAtSameMomentAs(dateTime)) {
-              _expirationDateTime = dateTime.add(const Duration(days: 30));
-            }
+          }
+          // 리뷰 시작일시 자동 조정
+          if (_reviewStartDateTime == null ||
+              _applyEndDateTime!.isAfter(_reviewStartDateTime!) ||
+              _applyEndDateTime!.isAtSameMomentAs(_reviewStartDateTime!)) {
+            _reviewStartDateTime = _applyEndDateTime!.add(
+              const Duration(days: 1),
+            );
+          }
+          // 리뷰 종료일시 자동 조정
+          if (_reviewEndDateTime == null ||
+              _reviewStartDateTime!.isAfter(_reviewEndDateTime!) ||
+              _reviewStartDateTime!.isAtSameMomentAs(_reviewEndDateTime!)) {
+            _reviewEndDateTime = _reviewStartDateTime!.add(
+              const Duration(days: 30),
+            );
           }
           _updateDateTimeControllers();
         });
@@ -1989,17 +2089,154 @@ class _CampaignCreationScreenState
     }
   }
 
-  Future<void> _selectExpirationDateTime(BuildContext context) async {
+  Future<void> _selectApplyEndDateTime(BuildContext context) async {
+    if (_applyStartDateTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('먼저 신청 시작일시를 선택해주세요.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final startDate = _applyStartDateTime!;
+    final date = await showDatePicker(
+      context: context,
+      initialDate:
+          _applyEndDateTime ??
+          (_applyStartDateTime?.add(const Duration(days: 7)) ??
+              DateTime.now().add(const Duration(days: 7))),
+      firstDate: DateTime(startDate.year, startDate.month, startDate.day),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (date != null) {
+      // 같은 날인 경우 시작일시의 시간보다 뒤로만 선택 가능
+      final isSameDay = date.year == startDate.year &&
+          date.month == startDate.month &&
+          date.day == startDate.day;
+
+      TimeOfDay initialTime;
+      if (_applyEndDateTime != null) {
+        initialTime = TimeOfDay.fromDateTime(_applyEndDateTime!);
+      } else if (isSameDay) {
+        // 같은 날이면 시작일시의 시간 + 1시간
+        initialTime = TimeOfDay(
+          hour: (startDate.hour + 1) % 24,
+          minute: 0,
+        );
+      } else {
+        initialTime = TimeOfDay.now();
+      }
+
+      final time = await showTimePicker(
+        context: context,
+        initialTime: initialTime,
+      );
+
+      if (time != null) {
+        final dateTime = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          time.hour,
+          0,
+        );
+
+        // 같은 날인 경우 시간 검증
+        if (isSameDay && dateTime.isBefore(startDate) ||
+            dateTime.isAtSameMomentAs(startDate)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시는 시작일시보다 뒤여야 합니다.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        setState(() {
+          _applyEndDateTime = dateTime;
+          // 리뷰 시작일시 자동 조정
+          if (_reviewStartDateTime == null ||
+              _applyEndDateTime!.isAfter(_reviewStartDateTime!) ||
+              _applyEndDateTime!.isAtSameMomentAs(_reviewStartDateTime!)) {
+            _reviewStartDateTime = _applyEndDateTime!.add(
+              const Duration(days: 1),
+            );
+          }
+          // 리뷰 종료일시 자동 조정
+          if (_reviewEndDateTime == null ||
+              _reviewStartDateTime!.isAfter(_reviewEndDateTime!) ||
+              _reviewStartDateTime!.isAtSameMomentAs(_reviewEndDateTime!)) {
+            _reviewEndDateTime = _reviewStartDateTime!.add(
+              const Duration(days: 30),
+            );
+          }
+          _updateDateTimeControllers();
+        });
+      }
+    }
+  }
+
+  Future<void> _selectReviewStartDateTime(BuildContext context) async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate:
+          _reviewStartDateTime ??
+          (_applyEndDateTime?.add(const Duration(days: 1)) ??
+              DateTime.now().add(const Duration(days: 8))),
+      firstDate:
+          _applyEndDateTime?.add(const Duration(days: 1)) ??
+          DateTime.now().add(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (date != null) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: _reviewStartDateTime != null
+            ? TimeOfDay.fromDateTime(_reviewStartDateTime!)
+            : TimeOfDay.now(),
+      );
+
+      if (time != null) {
+        final dateTime = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          time.hour,
+          0,
+        );
+
+        setState(() {
+          _reviewStartDateTime = dateTime;
+          // 리뷰 종료일시 자동 조정
+          if (_reviewEndDateTime == null ||
+              _reviewStartDateTime!.isAfter(_reviewEndDateTime!) ||
+              _reviewStartDateTime!.isAtSameMomentAs(_reviewEndDateTime!)) {
+            _reviewEndDateTime = _reviewStartDateTime!.add(
+              const Duration(days: 30),
+            );
+          }
+          _updateDateTimeControllers();
+        });
+      }
+    }
+  }
+
+  Future<void> _selectReviewEndDateTime(BuildContext context) async {
     final now = DateTime.now();
     final initialDate =
-        _expirationDateTime ??
-        (_endDateTime?.add(const Duration(days: 30)) ??
-            now.add(const Duration(days: 31)));
+        _reviewEndDateTime ??
+        (_reviewStartDateTime?.add(const Duration(days: 30)) ??
+            now.add(const Duration(days: 38)));
 
     final date = await showDatePicker(
       context: context,
       initialDate: initialDate,
-      firstDate: _endDateTime?.add(const Duration(days: 1)) ?? now,
+      firstDate: _reviewStartDateTime?.add(const Duration(days: 1)) ?? now,
       lastDate: now.add(const Duration(days: 365)),
     );
 
@@ -2015,7 +2252,7 @@ class _CampaignCreationScreenState
     final dateTime = DateTime(date.year, date.month, date.day, time.hour, 0);
 
     setState(() {
-      _expirationDateTime = dateTime;
+      _reviewEndDateTime = dateTime;
       _updateDateTimeControllers();
     });
   }
@@ -2144,27 +2381,90 @@ class _CampaignCreationScreenState
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _paymentType,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: '비용 지급 방법 *',
                 border: OutlineInputBorder(),
                 filled: true,
                 fillColor: Colors.white,
               ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'platform',
-                  child: Text('플랫폼 지급 (결제금액 + 리뷰비 + 500)'),
-                ),
+              selectedItemBuilder: (BuildContext context) {
+                final maxParticipants = _maxParticipantsController.text.isEmpty
+                    ? '0'
+                    : _maxParticipantsController.text;
+                final paymentAmount = _paymentAmountController.text.isEmpty
+                    ? '0'
+                    : _paymentAmountController.text;
+                final campaignReward = _campaignRewardController.text.isEmpty
+                    ? '0'
+                    : _campaignRewardController.text;
+
+                return [
+                  Text(
+                    '직접 지급 [플랫폼수수료(500) × 모집인원($maxParticipants)]',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  Text(
+                    '플랫폼 지급 [플랫폼수수료(500) + 제품금액($paymentAmount) + 리뷰비($campaignReward)] × 모집인원($maxParticipants) (추가예정)',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ];
+              },
+              items: [
                 DropdownMenuItem(
                   value: 'direct',
-                  child: Text('직접 지급 (500 × 신청인원)'),
+                  child: Builder(
+                    builder: (context) {
+                      final maxParticipants =
+                          _maxParticipantsController.text.isEmpty
+                          ? '0'
+                          : _maxParticipantsController.text;
+                      return Text(
+                        '직접 지급 [플랫폼수수료(500) × 모집인원($maxParticipants)]',
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                        maxLines: 2,
+                      );
+                    },
+                  ),
+                  enabled: true,
+                ),
+                DropdownMenuItem(
+                  value: 'platform',
+                  child: Builder(
+                    builder: (context) {
+                      final maxParticipants =
+                          _maxParticipantsController.text.isEmpty
+                          ? '0'
+                          : _maxParticipantsController.text;
+                      final paymentAmount =
+                          _paymentAmountController.text.isEmpty
+                          ? '0'
+                          : _paymentAmountController.text;
+                      final campaignReward =
+                          _campaignRewardController.text.isEmpty
+                          ? '0'
+                          : _campaignRewardController.text;
+                      return Text(
+                        '플랫폼 지급 [플랫폼수수료(500) + 제품금액($paymentAmount) + 리뷰비($campaignReward)] × 모집인원($maxParticipants) (추가예정)',
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                        maxLines: 2,
+                      );
+                    },
+                  ),
+                  enabled: false,
                 ),
               ],
               onChanged: (value) {
-                setState(() {
-                  _paymentType = value!;
-                  _calculateCost();
-                });
+                if (value != null && value == 'direct') {
+                  setState(() {
+                    _paymentType = value;
+                    _calculateCost();
+                  });
+                }
               },
             ),
             const SizedBox(height: 16),
@@ -2288,9 +2588,10 @@ class _CampaignCreationScreenState
     final maxParticipants = _maxParticipantsController.text;
 
     return productName.isNotEmpty &&
-        _startDateTime != null &&
-        _endDateTime != null &&
-        _expirationDateTime != null &&
+        _applyStartDateTime != null &&
+        _applyEndDateTime != null &&
+        _reviewStartDateTime != null &&
+        _reviewEndDateTime != null &&
         _totalCost <= _currentBalance &&
         (int.tryParse(maxParticipants) ?? 0) > 0 &&
         !_isUploadingImage &&
@@ -2298,16 +2599,20 @@ class _CampaignCreationScreenState
   }
 
   void _updateDateTimeControllers() {
-    _startDateTimeController.text = _startDateTime != null
-        ? '${_startDateTime!.year}-${_startDateTime!.month.toString().padLeft(2, '0')}-${_startDateTime!.day.toString().padLeft(2, '0')} ${_startDateTime!.hour.toString().padLeft(2, '0')}:00'
+    _applyStartDateTimeController.text = _applyStartDateTime != null
+        ? '${_applyStartDateTime!.year}-${_applyStartDateTime!.month.toString().padLeft(2, '0')}-${_applyStartDateTime!.day.toString().padLeft(2, '0')} ${_applyStartDateTime!.hour.toString().padLeft(2, '0')}:00'
         : '';
 
-    _endDateTimeController.text = _endDateTime != null
-        ? '${_endDateTime!.year}-${_endDateTime!.month.toString().padLeft(2, '0')}-${_endDateTime!.day.toString().padLeft(2, '0')} ${_endDateTime!.hour.toString().padLeft(2, '0')}:00'
+    _applyEndDateTimeController.text = _applyEndDateTime != null
+        ? '${_applyEndDateTime!.year}-${_applyEndDateTime!.month.toString().padLeft(2, '0')}-${_applyEndDateTime!.day.toString().padLeft(2, '0')} ${_applyEndDateTime!.hour.toString().padLeft(2, '0')}:00'
         : '';
 
-    _expirationDateTimeController.text = _expirationDateTime != null
-        ? '${_expirationDateTime!.year}-${_expirationDateTime!.month.toString().padLeft(2, '0')}-${_expirationDateTime!.day.toString().padLeft(2, '0')} ${_expirationDateTime!.hour.toString().padLeft(2, '0')}:00'
+    _reviewStartDateTimeController.text = _reviewStartDateTime != null
+        ? '${_reviewStartDateTime!.year}-${_reviewStartDateTime!.month.toString().padLeft(2, '0')}-${_reviewStartDateTime!.day.toString().padLeft(2, '0')} ${_reviewStartDateTime!.hour.toString().padLeft(2, '0')}:00'
+        : '';
+
+    _reviewEndDateTimeController.text = _reviewEndDateTime != null
+        ? '${_reviewEndDateTime!.year}-${_reviewEndDateTime!.month.toString().padLeft(2, '0')}-${_reviewEndDateTime!.day.toString().padLeft(2, '0')} ${_reviewEndDateTime!.hour.toString().padLeft(2, '0')}:00'
         : '';
   }
 
