@@ -31,7 +31,7 @@ class _AdvertiserMyPageScreenState
   int _registeredCount = 0;
   int _completedCount = 0;
   bool _isLoadingStats = true;
-  
+
   // 포인트 관련 상태
   int? _currentPoints;
   bool _isLoadingPoints = true;
@@ -154,7 +154,7 @@ class _AdvertiserMyPageScreenState
 
             if (companyResult != null) {
               final companyId = companyResult['company_id'] as String;
-              
+
               // 2. 회사의 캠페인 조회
               final directResult = await SupabaseConfig.client
                   .from('campaigns')
@@ -188,7 +188,8 @@ class _AdvertiserMyPageScreenState
           if (campaign.applyStartDate.isAfter(now)) return false;
           if (campaign.applyEndDate.isBefore(now)) return false;
           if (campaign.maxParticipants != null &&
-              campaign.currentParticipants >= campaign.maxParticipants!) return false;
+              campaign.currentParticipants >= campaign.maxParticipants!)
+            return false;
           return true;
         }).toList();
 
