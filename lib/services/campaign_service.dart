@@ -5,6 +5,7 @@ import '../models/campaign.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
+import '../utils/date_time_utils.dart';
 import 'campaign_duplicate_check_service.dart';
 import 'cloudflare_workers_service.dart';
 
@@ -761,10 +762,10 @@ class CampaignService {
           'p_campaign_reward': campaignReward,
           'p_max_participants': maxParticipants,
           'p_max_per_reviewer': maxPerReviewer,
-          'p_apply_start_date': applyStartDate.toIso8601String(),
-          'p_apply_end_date': applyEndDate.toIso8601String(),
-          'p_review_start_date': reviewStartDate.toIso8601String(),
-          'p_review_end_date': reviewEndDate.toIso8601String(),
+          'p_apply_start_date': DateTimeUtils.toIso8601StringKST(applyStartDate),
+          'p_apply_end_date': DateTimeUtils.toIso8601StringKST(applyEndDate),
+          'p_review_start_date': DateTimeUtils.toIso8601StringKST(reviewStartDate),
+          'p_review_end_date': DateTimeUtils.toIso8601StringKST(reviewEndDate),
           'p_platform': platform,
           'p_keyword': keyword,
           'p_option': option,
@@ -833,6 +834,101 @@ class CampaignService {
       return ApiResponse<Campaign>(
         success: false,
         error: '캠페인 생성 중 오류가 발생했습니다: ${e.toString()}',
+      );
+    }
+  }
+
+  /// 캠페인 업데이트
+  Future<ApiResponse<Campaign>> updateCampaignV2({
+    required String campaignId,
+    required String title,
+    required String description,
+    required String campaignType,
+    required String platform,
+    required int campaignReward,
+    required int maxParticipants,
+    required int maxPerReviewer,
+    required DateTime applyStartDate,
+    required DateTime applyEndDate,
+    required DateTime reviewStartDate,
+    required DateTime reviewEndDate,
+    String? keyword,
+    String? option,
+    int? quantity,
+    String? seller,
+    String? productNumber,
+    String? productName,
+    int? productPrice,
+    String? purchaseMethod,
+    String? reviewType,
+    int? reviewTextLength,
+    int? reviewImageCount,
+    bool? preventProductDuplicate,
+    bool? preventStoreDuplicate,
+    int? duplicatePreventDays,
+    String? paymentMethod,
+    String? productImageUrl,
+  }) async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse<Campaign>(
+          success: false,
+          error: '로그인이 필요합니다.',
+        );
+      }
+
+      // RPC 함수 호출 (update_campaign_v2)
+      final response = await _supabase.rpc(
+        'update_campaign_v2',
+        params: {
+          'p_campaign_id': campaignId,
+          'p_title': title,
+          'p_description': description,
+          'p_campaign_type': campaignType,
+          'p_campaign_reward': campaignReward,
+          'p_max_participants': maxParticipants,
+          'p_max_per_reviewer': maxPerReviewer,
+          'p_apply_start_date': DateTimeUtils.toIso8601StringKST(applyStartDate),
+          'p_apply_end_date': DateTimeUtils.toIso8601StringKST(applyEndDate),
+          'p_review_start_date': DateTimeUtils.toIso8601StringKST(reviewStartDate),
+          'p_review_end_date': DateTimeUtils.toIso8601StringKST(reviewEndDate),
+          'p_platform': platform,
+          'p_keyword': keyword,
+          'p_option': option,
+          'p_quantity': quantity ?? 1,
+          'p_seller': seller,
+          'p_product_number': productNumber,
+          'p_product_image_url': productImageUrl,
+          'p_product_name': productName,
+          'p_product_price': productPrice,
+          'p_purchase_method': purchaseMethod ?? 'mobile',
+          'p_review_type': reviewType ?? 'star_only',
+          'p_review_text_length': reviewTextLength,
+          'p_review_image_count': reviewImageCount,
+          'p_prevent_product_duplicate': preventProductDuplicate ?? false,
+          'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
+          'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
+          'p_payment_method': paymentMethod ?? 'platform',
+        },
+      );
+
+      if (response['success'] == true) {
+        // 업데이트된 캠페인 조회
+        final updatedCampaign = await getCampaignById(campaignId);
+        return updatedCampaign;
+      }
+
+      return ApiResponse<Campaign>(
+        success: false,
+        error: response['error'] ?? '캠페인 업데이트에 실패했습니다.',
+      );
+    } catch (e) {
+      final errorMessage = e.toString();
+      print('❌ 캠페인 업데이트 실패: $e');
+      return ApiResponse<Campaign>(
+        success: false,
+        error: '캠페인 업데이트 중 오류가 발생했습니다: ${errorMessage}',
       );
     }
   }

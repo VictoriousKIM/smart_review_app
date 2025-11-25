@@ -1,53 +1,31 @@
 import 'dart:async';
-import 'dart:typed_data';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, compute;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
-import 'package:image/image.dart' as img;
-import '../../services/campaign_image_service.dart';
-import '../../widgets/image_crop_editor.dart';
 import '../../services/campaign_service.dart';
 import '../../services/wallet_service.dart';
-import '../../services/cloudflare_workers_service.dart';
-import '../../services/company_user_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../config/supabase_config.dart';
-import '../../utils/error_handler.dart';
 import '../../utils/date_time_utils.dart';
+import '../../models/campaign.dart';
 
-class CampaignCreationScreen extends ConsumerStatefulWidget {
-  const CampaignCreationScreen({super.key});
+class CampaignEditScreen extends ConsumerStatefulWidget {
+  final String campaignId;
+
+  const CampaignEditScreen({super.key, required this.campaignId});
 
   @override
-  ConsumerState<CampaignCreationScreen> createState() =>
-      _CampaignCreationScreenState();
+  ConsumerState<CampaignEditScreen> createState() => _CampaignEditScreenState();
 }
 
-class _CampaignCreationScreenState
-    extends ConsumerState<CampaignCreationScreen> {
+class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _imagePicker = ImagePicker();
-  final _campaignImageService = CampaignImageService();
   final _campaignService = CampaignService();
 
-  // ✅ 6. 이미지 캐싱
-  final Map<String, Uint8List> _imageCache = {};
-
-  // 이미지 관련
-  Uint8List? _capturedImage;
-  Uint8List? _productImage;
-  Rect? _currentCropRect;
-  bool _isAnalyzing = false;
-  bool _isLoadingImage = false;
-  bool _isEditingImage = false;
   bool _isCreatingCampaign = false;
-  bool _isUploadingImage = false;
-  double _uploadProgress = 0.0;
+  bool _isLoadingCampaign = false;
+  Campaign? _originalCampaign;
   String? _lastCampaignCreationId; // 중복 호출 방지용
 
   // 컨트롤러들
@@ -93,10 +71,6 @@ class _CampaignCreationScreenState
   Timer? _costCalculationTimer;
   bool _ignoreCostListeners = false;
 
-  // ✅ 9. Throttle
-  Timer? _throttleTimer;
-  bool _throttleActive = false;
-
   // DateTime 컨트롤러
   late final TextEditingController _applyStartDateTimeController;
   late final TextEditingController _applyEndDateTimeController;
@@ -121,8 +95,89 @@ class _CampaignCreationScreenState
 
     // 무거운 작업은 프레임 렌더링 후 단계별 실행
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeInStages();
+      _loadCampaignData();
     });
+  }
+
+  Future<void> _loadCampaignData() async {
+    setState(() {
+      _isLoadingCampaign = true;
+    });
+
+    try {
+      final result = await _campaignService.getCampaignById(widget.campaignId);
+      if (result.success && result.data != null) {
+        final campaign = result.data!;
+        _originalCampaign = campaign;
+
+        // 기존 캠페인 데이터로 필드 초기화
+        _productNameController.text = campaign.productName ?? campaign.title;
+        _keywordController.text = campaign.keyword ?? '';
+        _optionController.text = campaign.option ?? '';
+        _quantityController.text = campaign.quantity.toString();
+        _sellerController.text = campaign.seller ?? '';
+        _productNumberController.text = campaign.productNumber ?? '';
+        _paymentAmountController.text = (campaign.productPrice ?? 0).toString();
+        _campaignRewardController.text = campaign.campaignReward.toString();
+        _maxParticipantsController.text =
+            campaign.maxParticipants?.toString() ?? '10';
+        _maxPerReviewerController.text = campaign.maxPerReviewer.toString();
+        _duplicateCheckDaysController.text = campaign.duplicatePreventDays
+            .toString();
+
+        _campaignType = campaign.campaignType.name;
+        _platform = campaign.platform;
+        _purchaseMethod = campaign.purchaseMethod;
+        _reviewType = campaign.reviewType;
+        _preventProductDuplicate = campaign.preventProductDuplicate;
+        _preventStoreDuplicate = campaign.preventStoreDuplicate;
+
+        _applyStartDateTime = campaign.applyStartDate;
+        _applyEndDateTime = campaign.applyEndDate;
+        _reviewStartDateTime = campaign.reviewStartDate;
+        _reviewEndDateTime = campaign.reviewEndDate;
+
+        if (campaign.reviewType == 'star_text' ||
+            campaign.reviewType == 'star_text_image') {
+          _reviewTextLengthController.text = campaign.reviewTextLength
+              .toString();
+        }
+        if (campaign.reviewType == 'star_text_image') {
+          _reviewImageCountController.text = campaign.reviewImageCount
+              .toString();
+        }
+
+        _updateDateTimeControllers();
+        _calculateCost();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.error ?? '캠페인을 불러올 수 없습니다.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          context.pop();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('캠페인 로딩 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        context.pop();
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingCampaign = false;
+        });
+        await _initializeInStages();
+      }
+    }
   }
 
   // ✅ 1. 단계별 초기화 (우선순위별 로딩)
@@ -149,8 +204,6 @@ class _CampaignCreationScreenState
   @override
   void dispose() {
     _costCalculationTimer?.cancel();
-    _throttleTimer?.cancel();
-    _imageCache.clear(); // ✅ 6. 캐시 정리
 
     // 컨트롤러 정리
     _keywordController.dispose();
@@ -273,732 +326,10 @@ class _CampaignCreationScreenState
   String get _formattedRemaining =>
       _cachedFormattedRemaining ?? _formatNumber(_currentBalance - _totalCost);
 
-  // ✅ 2. 이미지 선택 최적화 (즉각적인 UI 피드백)
-  Future<void> _pickImage() async {
-    // 즉시 로딩 상태만 표시 (동기 실행)
-    setState(() {
-      _isLoadingImage = true;
-      _errorMessage = null;
-    });
-
-    // UI 업데이트 후 비동기 작업 실행
-    Future.microtask(() async {
-      Uint8List? pendingImageBytes;
-      String? pendingErrorMessage;
-
-      try {
-        final XFile? image = await _imagePicker.pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 70,
-          maxWidth: 1920,
-          maxHeight: 1920,
-        );
-
-        if (image != null) {
-          final bytes = await image.readAsBytes();
-
-          if (bytes.length > 5 * 1024 * 1024) {
-            pendingErrorMessage = '이미지 크기가 너무 큽니다. (최대 5MB)';
-          } else {
-            // ✅ 6. 캐시 확인 후 리사이징
-            pendingImageBytes = await _getCachedOrResizeImage(bytes);
-          }
-        }
-      } catch (e) {
-        pendingErrorMessage = '이미지 선택 실패: $e';
-      }
-
-      if (mounted) {
-        setState(() {
-          _isLoadingImage = false;
-          if (pendingImageBytes != null) {
-            _capturedImage = pendingImageBytes;
-            _productImage = null;
-            _currentCropRect = null;
-            _errorMessage = null;
-          }
-          if (pendingErrorMessage != null) {
-            _errorMessage = pendingErrorMessage;
-          }
-        });
-      }
-    });
-  }
-
-  // ✅ 6. 이미지 캐싱 (중복 처리 방지)
-  Future<Uint8List> _getCachedOrResizeImage(Uint8List originalBytes) async {
-    final key = '${originalBytes.lengthInBytes}_${originalBytes.hashCode}';
-
-    if (_imageCache.containsKey(key)) {
-      print('✅ 캐시된 이미지 사용');
-      return _imageCache[key]!;
-    }
-
-    print('🔄 이미지 리사이징 시작...');
-    final resized = await compute(
-      _resizeImageInIsolate,
-      _ResizeImageParams(
-        imageBytes: originalBytes,
-        maxWidth: 1920,
-        maxHeight: 1920,
-        quality: 85,
-      ),
-    );
-
-    _imageCache[key] = resized;
-    return resized;
-  }
-
-  // ✅ 3. 이미지 분석 최적화 (백그라운드 처리)
-  Future<void> _extractFromImage() async {
-    if (_capturedImage == null) {
-      setState(() => _errorMessage = '먼저 이미지를 선택해주세요.');
-      return;
-    }
-
-    // 즉시 로딩 표시
-    setState(() {
-      _isAnalyzing = true;
-      _errorMessage = null;
-    });
-
-    // 비동기 작업을 마이크로태스크로 분리
-    Future.microtask(() async {
-      String? pendingErrorMessage;
-      Map<String, dynamic>? pendingExtractedData;
-
-      try {
-        final extractedData = await _campaignImageService.extractFromImage(
-          _capturedImage!,
-        );
-
-        if (extractedData != null) {
-          pendingExtractedData = extractedData;
-
-          // ✅ 플래그로 리스너 무시 (불필요한 비용 계산 방지)
-          _ignoreCostListeners = true;
-
-          _keywordController.text = extractedData['keyword'] ?? '';
-          _productNameController.text = extractedData['title'] ?? '';
-          _optionController.text = extractedData['option'] ?? '';
-          _quantityController.text = (extractedData['quantity'] ?? 1)
-              .toString();
-          _sellerController.text = extractedData['seller'] ?? '';
-          _productNumberController.text = extractedData['productNumber'] ?? '';
-          _paymentAmountController.text =
-              (extractedData['productPrice'] ??
-                      extractedData['paymentAmount'] ??
-                      0)
-                  .toString();
-
-          _ignoreCostListeners = false;
-          _calculateCost();
-
-          // ✅ 크롭 작업은 별도로 비동기 실행 (UI 블로킹 방지)
-          final cropData = extractedData['productImageCrop'];
-          if (cropData != null) {
-            _processCropInBackground(cropData);
-          } else {
-            if (mounted) {
-              setState(() => _productImage = _capturedImage);
-            }
-          }
-        } else {
-          pendingErrorMessage = '이미지에서 정보를 추출할 수 없습니다.';
-        }
-      } catch (e) {
-        pendingErrorMessage = '이미지 분석 실패: $e';
-      }
-
-      // 분석 완료 상태 업데이트
-      if (mounted) {
-        setState(() {
-          _isAnalyzing = false;
-          if (pendingErrorMessage != null) {
-            _errorMessage = pendingErrorMessage;
-          }
-        });
-
-        // 성공 메시지는 별도로
-        if (pendingExtractedData != null && pendingErrorMessage == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('이미지 분석 완료!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
-      }
-    });
-  }
-
-  // ✅ 3. 크롭 작업을 백그라운드에서 실행 (UI와 독립적)
-  Future<void> _processCropInBackground(Map<String, dynamic> cropData) async {
-    try {
-      final normalizedResult = await compute(
-        _normalizeCropCoordinates,
-        _NormalizeCropParams(
-          imageBytes: _capturedImage!,
-          x: cropData['x']?.toInt() ?? 0,
-          y: cropData['y']?.toInt() ?? 0,
-          width: cropData['width']?.toInt() ?? 0,
-          height: cropData['height']?.toInt() ?? 0,
-        ),
-      );
-
-      if (normalizedResult != null &&
-          normalizedResult['normalizedWidth']! > 0 &&
-          normalizedResult['normalizedHeight']! > 0) {
-        _currentCropRect = Rect.fromLTWH(
-          normalizedResult['normalizedX']!.toDouble(),
-          normalizedResult['normalizedY']!.toDouble(),
-          normalizedResult['normalizedWidth']!.toDouble(),
-          normalizedResult['normalizedHeight']!.toDouble(),
-        );
-
-        // 크롭 작업도 비동기로
-        await _cropProductImage(
-          _capturedImage!,
-          normalizedResult['normalizedX']!,
-          normalizedResult['normalizedY']!,
-          normalizedResult['normalizedWidth']!,
-          normalizedResult['normalizedHeight']!,
-        );
-      }
-    } catch (e) {
-      print('⚠️ 백그라운드 크롭 처리 실패: $e');
-      if (mounted) {
-        setState(() => _productImage = _capturedImage);
-      }
-    }
-  }
-
-  Future<void> _cropProductImage(
-    Uint8List imageBytes,
-    int x,
-    int y,
-    int width,
-    int height,
-  ) async {
-    try {
-      print('🔧 크롭 작업 시작: x=$x, y=$y, w=$width, h=$height');
-
-      final cropResult = await compute(
-        _cropImageInIsolate,
-        _CropImageParams(
-          imageBytes: imageBytes,
-          x: x,
-          y: y,
-          width: width,
-          height: height,
-        ),
-      );
-
-      if (cropResult == null) {
-        print('❌ 이미지 크롭 실패');
-        if (mounted) {
-          setState(() {
-            _errorMessage = '이미지를 처리할 수 없습니다.';
-            _productImage = imageBytes;
-          });
-        }
-        return;
-      }
-
-      final croppedBytes = cropResult['croppedBytes'] as Uint8List;
-      final cropX = cropResult['cropX'] as int;
-      final cropY = cropResult['cropY'] as int;
-      final cropWidth = cropResult['cropWidth'] as int;
-      final cropHeight = cropResult['cropHeight'] as int;
-
-      print('✅ 크롭 완료: ${cropWidth}x${cropHeight}');
-
-      if (mounted) {
-        setState(() {
-          _productImage = croppedBytes;
-          _currentCropRect = Rect.fromLTWH(
-            cropX.toDouble(),
-            cropY.toDouble(),
-            cropWidth.toDouble(),
-            cropHeight.toDouble(),
-          );
-          _errorMessage = null;
-        });
-      }
-    } catch (e, stackTrace) {
-      print('❌ 크롭 실패: $e\n$stackTrace');
-      if (mounted) {
-        setState(() {
-          _productImage = imageBytes;
-          _errorMessage = '이미지 크롭 실패: $e';
-        });
-      }
-    }
-  }
-
-  static Map<String, dynamic>? _cropImageInIsolate(_CropImageParams params) {
-    try {
-      final originalImage = img.decodeImage(params.imageBytes);
-      if (originalImage == null) return null;
-
-      final imageWidth = originalImage.width;
-      final imageHeight = originalImage.height;
-
-      int cropX = params.x.clamp(0, imageWidth - 1);
-      int cropY = params.y.clamp(0, imageHeight - 1);
-      int cropWidth = params.width.clamp(1, imageWidth - cropX);
-      int cropHeight = params.height.clamp(1, imageHeight - cropY);
-
-      if (cropWidth < 10 || cropHeight < 10) return null;
-
-      final croppedImage = img.copyCrop(
-        originalImage,
-        x: cropX,
-        y: cropY,
-        width: cropWidth,
-        height: cropHeight,
-      );
-
-      final croppedBytes = Uint8List.fromList(
-        img.encodeJpg(croppedImage, quality: 85),
-      );
-
-      return {
-        'croppedBytes': croppedBytes,
-        'cropX': cropX,
-        'cropY': cropY,
-        'cropWidth': cropWidth,
-        'cropHeight': cropHeight,
-      };
-    } catch (e) {
-      print('❌ Isolate 크롭 실패: $e');
-      return null;
-    }
-  }
-
-  static Map<String, int>? _normalizeCropCoordinates(
-    _NormalizeCropParams params,
-  ) {
-    try {
-      final image = img.decodeImage(params.imageBytes);
-      if (image == null) return null;
-
-      final actualWidth = image.width;
-      final actualHeight = image.height;
-
-      int normalizedX = params.x.clamp(0, actualWidth - 1);
-      int normalizedY = params.y.clamp(0, actualHeight - 1);
-      int normalizedWidth = params.width.clamp(1, actualWidth - normalizedX);
-      int normalizedHeight = params.height.clamp(1, actualHeight - normalizedY);
-
-      return {
-        'normalizedX': normalizedX,
-        'normalizedY': normalizedY,
-        'normalizedWidth': normalizedWidth,
-        'normalizedHeight': normalizedHeight,
-      };
-    } catch (e) {
-      print('❌ 크롭 좌표 정규화 실패: $e');
-      return null;
-    }
-  }
-
-  // ✅ 9. Throttle 헬퍼 함수
-  void _throttle(
-    VoidCallback action, {
-    Duration duration = const Duration(milliseconds: 300),
-  }) {
-    if (_throttleActive) return;
-
-    _throttleActive = true;
-    action();
-
-    _throttleTimer?.cancel();
-    _throttleTimer = Timer(duration, () {
-      _throttleActive = false;
-    });
-  }
-
-  // ✅ 9. Throttle 적용한 이미지 편집
-  Future<void> _editProductImage() async {
-    _throttle(() async {
-      if (_capturedImage == null) {
-        setState(() => _errorMessage = '먼저 이미지를 선택해주세요.');
-        return;
-      }
-
-      setState(() {
-        _isEditingImage = true;
-        _errorMessage = null;
-      });
-
-      String? pendingErrorMessage;
-      Uint8List? pendingProductImage;
-      bool webDialogShown = false;
-
-      try {
-        if (kIsWeb) {
-          await _showWebCropDialog();
-          webDialogShown = true;
-          if (mounted) {
-            setState(() => _isEditingImage = false);
-          }
-          return;
-        }
-
-        final tempDir = Directory.systemTemp;
-        File? tempFile;
-
-        try {
-          tempFile = File(
-            '${tempDir.path}/temp_crop_${DateTime.now().millisecondsSinceEpoch}.png',
-          );
-          await tempFile.writeAsBytes(_capturedImage!);
-
-          final croppedFile = await ImageCropper().cropImage(
-            sourcePath: tempFile.path,
-            aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-            uiSettings: [
-              AndroidUiSettings(
-                toolbarTitle: '상품 이미지 크롭',
-                toolbarColor: const Color(0xFF137fec),
-                toolbarWidgetColor: Colors.white,
-                initAspectRatio: CropAspectRatioPreset.original,
-                lockAspectRatio: false,
-              ),
-              IOSUiSettings(title: '상품 이미지 크롭', aspectRatioLockEnabled: false),
-            ],
-          );
-
-          if (croppedFile != null) {
-            pendingProductImage = await croppedFile.readAsBytes();
-          }
-        } finally {
-          try {
-            if (tempFile != null && await tempFile.exists()) {
-              await tempFile.delete();
-            }
-          } catch (e) {
-            print('⚠️ 임시 파일 삭제 실패: $e');
-          }
-        }
-      } catch (e) {
-        print('❌ 이미지 크롭 실패: $e');
-        pendingErrorMessage = '이미지 편집 실패: $e';
-
-        if (kIsWeb && !webDialogShown) {
-          try {
-            await _showWebCropDialog();
-            pendingErrorMessage = null;
-          } catch (e2) {
-            pendingErrorMessage = '이미지 편집 실패: $e2';
-          }
-        }
-      } finally {
-        if (mounted && !webDialogShown) {
-          setState(() {
-            _isEditingImage = false;
-            if (pendingErrorMessage != null) {
-              _errorMessage = pendingErrorMessage;
-            }
-            if (pendingProductImage != null) {
-              _productImage = pendingProductImage;
-            }
-          });
-        }
-      }
-    });
-  }
-
-  Future<void> _showWebCropDialog() async {
-    if (_capturedImage == null) return;
-
-    final originalImage = await compute(_decodeImageInIsolate, _capturedImage!);
-    if (originalImage == null) {
-      if (mounted) {
-        setState(() => _errorMessage = '이미지 디코딩에 실패했습니다.');
-      }
-      return;
-    }
-
-    final imgWidth = originalImage.width;
-    final imgHeight = originalImage.height;
-
-    Rect? initialCrop =
-        _currentCropRect ??
-        Rect.fromLTWH(0, 0, imgWidth / 2, imgHeight.toDouble());
-
-    final result = await showDialog<Map<String, int>>(
-      context: context,
-      builder: (context) => ImageCropEditor(
-        imageBytes: _capturedImage!,
-        decodedImage: originalImage,
-        initialCrop: initialCrop,
-      ),
-    );
-
-    if (result == null || _capturedImage == null) return;
-
-    if (result['width']! <= 0 || result['height']! <= 0) {
-      setState(() => _errorMessage = '유효하지 않은 크롭 영역입니다');
-      return;
-    }
-
-    _currentCropRect = Rect.fromLTWH(
-      result['x']!.toDouble(),
-      result['y']!.toDouble(),
-      result['width']!.toDouble(),
-      result['height']!.toDouble(),
-    );
-
-    await _cropProductImage(
-      _capturedImage!,
-      result['x']!,
-      result['y']!,
-      result['width']!,
-      result['height']!,
-    );
-  }
-
-  // 상품 이미지 업로드 (Presigned URL 방식) - 재시도 로직 포함
-  Future<String?> _uploadProductImage(
-    Uint8List imageBytes, {
-    int maxRetries = 3,
-    bool showRetryDialog = true,
-  }) async {
-    int attempt = 0;
-
-    while (attempt < maxRetries) {
-      attempt++;
-      try {
-        setState(() {
-          _isUploadingImage = true;
-          _uploadProgress = 0.0;
-          _errorMessage = null;
-        });
-
-        final user = SupabaseConfig.client.auth.currentUser;
-        if (user == null) {
-          throw Exception('로그인이 필요합니다.');
-        }
-
-        // 회사 ID 가져오기
-        final companyId = await CompanyUserService.getUserCompanyId(user.id);
-        if (companyId == null) {
-          throw Exception('회사 정보를 찾을 수 없습니다.');
-        }
-
-        // 상품명 가져오기
-        final productName = _productNameController.text.trim();
-        if (productName.isEmpty) {
-          throw Exception('상품명을 입력해주세요.');
-        }
-
-        // 파일명 생성 (확장자만 사용)
-        final fileName = 'product.jpg';
-
-        // 1. Presigned URL 요청
-        setState(() {
-          _uploadProgress = 0.1;
-        });
-
-        final presignedUrlResponse =
-            await CloudflareWorkersService.getPresignedUrl(
-              fileName: fileName,
-              userId: user.id,
-              contentType: 'image/jpeg',
-              fileType: 'campaign-images',
-              method: 'PUT',
-              companyId: companyId,
-              productName: productName,
-            ).timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                throw TimeoutException('Presigned URL 요청 시간 초과');
-              },
-            );
-
-        if (!presignedUrlResponse.success) {
-          throw Exception('Presigned URL 생성 실패');
-        }
-
-        // 2. Presigned URL로 R2에 직접 업로드
-        setState(() {
-          _uploadProgress = 0.3;
-        });
-
-        await CloudflareWorkersService.uploadToPresignedUrl(
-          presignedUrl: presignedUrlResponse.url,
-          fileBytes: imageBytes,
-          contentType: 'image/jpeg',
-        ).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            throw TimeoutException('이미지 업로드 시간 초과');
-          },
-        );
-
-        // 3. Public URL 생성 (Cloudflare Workers를 통해 제공)
-        // R2 Public URL은 직접 접근이 안 될 수 있으므로 Workers를 통해 제공
-        final publicUrl =
-            '${SupabaseConfig.workersApiUrl}/api/files/${presignedUrlResponse.filePath}';
-
-        setState(() {
-          _uploadProgress = 1.0;
-          _isUploadingImage = false;
-        });
-
-        return publicUrl;
-      } catch (e) {
-        // 에러 타입 감지 및 로깅
-        final errorType = ErrorHandler.detectErrorType(e);
-        ErrorHandler.handleNetworkError(
-          e,
-          context: {
-            'operation': 'upload_product_image',
-            'attempt': attempt,
-            'maxRetries': maxRetries,
-          },
-        );
-
-        // 사용자 친화적 에러 메시지 생성
-        final userFriendlyMessage = ErrorHandler.getUserFriendlyMessage(
-          errorType,
-          e.toString(),
-        );
-
-        // 재시도 불가능한 에러인 경우 즉시 종료
-        if (_isNonRetryableError(e)) {
-          setState(() {
-            _errorMessage = userFriendlyMessage;
-            _isUploadingImage = false;
-          });
-          return null;
-        }
-
-        // 마지막 시도인 경우
-        if (attempt >= maxRetries) {
-          setState(() {
-            _errorMessage = userFriendlyMessage;
-            _isUploadingImage = false;
-          });
-          return null;
-        }
-
-        // 재시도 가능한 경우 다이얼로그 표시
-        if (showRetryDialog && mounted) {
-          final shouldRetry = await _showRetryDialog(
-            context,
-            userFriendlyMessage,
-            attempt,
-            maxRetries,
-          );
-
-          if (!shouldRetry) {
-            // 사용자가 취소
-            setState(() {
-              _isUploadingImage = false;
-            });
-            return null;
-          }
-        }
-
-        // 재시도 전 대기 (지수 백오프)
-        setState(() {
-          _uploadProgress = 0.0;
-        });
-        await Future.delayed(Duration(seconds: attempt * 2));
-      }
-    }
-
-    setState(() {
-      _isUploadingImage = false;
-    });
-    return null;
-  }
-
-  // 재시도 불가능한 에러인지 확인
-  bool _isNonRetryableError(dynamic error) {
-    final errorString = error.toString().toLowerCase();
-
-    // 인증 에러는 재시도 불가
-    if (errorString.contains('unauthorized') ||
-        errorString.contains('로그인이 필요') ||
-        errorString.contains('auth')) {
-      return true;
-    }
-
-    // 잘못된 요청은 재시도 불가
-    if (errorString.contains('bad request') ||
-        errorString.contains('400') ||
-        errorString.contains('invalid')) {
-      return true;
-    }
-
-    return false;
-  }
-
-  // 재시도 다이얼로그 표시
-  Future<bool> _showRetryDialog(
-    BuildContext context,
-    String errorMessage,
-    int currentAttempt,
-    int maxRetries,
-  ) async {
-    return await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Row(
-                children: [
-                  Icon(Icons.error_outline, color: Colors.orange),
-                  SizedBox(width: 8),
-                  Text('업로드 실패'),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(errorMessage),
-                  const SizedBox(height: 16),
-                  Text(
-                    '시도 횟수: $currentAttempt / $maxRetries',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '다시 시도하시겠습니까?',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('취소'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('다시 시도'),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
-  }
-
-  Future<void> _createCampaign() async {
+  Future<void> _updateCampaign() async {
     // ✅ 즉시 체크 (setState 전에) - 중복 호출 방지
     if (_isCreatingCampaign) {
-      debugPrint('⚠️ 캠페인 생성이 이미 진행 중입니다.');
+      debugPrint('⚠️ 캠페인 수정이 이미 진행 중입니다.');
       return;
     }
 
@@ -1029,27 +360,6 @@ class _CampaignCreationScreenState
     });
 
     try {
-      // ✅ 이미지 업로드
-      String? productImageUrl;
-      if (_productImage != null) {
-        productImageUrl = await _uploadProductImage(_productImage!);
-        if (productImageUrl == null) {
-          // 업로드 실패 시 생성 중단
-          setState(() {
-            _isCreatingCampaign = false;
-          });
-          return;
-        }
-      } else if (_capturedImage != null) {
-        productImageUrl = await _uploadProductImage(_capturedImage!);
-        if (productImageUrl == null) {
-          setState(() {
-            _isCreatingCampaign = false;
-          });
-          return;
-        }
-      }
-
       // ✅ review_type에 따른 값 설정
       int? reviewTextLength;
       int? reviewImageCount;
@@ -1146,9 +456,13 @@ class _CampaignCreationScreenState
         return;
       }
 
-      final response = await _campaignService.createCampaignV2(
+      // 기존 이미지 URL 사용 (이미지 변경 불가)
+      final finalImageUrl = _originalCampaign?.productImageUrl;
+
+      final response = await _campaignService.updateCampaignV2(
+        campaignId: widget.campaignId,
         title: _productNameController.text.trim(),
-        description: '', // ✅ product_description 제거
+        description: _originalCampaign?.description ?? '',
         campaignType: _campaignType,
         platform: _platform,
         campaignReward: int.tryParse(_campaignRewardController.text) ?? 0,
@@ -1163,20 +477,18 @@ class _CampaignCreationScreenState
         quantity: int.tryParse(_quantityController.text) ?? 1,
         seller: _sellerController.text.trim(),
         productNumber: _productNumberController.text.trim(),
-        productName: _productNameController.text.trim(), // ✅ 추가
-        productPrice:
-            int.tryParse(_paymentAmountController.text) ??
-            0, // ✅ paymentAmount를 productPrice로 변경
+        productName: _productNameController.text.trim(),
+        productPrice: int.tryParse(_paymentAmountController.text) ?? 0,
         reviewType: _reviewType,
-        reviewTextLength: reviewTextLength, // ✅ NULL 가능
-        reviewImageCount: reviewImageCount, // ✅ NULL 가능
+        reviewTextLength: reviewTextLength,
+        reviewImageCount: reviewImageCount,
         preventProductDuplicate: _preventProductDuplicate,
         preventStoreDuplicate: _preventStoreDuplicate,
         duplicatePreventDays:
             int.tryParse(_duplicateCheckDaysController.text) ?? 0,
         paymentMethod: _paymentType,
-        productImageUrl: productImageUrl,
-        purchaseMethod: _purchaseMethod, // ✅ 추가
+        productImageUrl: finalImageUrl,
+        purchaseMethod: _purchaseMethod,
       );
 
       if (response.success) {
@@ -1187,22 +499,19 @@ class _CampaignCreationScreenState
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response.message ?? '캠페인이 생성되었습니다!'),
+              content: Text(response.message ?? '캠페인이 수정되었습니다!'),
               backgroundColor: Colors.green,
             ),
           );
-          // pushNamed().then() 패턴: 생성된 캠페인 객체 전체를 반환하여 즉시 목록에 추가
           final campaign = response.data;
           if (campaign != null) {
-            debugPrint('✅ 캠페인 생성 성공 - campaignId: ${campaign.id}, title: ${campaign.title}');
-            // 생성된 Campaign 객체 전체를 반환
-            // GoRouter의 pop()이 반환값을 제대로 전달하지 못할 수 있으므로,
-            // _navigateToCreateCampaign에서 타임아웃을 설정하여 fallback 처리
+            debugPrint(
+              '✅ 캠페인 수정 성공 - campaignId: ${campaign.id}, title: ${campaign.title}',
+            );
             context.pop(campaign);
           } else {
             debugPrint('⚠️ Campaign 객체가 null입니다. 일반 새로고침으로 대체합니다.');
-            // Campaign 객체가 null인 경우 일반 새로고침
-            context.pop(true); // true를 반환하여 새로고침 필요함을 알림
+            context.pop(true);
           }
         }
       } else {
@@ -1211,7 +520,7 @@ class _CampaignCreationScreenState
         _lastCampaignCreationId = null;
 
         setState(() {
-          _errorMessage = response.error ?? '캠페인 생성에 실패했습니다.';
+          _errorMessage = response.error ?? '캠페인 수정에 실패했습니다.';
         });
       }
     } catch (e) {
@@ -1237,7 +546,7 @@ class _CampaignCreationScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
       appBar: AppBar(
-        title: const Text('캠페인 생성'),
+        title: const Text('캠페인 편집'),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -1245,309 +554,97 @@ class _CampaignCreationScreenState
           onPressed: () => context.pop(),
         ),
       ),
-      body: Form(
-        key: _formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    border: Border.all(color: Colors.red[200]!),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red[600]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _errorMessage!,
-                          style: TextStyle(color: Colors.red[800]),
+      body: _isLoadingCampaign
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_errorMessage != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          border: Border.all(color: Colors.red[200]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline, color: Colors.red[600]),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: TextStyle(color: Colors.red[800]),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () =>
+                                  setState(() => _errorMessage = null),
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => setState(() => _errorMessage = null),
-                      ),
+                      const SizedBox(height: 16),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
 
-              RepaintBoundary(child: _buildCampaignTypeSection()),
-              const SizedBox(height: 24),
+                    RepaintBoundary(child: _buildCampaignTypeSection()),
+                    const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildImageSection()),
-              const SizedBox(height: 24),
+                    RepaintBoundary(child: _buildProductInfoSection()),
+                    const SizedBox(height: 24),
 
-              if (_productImage != null || _capturedImage != null) ...[
-                RepaintBoundary(child: _buildProductImageSection()),
-                const SizedBox(height: 24),
-              ],
+                    RepaintBoundary(child: _buildReviewSettings()),
+                    const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildProductInfoSection()),
-              const SizedBox(height: 24),
+                    RepaintBoundary(child: _buildScheduleSection()),
+                    const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildReviewSettings()),
-              const SizedBox(height: 24),
+                    RepaintBoundary(child: _buildDuplicatePreventSection()),
+                    const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildScheduleSection()),
-              const SizedBox(height: 24),
+                    RepaintBoundary(child: _buildCostSection()),
+                    const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildDuplicatePreventSection()),
-              const SizedBox(height: 24),
+                    const SizedBox(height: 32),
 
-              RepaintBoundary(child: _buildCostSection()),
-              const SizedBox(height: 24),
-
-              if (_isUploadingImage) ...[
-                RepaintBoundary(child: _buildUploadProgressSection()),
-                const SizedBox(height: 24),
-              ],
-
-              const SizedBox(height: 32),
-
-              RepaintBoundary(
-                child: AbsorbPointer(
-                  absorbing:
-                      !_canCreateCampaign() ||
-                      _isCreatingCampaign ||
-                      _isUploadingImage,
-                  child: Opacity(
-                    opacity:
-                        (_canCreateCampaign() &&
-                            !_isCreatingCampaign &&
-                            !_isUploadingImage)
-                        ? 1.0
-                        : 0.6,
-                    child: CustomButton(
-                      text: '캠페인 생성하기',
-                      onPressed:
-                          _canCreateCampaign() &&
-                              !_isCreatingCampaign &&
-                              !_isUploadingImage
-                          ? () {
-                              // 중복 호출 방지: 즉시 체크
-                              if (_isCreatingCampaign) {
-                                debugPrint('⚠️ 캠페인 생성이 이미 진행 중입니다.');
-                                return;
-                              }
-                              _createCampaign();
-                            }
-                          : null,
-                      isLoading: _isCreatingCampaign || _isUploadingImage,
-                      backgroundColor: const Color(0xFF137fec),
-                      textColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageSection() {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.image, color: Colors.blue[600]),
-                const SizedBox(width: 8),
-                const Text(
-                  '캡처 이미지로 자동 추출',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_capturedImage != null)
-              Container(
-                height: 300,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.grey[50],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(_capturedImage!, fit: BoxFit.contain),
-                ),
-              )
-            else
-              Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.add_photo_alternate,
-                      size: 48,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '주문 화면 캡처 이미지를 선택하세요',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomButton(
-                    text: '이미지 선택',
-                    onPressed: _isLoadingImage ? null : _pickImage,
-                    isLoading: _isLoadingImage,
-                    backgroundColor: Colors.grey[700]!,
-                    textColor: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: CustomButton(
-                    text: '자동 추출',
-                    onPressed:
-                        _capturedImage != null &&
-                            !_isAnalyzing &&
-                            !_isLoadingImage
-                        ? _extractFromImage
-                        : null,
-                    isLoading: _isAnalyzing,
-                    backgroundColor: const Color(0xFF137fec),
-                    textColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProductImageSection() {
-    final displayImage = _productImage;
-
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.shopping_bag, color: Colors.green[600]),
-                const SizedBox(width: 8),
-                const Text(
-                  '상품 이미지',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                const Spacer(),
-                if (_productImage != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.green[200]!),
-                    ),
-                    child: Text(
-                      '크롭 완료',
-                      style: TextStyle(fontSize: 12, color: Colors.green[800]),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (displayImage != null)
-              Container(
-                height: 300,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.green[200]!),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.grey[50],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(displayImage, fit: BoxFit.contain),
-                ),
-              )
-            else
-              Container(
-                height: 300,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.crop_original,
-                      size: 48,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '상품 이미지가 없습니다',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
+                    RepaintBoundary(
+                      child: AbsorbPointer(
+                        absorbing: !_canCreateCampaign() || _isCreatingCampaign,
+                        child: Opacity(
+                          opacity:
+                              (_canCreateCampaign() && !_isCreatingCampaign)
+                              ? 1.0
+                              : 0.6,
+                          child: CustomButton(
+                            text: '캠페인 수정하기',
+                            onPressed:
+                                _canCreateCampaign() && !_isCreatingCampaign
+                                ? () {
+                                    // 중복 호출 방지: 즉시 체크
+                                    if (_isCreatingCampaign) {
+                                      debugPrint('⚠️ 캠페인 수정이 이미 진행 중입니다.');
+                                      return;
+                                    }
+                                    _updateCampaign();
+                                  }
+                                : null,
+                            isLoading: _isCreatingCampaign,
+                            backgroundColor: const Color(0xFF137fec),
+                            textColor: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '자동 추출을 실행하면 상품 이미지가 표시됩니다',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
                   ],
                 ),
               ),
-            const SizedBox(height: 12),
-            if (_capturedImage != null)
-              CustomButton(
-                text: _productImage != null ? '이미지 편집' : '이미지 크롭',
-                onPressed: _isEditingImage ? null : _editProductImage,
-                isLoading: _isEditingImage,
-                backgroundColor: const Color(0xFF137fec),
-                textColor: Colors.white,
-                icon: Icons.edit,
-              ),
-          ],
-        ),
-      ),
+            ),
     );
   }
 
@@ -2122,7 +1219,8 @@ class _CampaignCreationScreenState
 
     if (date != null) {
       // 같은 날인 경우 시작일시의 시간보다 뒤로만 선택 가능
-      final isSameDay = date.year == startDate.year &&
+      final isSameDay =
+          date.year == startDate.year &&
           date.month == startDate.month &&
           date.day == startDate.day;
 
@@ -2339,44 +1437,6 @@ class _CampaignCreationScreenState
                 }
                 return null;
               },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUploadProgressSection() {
-    return Card(
-      elevation: 2,
-      color: Colors.blue[50],
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.cloud_upload, color: Colors.blue[800]),
-                const SizedBox(width: 8),
-                const Text(
-                  '이미지 업로드 중',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            LinearProgressIndicator(
-              value: _uploadProgress > 0 ? _uploadProgress : null,
-              backgroundColor: Colors.blue[100],
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[700]!),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _uploadProgress > 0
-                  ? '업로드 진행 중... (${(_uploadProgress * 100).toStringAsFixed(0)}%)'
-                  : '업로드 준비 중...',
-              style: TextStyle(fontSize: 12, color: Colors.blue[700]),
             ),
           ],
         ),
@@ -2619,7 +1679,6 @@ class _CampaignCreationScreenState
         _reviewEndDateTime != null &&
         _totalCost <= _currentBalance &&
         (int.tryParse(maxParticipants) ?? 0) > 0 &&
-        !_isUploadingImage &&
         !_isCreatingCampaign; // ✅ 중복 호출 방지
   }
 
@@ -2640,111 +1699,4 @@ class _CampaignCreationScreenState
         ? '${_reviewEndDateTime!.year}-${_reviewEndDateTime!.month.toString().padLeft(2, '0')}-${_reviewEndDateTime!.day.toString().padLeft(2, '0')} ${_reviewEndDateTime!.hour.toString().padLeft(2, '0')}:${_reviewEndDateTime!.minute.toString().padLeft(2, '0')}'
         : '';
   }
-
-  static img.Image? _decodeImageInIsolate(Uint8List imageBytes) {
-    try {
-      return img.decodeImage(imageBytes);
-    } catch (e) {
-      print('❌ Isolate 이미지 디코딩 실패: $e');
-      return null;
-    }
-  }
-
-  static Uint8List _resizeImageInIsolate(_ResizeImageParams params) {
-    try {
-      final originalImage = img.decodeImage(params.imageBytes);
-      if (originalImage == null) {
-        print('❌ 이미지 디코딩 실패, 원본 반환');
-        return params.imageBytes;
-      }
-
-      final originalWidth = originalImage.width;
-      final originalHeight = originalImage.height;
-
-      if (originalWidth <= params.maxWidth &&
-          originalHeight <= params.maxHeight) {
-        return params.imageBytes;
-      }
-
-      double scale = 1.0;
-      if (originalWidth > params.maxWidth) {
-        scale = params.maxWidth / originalWidth;
-      }
-      if (originalHeight > params.maxHeight) {
-        final heightScale = params.maxHeight / originalHeight;
-        if (heightScale < scale) {
-          scale = heightScale;
-        }
-      }
-
-      final newWidth = (originalWidth * scale).round();
-      final newHeight = (originalHeight * scale).round();
-
-      final resizedImage = img.copyResize(
-        originalImage,
-        width: newWidth,
-        height: newHeight,
-        interpolation: img.Interpolation.linear,
-      );
-
-      final resizedBytes = Uint8List.fromList(
-        img.encodeJpg(resizedImage, quality: params.quality),
-      );
-
-      print(
-        '✅ 이미지 리사이징: ${originalWidth}x${originalHeight} -> ${newWidth}x${newHeight}',
-      );
-
-      return resizedBytes;
-    } catch (e) {
-      print('❌ 리사이징 실패: $e, 원본 반환');
-      return params.imageBytes;
-    }
-  }
-}
-
-class _CropImageParams {
-  final Uint8List imageBytes;
-  final int x;
-  final int y;
-  final int width;
-  final int height;
-
-  _CropImageParams({
-    required this.imageBytes,
-    required this.x,
-    required this.y,
-    required this.width,
-    required this.height,
-  });
-}
-
-class _NormalizeCropParams {
-  final Uint8List imageBytes;
-  final int x;
-  final int y;
-  final int width;
-  final int height;
-
-  _NormalizeCropParams({
-    required this.imageBytes,
-    required this.x,
-    required this.y,
-    required this.width,
-    required this.height,
-  });
-}
-
-class _ResizeImageParams {
-  final Uint8List imageBytes;
-  final int maxWidth;
-  final int maxHeight;
-  final int quality;
-
-  _ResizeImageParams({
-    required this.imageBytes,
-    required this.maxWidth,
-    required this.maxHeight,
-    required this.quality,
-  });
 }

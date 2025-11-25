@@ -20,6 +20,7 @@ import '../screens/guide/guide_screen.dart';
 // Screens - Campaign
 import '../screens/campaign/campaigns_screen.dart';
 import '../screens/campaign/campaign_creation_screen.dart';
+import '../screens/campaign/campaign_edit_screen.dart';
 import '../screens/campaign/campaign_detail_screen.dart';
 
 // Screens - Mypage (Reviewer)
@@ -323,6 +324,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'create',
                     name: 'advertiser-my-campaigns-create',
                     builder: (context, state) => const CampaignCreationScreen(),
+                  ),
+                  GoRoute(
+                    path: 'edit/:id',
+                    name: 'advertiser-campaign-edit',
+                    builder: (context, state) {
+                      final campaignId = state.pathParameters['id']!;
+                      return CampaignEditScreen(campaignId: campaignId);
+                    },
                   ),
                   GoRoute(
                     path: ':id',

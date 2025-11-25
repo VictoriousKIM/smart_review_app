@@ -10,10 +10,7 @@ import '../../../widgets/custom_button.dart';
 class AdvertiserCampaignDetailScreen extends ConsumerStatefulWidget {
   final String campaignId;
 
-  const AdvertiserCampaignDetailScreen({
-    super.key,
-    required this.campaignId,
-  });
+  const AdvertiserCampaignDetailScreen({super.key, required this.campaignId});
 
   @override
   ConsumerState<AdvertiserCampaignDetailScreen> createState() =>
@@ -54,8 +51,9 @@ class _AdvertiserCampaignDetailScreenState
                   Text(response.error ?? '캠페인을 불러올 수 없습니다'),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => ref
-                        .invalidate(campaignDetailProvider(widget.campaignId)),
+                    onPressed: () => ref.invalidate(
+                      campaignDetailProvider(widget.campaignId),
+                    ),
                     child: const Text('다시 시도'),
                   ),
                 ],
@@ -138,9 +136,7 @@ class _AdvertiserCampaignDetailScreenState
                     ),
                   ),
                   child: Text(
-                    campaign.status == CampaignStatus.active
-                        ? '활성화'
-                        : '비활성화',
+                    campaign.status == CampaignStatus.active ? '활성화' : '비활성화',
                     style: TextStyle(
                       color: campaign.status == CampaignStatus.active
                           ? Colors.green
@@ -157,9 +153,9 @@ class _AdvertiserCampaignDetailScreenState
                 Text(
                   _getPlatformName(campaign.platform),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
 
                 const SizedBox(height: 8),
@@ -168,8 +164,8 @@ class _AdvertiserCampaignDetailScreenState
                 Text(
                   campaign.title,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
 
                 const SizedBox(height: 16),
@@ -187,16 +183,14 @@ class _AdvertiserCampaignDetailScreenState
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.3),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -213,23 +207,22 @@ class _AdvertiserCampaignDetailScreenState
                           children: [
                             Text(
                               '리워드',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               '${_formatNumber(campaign.campaignReward)} P',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
+                              style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     fontWeight: FontWeight.bold,
                                   ),
                             ),
@@ -306,9 +299,7 @@ class _AdvertiserCampaignDetailScreenState
                         children: [
                           Text(
                             '캠페인 상태',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 4),
@@ -316,9 +307,7 @@ class _AdvertiserCampaignDetailScreenState
                             campaign.status == CampaignStatus.active
                                 ? '캠페인이 활성화되어 있습니다'
                                 : '캠페인이 비활성화되어 있습니다',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: Colors.grey[600]),
                           ),
                         ],
@@ -342,32 +331,55 @@ class _AdvertiserCampaignDetailScreenState
 
                 const SizedBox(height: 16),
 
-                // 삭제 버튼
-                CustomButton(
-                  text: '캠페인 삭제',
-                  onPressed: campaign.status != CampaignStatus.inactive
-                      ? null
-                      : () => _handleDelete(context, campaign),
-                  backgroundColor: campaign.status != CampaignStatus.inactive
-                      ? Colors.grey[300]
-                      : Colors.red,
-                  textColor: Colors.white,
-                  width: double.infinity,
-                  isLoading: _isDeleting,
-                ),
+                // 편집 및 삭제 가능 여부 확인
+                Builder(
+                  builder: (context) {
+                    final canEditOrDelete =
+                        campaign.status == CampaignStatus.inactive &&
+                        campaign.currentParticipants == 0;
 
-                if (campaign.status != CampaignStatus.inactive)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      '비활성화된 캠페인만 삭제할 수 있습니다',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+                    return Column(
+                      children: [
+                        // 편집 버튼
+                        CustomButton(
+                          text: '캠페인 편집',
+                          onPressed: canEditOrDelete
+                              ? () => _handleEdit(context, campaign)
+                              : null,
+                          backgroundColor: canEditOrDelete
+                              ? Colors.blue
+                              : Colors.grey[300],
+                          textColor: Colors.white,
+                          width: double.infinity,
+                        ),
+                        const SizedBox(height: 8),
+                        // 삭제 버튼
+                        CustomButton(
+                          text: '캠페인 삭제',
+                          onPressed: canEditOrDelete
+                              ? () => _handleDelete(context, campaign)
+                              : null,
+                          backgroundColor: canEditOrDelete
+                              ? Colors.red
+                              : Colors.grey[300],
+                          textColor: Colors.white,
+                          width: double.infinity,
+                          isLoading: _isDeleting,
+                        ),
+                        if (!canEditOrDelete)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              '편집과 삭제는 신청자가 없고 비활성화된 캠페인만 가능합니다',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
 
                 const SizedBox(height: 32),
               ],
@@ -388,10 +400,9 @@ class _AdvertiserCampaignDetailScreenState
       children: [
         Text(
           title,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         ...children,
@@ -409,18 +420,14 @@ class _AdvertiserCampaignDetailScreenState
             width: 100,
             child: Text(
               label,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey[600]),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
           ),
         ],
       ),
@@ -456,7 +463,7 @@ class _AdvertiserCampaignDetailScreenState
   }
 
   String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   String _formatNumber(int number) {
@@ -474,14 +481,8 @@ class _AdvertiserCampaignDetailScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          isActive ? '캠페인 활성화' : '캠페인 비활성화',
-        ),
-        content: Text(
-          isActive
-              ? '이 캠페인을 활성화하시겠습니까?'
-              : '이 캠페인을 비활성화하시겠습니까?',
-        ),
+        title: Text(isActive ? '캠페인 활성화' : '캠페인 비활성화'),
+        content: Text(isActive ? '이 캠페인을 활성화하시겠습니까?' : '이 캠페인을 비활성화하시겠습니까?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -501,8 +502,9 @@ class _AdvertiserCampaignDetailScreenState
       _isUpdatingStatus = true;
     });
 
-    final newStatus =
-        isActive ? CampaignStatus.active : CampaignStatus.inactive;
+    final newStatus = isActive
+        ? CampaignStatus.active
+        : CampaignStatus.inactive;
     final result = await _campaignService.updateCampaignStatus(
       campaignId: campaign.id,
       status: newStatus,
@@ -524,11 +526,7 @@ class _AdvertiserCampaignDetailScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            isActive
-                ? '캠페인이 활성화되었습니다'
-                : '캠페인이 비활성화되었습니다',
-          ),
+          content: Text(isActive ? '캠페인이 활성화되었습니다' : '캠페인이 비활성화되었습니다'),
           backgroundColor: Colors.green,
         ),
       );
@@ -547,9 +545,7 @@ class _AdvertiserCampaignDetailScreenState
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('캠페인 삭제'),
-        content: const Text(
-          '이 캠페인을 삭제하시겠습니까?\n삭제된 캠페인은 복구할 수 없습니다.',
-        ),
+        content: const Text('이 캠페인을 삭제하시겠습니까?\n삭제된 캠페인은 복구할 수 없습니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -581,7 +577,7 @@ class _AdvertiserCampaignDetailScreenState
     if (result.success) {
       // Provider 무효화
       ref.invalidate(campaignDetailProvider(widget.campaignId));
-      
+
       // 변경사항 있음 표시
       setState(() {
         _hasChanges = true;
@@ -589,7 +585,7 @@ class _AdvertiserCampaignDetailScreenState
 
       // 환불 금액이 있는 경우 메시지에 포함
       final refundMessage = result.message ?? '캠페인이 삭제되었습니다';
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(refundMessage),
@@ -609,5 +605,8 @@ class _AdvertiserCampaignDetailScreenState
       );
     }
   }
-}
 
+  void _handleEdit(BuildContext context, Campaign campaign) {
+    context.push('/mypage/advertiser/my-campaigns/edit/${campaign.id}');
+  }
+}

@@ -1,3 +1,5 @@
+import '../utils/date_time_utils.dart';
+
 /// campaigns 테이블 모델 (Supabase 스키마 기반)
 class Campaign {
   final String id;
@@ -114,28 +116,29 @@ class Campaign {
           json['campaign_reward'] ??
           (json['review_reward'] ?? json['review_cost'] ?? 0), // 하위 호환성
       // 하위 호환성: 기존 필드명도 지원
+      // DB에서 가져온 UTC 시간을 한국 시간(KST, UTC+9)으로 변환
       applyStartDate: json['apply_start_date'] != null
-          ? DateTime.parse(json['apply_start_date'])
+          ? DateTimeUtils.parseKST(json['apply_start_date'])
           : (json['start_date'] != null
-              ? DateTime.parse(json['start_date'])
-              : DateTime.now().add(const Duration(days: 1))),
+              ? DateTimeUtils.parseKST(json['start_date'])
+              : DateTimeUtils.nowKST().add(const Duration(days: 1))),
       applyEndDate: json['apply_end_date'] != null
-          ? DateTime.parse(json['apply_end_date'])
+          ? DateTimeUtils.parseKST(json['apply_end_date'])
           : (json['end_date'] != null
-              ? DateTime.parse(json['end_date'])
-              : DateTime.now().add(const Duration(days: 8))),
+              ? DateTimeUtils.parseKST(json['end_date'])
+              : DateTimeUtils.nowKST().add(const Duration(days: 8))),
       reviewStartDate: json['review_start_date'] != null
-          ? DateTime.parse(json['review_start_date'])
+          ? DateTimeUtils.parseKST(json['review_start_date'])
           : (json['apply_end_date'] != null
-              ? DateTime.parse(json['apply_end_date']).add(const Duration(days: 1))
+              ? DateTimeUtils.parseKST(json['apply_end_date']).add(const Duration(days: 1))
               : (json['end_date'] != null
-                  ? DateTime.parse(json['end_date']).add(const Duration(days: 1))
-                  : DateTime.now().add(const Duration(days: 9)))),
+                  ? DateTimeUtils.parseKST(json['end_date']).add(const Duration(days: 1))
+                  : DateTimeUtils.nowKST().add(const Duration(days: 9)))),
       reviewEndDate: json['review_end_date'] != null
-          ? DateTime.parse(json['review_end_date'])
+          ? DateTimeUtils.parseKST(json['review_end_date'])
           : (json['expiration_date'] != null
-              ? DateTime.parse(json['expiration_date'])
-              : DateTime.now().add(const Duration(days: 38))),
+              ? DateTimeUtils.parseKST(json['expiration_date'])
+              : DateTimeUtils.nowKST().add(const Duration(days: 38))),
       currentParticipants: json['current_participants'] ?? 0,
       maxParticipants: json['max_participants'],
       maxPerReviewer: json['max_per_reviewer'] ?? 1,
@@ -143,9 +146,9 @@ class Campaign {
         (e) => e.name == (json['status'] ?? 'active'),
         orElse: () => CampaignStatus.active,
       ),
-      createdAt: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
+      createdAt: json['created_at'] != null
+          ? DateTimeUtils.parseKST(json['created_at'])
+          : DateTimeUtils.nowKST(),
       userId: json['user_id'],
       // 상품 상세 정보
       keyword: json['keyword'],

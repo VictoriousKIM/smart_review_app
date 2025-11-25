@@ -7,11 +7,12 @@ import '../../../models/campaign.dart';
 import '../../../services/campaign_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../utils/date_time_utils.dart';
 
 class AdvertiserMyCampaignsScreen extends ConsumerStatefulWidget {
   final String? initialTab;
-  // pushNamed().then() 패턴으로 변경하여 refresh, campaignId 파라미터는 더 이상 사용하지 않음
-  // @Deprecated('pushNamed().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  // push().then() 패턴으로 변경하여 refresh, campaignId 파라미터는 더 이상 사용하지 않음
+  // @Deprecated('push().then() 패턴으로 변경하여 더 이상 사용하지 않음')
   // final bool refresh;
   // final String? campaignId;
 
@@ -41,6 +42,7 @@ class _AdvertiserMyCampaignsScreenState
   List<Campaign> _completedCampaigns = [];
 
   bool _isLoading = true;
+  bool _shouldRefreshOnRestore = false; // 화면 복원 시 새로고침 플래그
 
   @override
   void initState() {
@@ -89,27 +91,62 @@ class _AdvertiserMyCampaignsScreenState
     super.dispose();
   }
 
-  /// 캠페인 생성 화면으로 이동 (pushNamed().then() 패턴)
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 화면이 다시 활성화될 때 (pop 후 복원될 때) 새로고침
+    if (_shouldRefreshOnRestore) {
+      _shouldRefreshOnRestore = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final route = ModalRoute.of(context);
+        if (route?.isCurrent == true && mounted) {
+          debugPrint('🔄 화면 복원 감지 - 캠페인 목록 새로고침');
+          // DB에 캠페인이 반영될 시간을 주기 위해 약간의 지연 후 새로고침
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) {
+              _loadCampaigns();
+            }
+          });
+        }
+      });
+    }
+  }
+
+  /// 캠페인 생성 화면으로 이동 (push().then() 패턴)
+  /// pushNamed 대신 push를 사용하여 반환값 전달 안정성 향상
   void _navigateToCreateCampaign() {
-    context.pushNamed('advertiser-my-campaigns-create').then((result) {
-      if (result != null && result is Campaign) {
-        // 1단계: 생성된 Campaign 객체를 직접 목록에 추가 (즉시 반영)
-        final campaign = result;
-        debugPrint(
-          '✅ 캠페인 생성 완료 - campaignId: ${campaign.id}, title: ${campaign.title}',
-        );
-        _addCampaignDirectly(campaign);
-      } else if (result != null && result is String) {
-        // fallback: ID만 반환된 경우 폴링 방식으로 조회
-        final campaignId = result;
-        debugPrint('⚠️ Campaign 객체 대신 ID만 반환됨 - campaignId: $campaignId');
-        _addCampaignByIdWithPolling(campaignId);
-      } else if (result == true) {
-        // fallback: true가 반환된 경우 일반 새로고침
-        debugPrint('🔄 일반 새로고침 실행');
-        _loadCampaigns();
-      }
-    });
+    // 캠페인 생성 화면으로 이동할 때 플래그 설정
+    _shouldRefreshOnRestore = true;
+    // pushNamed 대신 push 사용 (다른 화면에서 검증된 패턴)
+    context
+        .push('/mypage/advertiser/my-campaigns/create')
+        .then((result) {
+          debugPrint(
+            '📥 캠페인 생성 화면에서 반환된 결과: $result (타입: ${result.runtimeType})',
+          );
+
+          if (result != null && result is Campaign) {
+            // 생성된 Campaign 객체를 직접 목록에 추가 (즉시 반영)
+            debugPrint('✅ Campaign 객체를 받았습니다. 목록에 직접 추가합니다.');
+            _shouldRefreshOnRestore = false; // 성공적으로 처리되었으므로 플래그 해제
+            _addCampaignDirectly(result);
+          } else if (result == true) {
+            // 일반 새로고침
+            debugPrint('🔄 일반 새로고침 실행 (result == true)');
+            _shouldRefreshOnRestore = false; // 새로고침 실행했으므로 플래그 해제
+            _loadCampaigns();
+          } else {
+            // result가 null이거나 예상치 못한 값인 경우
+            // didChangeDependencies에서 새로고침하도록 플래그 유지
+            debugPrint(
+              '⚠️ 예상치 못한 반환값: $result - didChangeDependencies에서 새로고침 예정',
+            );
+          }
+        })
+        .catchError((error) {
+          debugPrint('❌ 캠페인 생성 화면에서 에러 발생: $error');
+          // 에러 발생 시에도 didChangeDependencies에서 새로고침하도록 플래그 유지
+        });
   }
 
   /// 생성된 Campaign 객체를 직접 목록에 추가 (1단계: 주 방법)
@@ -202,11 +239,11 @@ class _AdvertiserMyCampaignsScreenState
 
   // ============================================
   // 폴링 관련 메서드 (더 이상 사용하지 않음, 참고용으로 유지)
-  // pushNamed().then() 패턴으로 변경하여 같은 세션에서 조회하므로 폴링 불필요
+  // push().then() 패턴으로 변경하여 같은 세션에서 조회하므로 폴링 불필요
   // ============================================
 
   /// 새로고침 처리 (폴링 및 직접 조회) - 사용하지 않음
-  @Deprecated('pushNamed().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  @Deprecated('push().then() 패턴으로 변경하여 더 이상 사용하지 않음')
   Future<void> _handleRefresh(String? campaignId) async {
     debugPrint('🔄 PostFrameCallback 실행 - campaignId: $campaignId');
 
@@ -399,7 +436,7 @@ class _AdvertiserMyCampaignsScreenState
   }
 
   /// 폴링 방식으로 캠페인 조회 (생성된 캠페인이 나타날 때까지 재시도) - 사용하지 않음
-  @Deprecated('pushNamed().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  @Deprecated('push().then() 패턴으로 변경하여 더 이상 사용하지 않음')
   Future<void> _loadCampaignsWithPolling({
     required String expectedCampaignId,
     int maxAttempts = 5,
@@ -452,7 +489,7 @@ class _AdvertiserMyCampaignsScreenState
 
   /// 생성된 캠페인을 직접 조회하여 목록에 추가 - 사용하지 않음
   /// Returns: 성공 여부 (true: 추가 성공, false: 실패)
-  @Deprecated('pushNamed().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  @Deprecated('push().then() 패턴으로 변경하여 더 이상 사용하지 않음')
   Future<bool> _addCampaignById(String campaignId) async {
     if (!mounted) return false;
 
@@ -499,7 +536,7 @@ class _AdvertiserMyCampaignsScreenState
 
   /// 상태별 필터링 업데이트
   void _updateFilteredCampaigns() {
-    final now = DateTime.now();
+    final now = DateTimeUtils.nowKST(); // 한국 시간 사용
 
     // 모집 (대기중): 시작기간이 되지 않았을 때 (active 상태만)
     _pendingCampaigns = _allCampaigns.where((campaign) {
@@ -642,7 +679,7 @@ class _AdvertiserMyCampaignsScreenState
   Widget _buildCampaignCard(Campaign campaign) {
     String statusText;
     Color statusColor;
-    final now = DateTime.now();
+    final now = DateTimeUtils.nowKST(); // 한국 시간 사용
 
     // Status와 날짜를 기반으로 상태 결정
     if (campaign.status == CampaignStatus.inactive) {
@@ -853,7 +890,7 @@ class _AdvertiserMyCampaignsScreenState
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${campaign.applyStartDate.toString().substring(0, 10)} ~ ${campaign.applyEndDate.toString().substring(0, 10)}',
+                      '${_formatDateTime(campaign.applyStartDate)} ~ ${_formatDateTime(campaign.applyEndDate)}',
                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
                   ],
@@ -864,5 +901,10 @@ class _AdvertiserMyCampaignsScreenState
         ),
       ),
     );
+  }
+
+  /// 날짜와 시간을 시, 분까지 표시하는 포맷 함수
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
