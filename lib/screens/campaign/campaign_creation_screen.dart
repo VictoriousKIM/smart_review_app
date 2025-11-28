@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image/image.dart' as img;
+import 'package:shimmer/shimmer.dart';
 import '../../services/campaign_image_service.dart';
 import '../../widgets/image_crop_editor.dart';
 import '../../services/campaign_service.dart';
@@ -108,6 +109,9 @@ class _CampaignCreationScreenState
   String? _cachedFormattedTotalCost;
   String? _cachedFormattedRemaining;
 
+  // ✅ Phase 1.1: 스켈레톤 UI를 위한 초기화 상태
+  bool _isInitialized = false;
+
   // ✅ 1. initState 최적화 - 단계별 초기화
   @override
   void initState() {
@@ -119,30 +123,29 @@ class _CampaignCreationScreenState
     _reviewStartDateTimeController = TextEditingController();
     _reviewEndDateTimeController = TextEditingController();
 
-    // 무거운 작업은 프레임 렌더링 후 단계별 실행
+    // ✅ Phase 1.2: 더 긴 지연 + 프레임 콜백 조합
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeInStages();
-    });
-  }
+      Future.delayed(const Duration(milliseconds: 600), () async {
+        if (!mounted) return;
 
-  // ✅ 1. 단계별 초기화 (우선순위별 로딩)
-  Future<void> _initializeInStages() async {
-    if (!mounted) return;
+        // ✅ 1단계: UI 먼저 표시 (50ms 후)
+        setState(() => _isInitialized = true);
+        await Future.delayed(const Duration(milliseconds: 50));
 
-    // 1단계: 즉시 필요한 데이터 (최우선 - 사용자에게 보이는 정보)
-    await _loadCompanyBalance();
+        // ✅ 2단계: 잔액 로딩 (100ms 후)
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) _loadCompanyBalance();
 
-    // 2단계: UI 인터랙션 준비 (중요 - 입력 필드 리스너)
-    await Future.microtask(() {
-      if (mounted) _setupCostListeners();
-    });
-
-    // 3단계: 부가 기능 (나중에 - 초기 화면에 영향 없음)
-    await Future.microtask(() {
-      if (mounted) {
-        _updateDateTimeControllers();
-        _calculateCost(); // 초기 비용 계산
-      }
+        // ✅ 3단계: 리스너 설정 (200ms 후)
+        await Future.delayed(const Duration(milliseconds: 200));
+        if (mounted) {
+          _ignoreCostListeners = true;
+          _setupCostListeners();
+          _updateDateTimeControllers();
+          _ignoreCostListeners = false;
+          _calculateCost();
+        }
+      });
     });
   }
 
@@ -179,11 +182,15 @@ class _CampaignCreationScreenState
     _maxParticipantsController.addListener(_calculateCostDebounced);
   }
 
-  // ✅ 5. 디바운싱된 비용 계산
+  // ✅ 5. 디바운싱된 비용 계산 - 웹 최적화
   void _calculateCostDebounced() {
     if (_ignoreCostListeners) return;
     _costCalculationTimer?.cancel();
-    _costCalculationTimer = Timer(const Duration(milliseconds: 500), () {
+    // 웹에서는 더 긴 디바운싱
+    final debounceTime = kIsWeb
+        ? const Duration(milliseconds: 800)
+        : const Duration(milliseconds: 500);
+    _costCalculationTimer = Timer(debounceTime, () {
       if (mounted) _calculateCost();
     });
   }
@@ -325,8 +332,14 @@ class _CampaignCreationScreenState
     });
   }
 
-  // ✅ 6. 이미지 캐싱 (중복 처리 방지)
+  // ✅ 6. 이미지 캐싱 (중복 처리 방지) - 웹 최적화
   Future<Uint8List> _getCachedOrResizeImage(Uint8List originalBytes) async {
+    // 웹: 캐싱 없이 직접 처리
+    if (kIsWeb) {
+      return _resizeImageDirect(originalBytes, 1920, 1920, 85);
+    }
+
+    // 네이티브: 캐싱 사용
     final key = '${originalBytes.lengthInBytes}_${originalBytes.hashCode}';
 
     if (_imageCache.containsKey(key)) {
@@ -356,13 +369,16 @@ class _CampaignCreationScreenState
       return;
     }
 
-    // 즉시 로딩 표시
+    // ✅ Step 1: 즉시 로딩 상태 표시 (동기)
     setState(() {
       _isAnalyzing = true;
       _errorMessage = null;
     });
 
-    // 비동기 작업을 마이크로태스크로 분리
+    // ✅ Step 2: UI 업데이트가 렌더링될 시간 확보 (중요!)
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    // ✅ Step 3: 비동기 작업을 마이크로태스크로 분리
     Future.microtask(() async {
       String? pendingErrorMessage;
       Map<String, dynamic>? pendingExtractedData;
@@ -375,24 +391,29 @@ class _CampaignCreationScreenState
         if (extractedData != null) {
           pendingExtractedData = extractedData;
 
-          // ✅ 플래그로 리스너 무시 (불필요한 비용 계산 방지)
-          _ignoreCostListeners = true;
-
-          _keywordController.text = extractedData['keyword'] ?? '';
-          _productNameController.text = extractedData['title'] ?? '';
-          _optionController.text = extractedData['option'] ?? '';
-          _quantityController.text = (extractedData['quantity'] ?? 1)
-              .toString();
-          _sellerController.text = extractedData['seller'] ?? '';
-          _productNumberController.text = extractedData['productNumber'] ?? '';
-          _paymentAmountController.text =
-              (extractedData['productPrice'] ??
-                      extractedData['paymentAmount'] ??
-                      0)
+          // ✅ 배치 업데이트로 setState 최소화
+          if (mounted) {
+            setState(() {
+              _ignoreCostListeners = true;
+              _keywordController.text = extractedData['keyword'] ?? '';
+              _productNameController.text = extractedData['title'] ?? '';
+              _optionController.text = extractedData['option'] ?? '';
+              _quantityController.text = (extractedData['quantity'] ?? 1)
                   .toString();
+              _sellerController.text = extractedData['seller'] ?? '';
+              _productNumberController.text =
+                  extractedData['productNumber'] ?? '';
+              _paymentAmountController.text =
+                  (extractedData['productPrice'] ??
+                          extractedData['paymentAmount'] ??
+                          0)
+                      .toString();
+              _ignoreCostListeners = false;
+            });
 
-          _ignoreCostListeners = false;
-          _calculateCost();
+            // 비용 계산은 별도로
+            await Future.microtask(_calculateCost);
+          }
 
           // ✅ 크롭 작업은 별도로 비동기 실행 (UI 블로킹 방지)
           final cropData = extractedData['productImageCrop'];
@@ -433,19 +454,27 @@ class _CampaignCreationScreenState
     });
   }
 
-  // ✅ 3. 크롭 작업을 백그라운드에서 실행 (UI와 독립적)
+  // ✅ 3. 크롭 작업을 백그라운드에서 실행 (UI와 독립적) - 웹 최적화
   Future<void> _processCropInBackground(Map<String, dynamic> cropData) async {
     try {
-      final normalizedResult = await compute(
-        _normalizeCropCoordinates,
-        _NormalizeCropParams(
-          imageBytes: _capturedImage!,
-          x: cropData['x']?.toInt() ?? 0,
-          y: cropData['y']?.toInt() ?? 0,
-          width: cropData['width']?.toInt() ?? 0,
-          height: cropData['height']?.toInt() ?? 0,
-        ),
-      );
+      final normalizedResult = kIsWeb
+          ? await _normalizeCropCoordinatesDirect(
+              _capturedImage!,
+              cropData['x']?.toInt() ?? 0,
+              cropData['y']?.toInt() ?? 0,
+              cropData['width']?.toInt() ?? 0,
+              cropData['height']?.toInt() ?? 0,
+            )
+          : await compute(
+              _normalizeCropCoordinates,
+              _NormalizeCropParams(
+                imageBytes: _capturedImage!,
+                x: cropData['x']?.toInt() ?? 0,
+                y: cropData['y']?.toInt() ?? 0,
+                width: cropData['width']?.toInt() ?? 0,
+                height: cropData['height']?.toInt() ?? 0,
+              ),
+            );
 
       if (normalizedResult != null &&
           normalizedResult['normalizedWidth']! > 0 &&
@@ -474,6 +503,53 @@ class _CampaignCreationScreenState
     }
   }
 
+  // ✅ 웹용 직접 이미지 크롭 함수
+  Future<Map<String, dynamic>?> _cropImageDirect(
+    Uint8List imageBytes,
+    int x,
+    int y,
+    int width,
+    int height,
+  ) async {
+    try {
+      final originalImage = img.decodeImage(imageBytes);
+      if (originalImage == null) return null;
+
+      final imageWidth = originalImage.width;
+      final imageHeight = originalImage.height;
+
+      int cropX = x.clamp(0, imageWidth - 1);
+      int cropY = y.clamp(0, imageHeight - 1);
+      int cropWidth = width.clamp(1, imageWidth - cropX);
+      int cropHeight = height.clamp(1, imageHeight - cropY);
+
+      if (cropWidth < 10 || cropHeight < 10) return null;
+
+      final croppedImage = img.copyCrop(
+        originalImage,
+        x: cropX,
+        y: cropY,
+        width: cropWidth,
+        height: cropHeight,
+      );
+
+      final croppedBytes = Uint8List.fromList(
+        img.encodeJpg(croppedImage, quality: 85),
+      );
+
+      return {
+        'croppedBytes': croppedBytes,
+        'cropX': cropX,
+        'cropY': cropY,
+        'cropWidth': cropWidth,
+        'cropHeight': cropHeight,
+      };
+    } catch (e) {
+      print('❌ 웹 크롭 실패: $e');
+      return null;
+    }
+  }
+
   Future<void> _cropProductImage(
     Uint8List imageBytes,
     int x,
@@ -484,16 +560,18 @@ class _CampaignCreationScreenState
     try {
       print('🔧 크롭 작업 시작: x=$x, y=$y, w=$width, h=$height');
 
-      final cropResult = await compute(
-        _cropImageInIsolate,
-        _CropImageParams(
-          imageBytes: imageBytes,
-          x: x,
-          y: y,
-          width: width,
-          height: height,
-        ),
-      );
+      final cropResult = kIsWeb
+          ? await _cropImageDirect(imageBytes, x, y, width, height)
+          : await compute(
+              _cropImageInIsolate,
+              _CropImageParams(
+                imageBytes: imageBytes,
+                x: x,
+                y: y,
+                width: width,
+                height: height,
+              ),
+            );
 
       if (cropResult == null) {
         print('❌ 이미지 크롭 실패');
@@ -573,6 +651,30 @@ class _CampaignCreationScreenState
       };
     } catch (e) {
       print('❌ Isolate 크롭 실패: $e');
+      return null;
+    }
+  }
+
+  // ✅ 웹용 직접 크롭 좌표 정규화 함수
+  Future<Map<String, int>?> _normalizeCropCoordinatesDirect(
+    Uint8List bytes,
+    int x,
+    int y,
+    int w,
+    int h,
+  ) async {
+    try {
+      final image = img.decodeImage(bytes);
+      if (image == null) return null;
+
+      return {
+        'normalizedX': x.clamp(0, image.width - 1),
+        'normalizedY': y.clamp(0, image.height - 1),
+        'normalizedWidth': w.clamp(1, image.width - x),
+        'normalizedHeight': h.clamp(1, image.height - y),
+      };
+    } catch (e) {
+      print('❌ 크롭 좌표 정규화 실패: $e');
       return null;
     }
   }
@@ -714,7 +816,10 @@ class _CampaignCreationScreenState
   Future<void> _showWebCropDialog() async {
     if (_capturedImage == null) return;
 
-    final originalImage = await compute(_decodeImageInIsolate, _capturedImage!);
+    // 웹에서는 직접 디코딩, 네이티브에서는 compute 사용
+    final originalImage = kIsWeb
+        ? img.decodeImage(_capturedImage!)
+        : await compute(_decodeImageInIsolate, _capturedImage!);
     if (originalImage == null) {
       if (mounted) {
         setState(() => _errorMessage = '이미지 디코딩에 실패했습니다.');
@@ -1194,7 +1299,9 @@ class _CampaignCreationScreenState
           // pushNamed().then() 패턴: 생성된 캠페인 객체 전체를 반환하여 즉시 목록에 추가
           final campaign = response.data;
           if (campaign != null) {
-            debugPrint('✅ 캠페인 생성 성공 - campaignId: ${campaign.id}, title: ${campaign.title}');
+            debugPrint(
+              '✅ 캠페인 생성 성공 - campaignId: ${campaign.id}, title: ${campaign.title}',
+            );
             // 생성된 Campaign 객체 전체를 반환
             // GoRouter의 pop()이 반환값을 제대로 전달하지 못할 수 있으므로,
             // _navigateToCreateCampaign에서 타임아웃을 설정하여 fallback 처리
@@ -1232,8 +1339,40 @@ class _CampaignCreationScreenState
     }
   }
 
+  // ✅ 웹에서 RepaintBoundary 조건부 처리 헬퍼
+  // 웹에서는 TextField가 포함된 위젯에 RepaintBoundary를 씌우면
+  // 커서가 깜빡일 때마다 전체 영역을 텍스처로 다시 굽는 과정이 발생하여 성능 저하
+  Widget _buildWithOptionalBoundary(Widget child, {bool alwaysUse = false}) {
+    // 웹에서는 TextField가 포함된 위젯의 RepaintBoundary 완전히 제거
+    if (kIsWeb) {
+      return child; // 웹이면 그냥 child 반환 (커서 깜빡임 성능 이슈 방지)
+    }
+    // 앱에서는 alwaysUse 플래그에 따라 조건부 사용
+    if (alwaysUse) {
+      return RepaintBoundary(child: child);
+    }
+    return child; // 네이티브에서도 기본적으로는 사용하지 않음
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ✅ Phase 1.1: 초기화 완료 전까지 스켈레톤 UI 표시
+    if (!_isInitialized) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF6F7F8),
+        appBar: AppBar(
+          title: const Text('캠페인 생성'),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: const _CampaignFormSkeleton(),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
       appBar: AppBar(
@@ -1247,7 +1386,9 @@ class _CampaignCreationScreenState
       ),
       body: Form(
         key: _formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
+        autovalidateMode: kIsWeb
+            ? AutovalidateMode.disabled
+            : AutovalidateMode.onUserInteraction,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -1281,41 +1422,47 @@ class _CampaignCreationScreenState
                 const SizedBox(height: 16),
               ],
 
-              RepaintBoundary(child: _buildCampaignTypeSection()),
+              _buildWithOptionalBoundary(_buildCampaignTypeSection()),
               const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildImageSection()),
+              _buildWithOptionalBoundary(_buildImageSection(), alwaysUse: true),
               const SizedBox(height: 24),
 
               if (_productImage != null || _capturedImage != null) ...[
-                RepaintBoundary(child: _buildProductImageSection()),
+                _buildWithOptionalBoundary(
+                  _buildProductImageSection(),
+                  alwaysUse: true,
+                ),
                 const SizedBox(height: 24),
               ],
 
-              RepaintBoundary(child: _buildProductInfoSection()),
+              _buildWithOptionalBoundary(_buildProductInfoSection()),
               const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildReviewSettings()),
+              _buildWithOptionalBoundary(_buildReviewSettings()),
               const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildScheduleSection()),
+              _buildWithOptionalBoundary(_buildScheduleSection()),
               const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildDuplicatePreventSection()),
+              _buildWithOptionalBoundary(_buildDuplicatePreventSection()),
               const SizedBox(height: 24),
 
-              RepaintBoundary(child: _buildCostSection()),
+              _buildWithOptionalBoundary(_buildCostSection(), alwaysUse: true),
               const SizedBox(height: 24),
 
               if (_isUploadingImage) ...[
-                RepaintBoundary(child: _buildUploadProgressSection()),
+                _buildWithOptionalBoundary(
+                  _buildUploadProgressSection(),
+                  alwaysUse: true,
+                ),
                 const SizedBox(height: 24),
               ],
 
               const SizedBox(height: 32),
 
-              RepaintBoundary(
-                child: AbsorbPointer(
+              _buildWithOptionalBoundary(
+                AbsorbPointer(
                   absorbing:
                       !_canCreateCampaign() ||
                       _isCreatingCampaign ||
@@ -2122,7 +2269,8 @@ class _CampaignCreationScreenState
 
     if (date != null) {
       // 같은 날인 경우 시작일시의 시간보다 뒤로만 선택 가능
-      final isSameDay = date.year == startDate.year &&
+      final isSameDay =
+          date.year == startDate.year &&
           date.month == startDate.month &&
           date.day == startDate.day;
 
@@ -2522,10 +2670,12 @@ class _CampaignCreationScreenState
                         ],
                       ),
                       _isLoadingBalance
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                          ? SizedBox(
+                              width: kIsWeb ? 16 : 20,
+                              height: kIsWeb ? 16 : 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: kIsWeb ? 2 : 2,
+                              ),
                             )
                           : Text(
                               '$_formattedBalance P',
@@ -2650,6 +2800,47 @@ class _CampaignCreationScreenState
     }
   }
 
+  // ✅ 웹용 직접 이미지 리사이징 함수
+  Future<Uint8List> _resizeImageDirect(
+    Uint8List bytes,
+    int maxW,
+    int maxH,
+    int quality,
+  ) async {
+    try {
+      final image = img.decodeImage(bytes);
+      if (image == null) {
+        print('❌ 이미지 디코딩 실패, 원본 반환');
+        return bytes;
+      }
+
+      if (image.width <= maxW && image.height <= maxH) {
+        return bytes;
+      }
+
+      final scale = (maxW / image.width).clamp(0.0, maxH / image.height);
+      final resized = img.copyResize(
+        image,
+        width: (image.width * scale).round(),
+        height: (image.height * scale).round(),
+        interpolation: img.Interpolation.linear,
+      );
+
+      final resizedBytes = Uint8List.fromList(
+        img.encodeJpg(resized, quality: quality),
+      );
+
+      print(
+        '✅ 이미지 리사이징 (웹): ${image.width}x${image.height} -> ${resized.width}x${resized.height}',
+      );
+
+      return resizedBytes;
+    } catch (e) {
+      print('❌ 리사이징 실패: $e, 원본 반환');
+      return bytes;
+    }
+  }
+
   static Uint8List _resizeImageInIsolate(_ResizeImageParams params) {
     try {
       final originalImage = img.decodeImage(params.imageBytes);
@@ -2747,4 +2938,66 @@ class _ResizeImageParams {
     required this.maxHeight,
     required this.quality,
   });
+}
+
+/// ✅ Phase 1.1: 캠페인 폼 스켈레톤 UI
+class _CampaignFormSkeleton extends StatelessWidget {
+  const _CampaignFormSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildCardSkeleton(),
+          const SizedBox(height: 24),
+          _buildCardSkeleton(),
+          const SizedBox(height: 24),
+          _buildCardSkeleton(),
+          const SizedBox(height: 24),
+          _buildCardSkeleton(),
+          const SizedBox(height: 24),
+          _buildCardSkeleton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardSkeleton() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildShimmerBox(height: 20, width: 150),
+            const SizedBox(height: 16),
+            _buildShimmerBox(height: 56),
+            const SizedBox(height: 16),
+            _buildShimmerBox(height: 56),
+            const SizedBox(height: 16),
+            _buildShimmerBox(height: 56),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShimmerBox({double? height, double? width}) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Container(
+        height: height,
+        width: width ?? double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
 }

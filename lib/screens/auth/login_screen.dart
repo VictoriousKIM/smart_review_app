@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
@@ -16,6 +17,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isKakaoLoading = false;
   bool _showEmailForm = false;
 
+  @override
+  void initState() {
+    super.initState();
+  }
+
   Future<void> _handleSocialSignIn(
     Future<void> Function() signInMethod,
     bool isGoogle,
@@ -31,26 +37,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await signInMethod();
 
-      // 로그인 성공 시 GoRouter의 redirect가 자동으로 처리하므로
-      // 여기서는 별도의 네비게이션 처리가 필요 없습니다.
-      // AuthProvider의 상태가 변경되면 자동으로 리다이렉트됩니다.
+      // OAuth 로그인의 경우 외부 브라우저로 이동하므로
+      // 여기서는 로딩 상태를 유지하고, authStateChanges에서 로그인 완료를 감지합니다.
+      // 모바일에서는 딥링크로 돌아올 때까지 로딩 상태가 유지됩니다.
+
+      // 웹의 경우 즉시 완료되므로 짧은 대기 후 상태 확인
+      if (kIsWeb) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        // 웹에서는 signInWithOAuth가 완료되면 바로 세션이 생성됨
+        // authStateChanges에서 자동으로 처리됨
+      }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+          _isKakaoLoading = false;
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('로그인 실패: $e')));
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          if (isGoogle) {
-            _isGoogleLoading = false;
-          } else {
-            _isKakaoLoading = false;
-          }
-        });
-      }
     }
+    // finally 블록 제거: authStateChanges에서 로그인 완료 시 로딩 상태 해제
   }
 
   Future<void> _signInWithGoogle() async {
@@ -69,6 +77,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // authStateChanges를 감지하여 로그인 완료 시 로딩 상태 해제
+    // ref.listen은 build 메서드 내에서만 사용 가능
+    ref.listen<AsyncValue>(authProvider, (previous, next) {
+      if (previous?.value == null && next.value != null) {
+        // 로그인 성공: 로딩 상태 해제
+        if (mounted) {
+          setState(() {
+            _isGoogleLoading = false;
+            _isKakaoLoading = false;
+          });
+        }
+      } else if (previous?.value != null && next.value == null) {
+        // 로그아웃: 로딩 상태 해제
+        if (mounted) {
+          setState(() {
+            _isGoogleLoading = false;
+            _isKakaoLoading = false;
+          });
+        }
+      }
+    });
+
     return Scaffold(
       body: SafeArea(
         child: Padding(

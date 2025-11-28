@@ -184,58 +184,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/mypage',
             name: 'mypage',
             builder: (context, state) {
-              // 사용자 타입에 따라 적절한 화면으로 리다이렉트
-              final userAsync = ref.read(currentUserProvider);
-
-              return userAsync.when(
-                data: (user) {
-                  if (user == null) {
-                    // 비로그인 시 로그인으로 리다이렉트
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (context.mounted) {
-                        context.go('/login');
-                      }
-                    });
-                    return const LoadingScreen();
-                  }
-
-                  // 사용자 타입에 따라 적절한 화면으로 리다이렉트
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (context.mounted) {
-                      if (user.userType == app_user.UserType.admin) {
-                        context.go('/mypage/admin');
-                      } else if (user.isAdvertiser) {
-                        context.go('/mypage/advertiser');
-                      } else {
-                        context.go('/mypage/reviewer');
-                      }
-                    }
-                  });
-                  return const LoadingScreen();
-                },
-                loading: () => const LoadingScreen(),
-                error: (err, stack) => Scaffold(
-                  body: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(height: 16),
-                        Text('데이터 로드 실패: $err'),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => context.go('/home'),
-                          child: const Text('홈으로 이동'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
+              // ✅ ref.watch()를 사용하여 상태 변경 감지 (ref.read() 대신)
+              // ref.read()는 한 번만 읽고 재빌드되지 않아 로딩 상태가 계속 유지되는 문제 해결
+              return _MyPageRedirectWidget();
             },
           ),
 
@@ -494,3 +445,66 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
+
+/// 마이페이지 리다이렉트 위젯
+/// ref.watch()를 사용하여 사용자 상태 변경을 감지하고 적절한 화면으로 리다이렉트
+class _MyPageRedirectWidget extends ConsumerWidget {
+  const _MyPageRedirectWidget();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // ✅ ref.watch()를 사용하여 상태 변경 감지 (ref.read() 대신)
+    // ref.read()는 한 번만 읽고 재빌드되지 않아 로딩 상태가 계속 유지되는 문제 해결
+    final userAsync = ref.watch(currentUserProvider);
+
+    return userAsync.when(
+      data: (user) {
+        if (user == null) {
+          // 비로그인 시 로그인으로 리다이렉트
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              context.go('/login');
+            }
+          });
+          return const LoadingScreen();
+        }
+
+        // 사용자 타입에 따라 적절한 화면으로 리다이렉트
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            if (user.userType == app_user.UserType.admin) {
+              context.go('/mypage/admin');
+            } else if (user.isAdvertiser) {
+              context.go('/mypage/advertiser');
+            } else {
+              context.go('/mypage/reviewer');
+            }
+          }
+        });
+        return const LoadingScreen();
+      },
+      loading: () => const LoadingScreen(),
+      error: (err, stack) => Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Colors.red,
+              ),
+              const SizedBox(height: 16),
+              Text('데이터 로드 실패: $err'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.go('/home'),
+                child: const Text('홈으로 이동'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

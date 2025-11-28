@@ -275,9 +275,17 @@ class AuthService {
             : null,
       );
 
+      // 모바일 앱에서는 커스텀 URL 스킴으로 리다이렉트
+      final redirectTo = kIsWeb
+          ? null // 웹에서는 기본값 사용
+          : 'com.smart-grow.smart-review://login-callback';
+
       await _supabase.auth.signInWithOAuth(
         OAuthProvider.google,
-        authScreenLaunchMode: LaunchMode.inAppWebView,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.inAppWebView
+            : LaunchMode.externalApplication,
+        redirectTo: redirectTo,
         queryParams: {'access_type': 'offline', 'prompt': 'consent'},
       );
 
@@ -361,23 +369,18 @@ class AuthService {
         // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
         return await currentUser;
       } else {
-        // 네이티브 앱에서는 카카오 SDK 사용
-        final kakao.OAuthToken token = await kakao.UserApi.instance
-            .loginWithKakaoTalk();
+        // 모바일에서는 Supabase OAuth 사용 (카카오톡 앱 의존성 제거)
+        final redirectTo = 'com.smart-grow.smart-review://login-callback';
 
-        // Supabase에 카카오 사용자 정보로 로그인
-        final response = await _supabase.auth.signInWithIdToken(
-          provider: OAuthProvider.kakao,
-          idToken: token.idToken!, // idToken 사용
-          accessToken: token.accessToken,
+        await _supabase.auth.signInWithOAuth(
+          OAuthProvider.kakao,
+          authScreenLaunchMode: LaunchMode.externalApplication,
+          redirectTo: redirectTo,
         );
 
         // 로그인 성공 시 프로필 관리는 authStateChanges와 currentUser에서 처리
         // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
-        if (response.user != null) {
-          return await currentUser;
-        }
-        return null;
+        return await currentUser;
       }
     } catch (e) {
       throw Exception('Kakao 로그인 실패: $e');

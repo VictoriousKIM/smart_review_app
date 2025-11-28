@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app_links/app_links.dart';
 import 'config/supabase_config.dart';
 import 'config/app_router.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -13,7 +15,62 @@ void main() async {
   // Google Sign-In 초기화 (웹에서는 자동으로 초기화됨)
   // GoogleSignIn.instance는 웹에서 자동으로 초기화됩니다
 
+  // 딥링크 처리 (모바일만)
+  if (!kIsWeb) {
+    _handleDeepLinks();
+  }
+
   runApp(const ProviderScope(child: MyApp()));
+}
+
+// 딥링크 처리 함수
+void _handleDeepLinks() {
+  final appLinks = AppLinks();
+
+  // 앱이 이미 실행 중일 때 딥링크 처리
+  appLinks.uriLinkStream.listen(
+    (uri) {
+      _processDeepLink(uri);
+    },
+    onError: (err) {
+      debugPrint('딥링크 처리 오류: $err');
+    },
+  );
+
+  // 앱이 딥링크로 시작될 때 처리
+  appLinks.getInitialLink().then((uri) {
+    if (uri != null) {
+      _processDeepLink(uri);
+    }
+  });
+}
+
+// 딥링크 처리 로직
+void _processDeepLink(Uri uri) async {
+  debugPrint('🔗 딥링크 수신: $uri');
+
+  // OAuth 콜백 딥링크 처리
+  if (uri.scheme == 'com.smart-grow.smart-review' &&
+      uri.host == 'login-callback') {
+    final code = uri.queryParameters['code'];
+    if (code != null) {
+      debugPrint('✅ OAuth 코드 수신: $code');
+      // Supabase가 자동으로 딥링크를 처리하도록 함
+      // detectSessionInUri: true 설정으로 자동 처리됨
+      // 하지만 Supabase가 localhost로 리다이렉트하므로, 여기서 직접 처리
+      try {
+        final supabase = SupabaseConfig.client;
+        final response = await supabase.auth.exchangeCodeForSession(code);
+        if (response.session != null) {
+          debugPrint('✅ 세션 복원 성공');
+        } else {
+          debugPrint('⚠️ 세션 복원 실패: 세션이 null');
+        }
+      } catch (e) {
+        debugPrint('❌ 세션 복원 오류: $e');
+      }
+    }
+  }
 }
 
 class MyApp extends StatelessWidget {

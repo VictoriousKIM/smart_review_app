@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/campaign_service.dart';
@@ -93,9 +94,13 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     _reviewStartDateTimeController = TextEditingController();
     _reviewEndDateTimeController = TextEditingController();
 
-    // 무거운 작업은 프레임 렌더링 후 단계별 실행
+    // ✅ Phase 1.2: 더 긴 지연 + 프레임 콜백 조합
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadCampaignData();
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) {
+          _loadCampaignData();
+        }
+      });
     });
   }
 
@@ -109,6 +114,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       if (result.success && result.data != null) {
         final campaign = result.data!;
         _originalCampaign = campaign;
+
+        // ✅ [중요] 데이터 세팅 중에는 리스너가 반응하지 않도록 플래그 설정
+        _ignoreCostListeners = true;
 
         // 기존 캠페인 데이터로 필드 초기화
         _productNameController.text = campaign.productName ?? campaign.title;
@@ -147,8 +155,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               .toString();
         }
 
+        // ✅ [중요] 데이터 세팅 완료 후 플래그 해제 및 비용 1회 계산
+        _ignoreCostListeners = false;
         _updateDateTimeControllers();
-        _calculateCost();
+        _calculateCost(); // 여기서 딱 한 번만 계산
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -558,7 +568,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Form(
               key: _formKey,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
+              // ✅ 웹에서는 autovalidateMode 비활성화 (validator 폭주 방지)
+              autovalidateMode: kIsWeb
+                  ? AutovalidateMode.disabled
+                  : AutovalidateMode.onUserInteraction,
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -593,28 +606,28 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                       const SizedBox(height: 16),
                     ],
 
-                    RepaintBoundary(child: _buildCampaignTypeSection()),
+                    _buildBoundary(_buildCampaignTypeSection()),
                     const SizedBox(height: 24),
 
-                    RepaintBoundary(child: _buildProductInfoSection()),
+                    _buildBoundary(_buildProductInfoSection()),
                     const SizedBox(height: 24),
 
-                    RepaintBoundary(child: _buildReviewSettings()),
+                    _buildBoundary(_buildReviewSettings()),
                     const SizedBox(height: 24),
 
-                    RepaintBoundary(child: _buildScheduleSection()),
+                    _buildBoundary(_buildScheduleSection()),
                     const SizedBox(height: 24),
 
-                    RepaintBoundary(child: _buildDuplicatePreventSection()),
+                    _buildBoundary(_buildDuplicatePreventSection()),
                     const SizedBox(height: 24),
 
-                    RepaintBoundary(child: _buildCostSection()),
+                    _buildBoundary(_buildCostSection()),
                     const SizedBox(height: 24),
 
                     const SizedBox(height: 32),
 
-                    RepaintBoundary(
-                      child: AbsorbPointer(
+                    _buildBoundary(
+                      AbsorbPointer(
                         absorbing: !_canCreateCampaign() || _isCreatingCampaign,
                         child: Opacity(
                           opacity:
@@ -1680,6 +1693,14 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         _totalCost <= _currentBalance &&
         (int.tryParse(maxParticipants) ?? 0) > 0 &&
         !_isCreatingCampaign; // ✅ 중복 호출 방지
+  }
+
+  // ✅ 웹에서 RepaintBoundary 조건부 처리 헬퍼
+  // 웹에서는 TextField가 포함된 위젯에 RepaintBoundary를 씌우면
+  // 커서가 깜빡일 때마다 전체 영역을 텍스처로 다시 굽는 과정이 발생하여 성능 저하
+  Widget _buildBoundary(Widget child) {
+    if (kIsWeb) return child; // 웹이면 그냥 child 반환 (커서 깜빡임 성능 이슈 방지)
+    return RepaintBoundary(child: child); // 앱에서는 성능 최적화 도움됨
   }
 
   void _updateDateTimeControllers() {

@@ -1,15 +1,32 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseConfig {
-  // 개발 모드에서는 로컬 Supabase 사용, 프로덕션에서는 원격 Supabase 사용
-  static const String supabaseUrl = kDebugMode
-      ? 'http://127.0.0.1:54500' // 로컬 개발 환경
-      : 'https://ythmnhadeyfusmfhcgdr.supabase.co'; // 프로덕션 환경
+  // 프로덕션 Supabase 사용 (소셜 로그인을 위해 항상 프로덕션 연결)
+  // 로컬 개발이 필요한 경우 환경 변수로 제어 가능
+  static String get supabaseUrl {
+    // 환경 변수로 로컬 개발 모드 제어 (기본값: 프로덕션)
+    const useLocal = String.fromEnvironment('USE_LOCAL_SUPABASE', defaultValue: 'false');
+    if (useLocal == 'true' && kIsWeb && kDebugMode) {
+      // 웹 개발 환경: 로컬 Supabase 사용 (환경 변수로 명시적으로 설정한 경우만)
+      return 'http://127.0.0.1:54500';
+    } else {
+      // 프로덕션 Supabase 사용 (기본값)
+      return 'https://ythmnhadeyfusmfhcgdr.supabase.co';
+    }
+  }
 
-  static const String supabaseAnonKey = kDebugMode
-      ? 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' // 로컬 개발 키
-      : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0aG1uaGFkZXlmdXNtZmhjZ2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMDU4MDQsImV4cCI6MjA3MzU4MTgwNH0.BzTELGjnSewXprm_3mjJnOXusvp5Sw5jagpmKUYEM50'; // 프로덕션 키
+  static String get supabaseAnonKey {
+    // 환경 변수로 로컬 개발 모드 제어 (기본값: 프로덕션)
+    const useLocal = String.fromEnvironment('USE_LOCAL_SUPABASE', defaultValue: 'false');
+    if (useLocal == 'true' && kIsWeb && kDebugMode) {
+      // 웹 개발 환경: 로컬 개발 키 (환경 변수로 명시적으로 설정한 경우만)
+      return 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+    } else {
+      // 프로덕션 키 사용 (기본값)
+      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0aG1uaGFkZXlmdXNtZmhjZ2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMDU4MDQsImV4cCI6MjA3MzU4MTgwNH0.BzTELGjnSewXprm_3mjJnOXusvp5Sw5jagpmKUYEM50';
+    }
+  }
 
   // Cloudflare Workers API URL
   // 프로덕션 환경만 사용 (로컬 개발도 프로덕션 Workers 사용)
@@ -34,7 +51,17 @@ class SupabaseConfig {
     // Supabase.initialize는 이미 초기화된 경우 안전하게 처리됩니다
     // 웹 환경에서는 세션 복원이 자동으로 처리됩니다
     try {
-      await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
+        // 모바일에서 딥링크 처리를 위한 설정
+        authOptions: const FlutterAuthClientOptions(
+          // 딥링크 처리를 활성화
+          authFlowType: AuthFlowType.pkce,
+          // 모바일에서 딥링크로 리다이렉트될 때 앱이 열리도록 설정
+          detectSessionInUri: true,
+        ),
+      );
       debugPrint('Supabase 초기화 완료');
     } catch (e) {
       // 이미 초기화된 경우나 다른 에러가 발생할 수 있음

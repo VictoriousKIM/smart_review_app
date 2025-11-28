@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image/image.dart' as img;
@@ -20,8 +20,17 @@ class CampaignImageService {
     try {
       print('🔍 이미지 분석 시작...');
 
-      // ✅ 이미지 디코딩을 Isolate로 이동하여 메인 스레드 블로킹 방지
-      final imageInfo = await compute(_decodeImageInIsolate, imageBytes);
+      // ✅ 웹에서는 직접 디코딩, 네이티브에서는 isolate 사용
+      Map<String, int>? imageInfo;
+      if (kIsWeb) {
+        final image = img.decodeImage(imageBytes);
+        if (image != null) {
+          imageInfo = {'width': image.width, 'height': image.height};
+        }
+      } else {
+        imageInfo = await compute(_decodeImageInIsolate, imageBytes);
+      }
+
       if (imageInfo == null) {
         print('❌ 이미지 디코딩 실패');
         return null;
@@ -130,10 +139,7 @@ class CampaignImageService {
       if (image == null) {
         return null;
       }
-      return {
-        'width': image.width,
-        'height': image.height,
-      };
+      return {'width': image.width, 'height': image.height};
     } catch (e) {
       print('❌ Isolate에서 이미지 디코딩 실패: $e');
       return null;

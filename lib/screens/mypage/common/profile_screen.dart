@@ -645,11 +645,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       ),
       child: BusinessRegistrationForm(
         hasPendingManagerRequest: _pendingManagerRequest != null,
-        onVerificationComplete: () {
+        onVerificationComplete: () async {
           // 사업자 인증 완료 시 프로필 및 회사 데이터 다시 로드
-          _loadUserProfile();
-          _loadCompanyData();
-          _loadPendingManagerRequest();
+          await _loadUserProfile();
+          await _loadCompanyData();
+          await _loadWalletData(); // 지갑 데이터 로드 (계좌정보 표시를 위해 필요)
+          await _loadPendingManagerRequest();
+          // 데이터 로드 완료 후 setState로 위젯 다시 빌드하여 계좌정보 표시
+          if (mounted) {
+            setState(() {});
+          }
         },
       ),
     );

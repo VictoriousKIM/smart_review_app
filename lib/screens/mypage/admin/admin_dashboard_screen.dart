@@ -25,26 +25,36 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // 관리자 대시보드 진입 시 사용자 정보 새로고침 및 통계 로드
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshUserAndLoadStats();
+    });
+  }
+
+  Future<void> _refreshUserAndLoadStats() async {
+    // 사용자 정보 새로고침 (Supabase에서 변경된 user_type 반영)
+    ref.invalidate(currentUserProvider);
+    // 통계 로드
     _loadStatistics();
   }
 
   Future<void> _loadStatistics() async {
     setState(() => _isLoadingStats = true);
     try {
-      final users = await SupabaseConfig.client
+      final usersResponse = await SupabaseConfig.client
           .from('users')
-          .select('id')
-          .then((response) => response.length);
+          .select('id');
+      final users = (usersResponse as List).length;
 
-      final companies = await SupabaseConfig.client
+      final companiesResponse = await SupabaseConfig.client
           .from('companies')
-          .select('id')
-          .then((response) => response.length);
+          .select('id');
+      final companies = (companiesResponse as List).length;
 
-      final campaigns = await SupabaseConfig.client
+      final campaignsResponse = await SupabaseConfig.client
           .from('campaigns')
-          .select('id')
-          .then((response) => response.length);
+          .select('id');
+      final campaigns = (campaignsResponse as List).length;
 
       // 대기 중인 포인트 거래 개수 조회
       int pending = 0;
@@ -67,7 +77,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         _pendingCount = pending;
         _isLoadingStats = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ 통계 로드 실패: $e');
+      print('스택 트레이스: $stackTrace');
       setState(() => _isLoadingStats = false);
     }
   }

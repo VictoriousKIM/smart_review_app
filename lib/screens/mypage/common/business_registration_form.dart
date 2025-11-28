@@ -1,7 +1,9 @@
 import 'dart:typed_data';
 import 'dart:convert';
+import 'dart:io' show File;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -752,10 +754,25 @@ class _BusinessRegistrationFormState
         }
 
         // 파일을 바이트로 읽기
-        final bytes = file.bytes;
-        print('🔍 파일 바이트: ${bytes?.length ?? 0} bytes');
+        Uint8List? bytes = file.bytes;
+        print('🔍 파일 바이트 (file.bytes): ${bytes?.length ?? 0} bytes');
 
-        if (bytes != null) {
+        // Android/iOS에서 file.bytes가 null인 경우 file.path를 사용하여 파일 읽기
+        if (bytes == null || bytes.isEmpty) {
+          if (!kIsWeb && file.path != null) {
+            print('🔍 file.path를 사용하여 파일 읽기: ${file.path}');
+            try {
+              final fileData = File(file.path!);
+              bytes = await fileData.readAsBytes();
+              print('✅ 파일 경로에서 읽기 성공: ${bytes.length} bytes');
+            } catch (e) {
+              print('❌ 파일 경로에서 읽기 실패: $e');
+              bytes = null;
+            }
+          }
+        }
+
+        if (bytes != null && bytes.isNotEmpty) {
           setState(() {
             _selectedFileBytes = bytes;
             _selectedFileName = file.name;
@@ -764,8 +781,8 @@ class _BusinessRegistrationFormState
 
           print('✅ 파일 선택 완료 - 검증하기 버튼 표시');
         } else {
-          // 웹에서 bytes가 null인 경우 파일을 다시 읽기 시도
-          print('❌ 파일 바이트가 null입니다');
+          // 파일을 읽을 수 없는 경우
+          print('❌ 파일 바이트가 null이거나 비어있습니다');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('파일을 읽을 수 없습니다. 다시 시도해주세요.')),

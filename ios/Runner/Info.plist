@@ -45,5 +45,25 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- OAuth URL Schemes for Google and Kakao Sign-In -->
+	<!-- TODO: Replace YOUR_GOOGLE_CLIENT_ID and YOUR_KAKAO_APP_KEY with actual values -->
+	<!-- Google Client ID format: com.googleusercontent.apps.YOUR_CLIENT_ID -->
+	<!-- Kakao App Key format: kakaoYOUR_KAKAO_APP_KEY -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Supabase OAuth 콜백 -->
+				<string>com.smart-grow.smart-review</string>
+				<!-- Google Sign-In URL Scheme (필요시 주석 해제) -->
+				<!-- <string>com.googleusercontent.apps.750245735283-mmb7ro0g3sga6u2mn2g3nuht2eb6nacu</string> -->
+				<!-- Kakao Sign-In URL Scheme (필요시 주석 해제) -->
+				<!-- <string>kakaoYOUR_KAKAO_APP_KEY</string> -->
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
