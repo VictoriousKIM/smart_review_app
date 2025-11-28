@@ -49,7 +49,8 @@ class SupabaseConfig {
 
   static Future<void> initialize() async {
     // Supabase.initialize는 이미 초기화된 경우 안전하게 처리됩니다
-    // 웹 환경에서는 세션 복원이 자동으로 처리됩니다
+    // 웹 환경에서는 localStorage를 사용하여 세션을 자동으로 저장/복원합니다
+    // F5 새로고침 후에도 로그인 상태가 유지됩니다
     try {
       await Supabase.initialize(
         url: supabaseUrl,
@@ -63,6 +64,16 @@ class SupabaseConfig {
         ),
       );
       debugPrint('Supabase 초기화 완료');
+      
+      // 웹 환경에서 세션 복원 확인
+      if (kIsWeb) {
+        final session = Supabase.instance.client.auth.currentSession;
+        if (session != null) {
+          debugPrint('✅ 웹 세션 복원 성공: ${session.user.email ?? session.user.id}');
+        } else {
+          debugPrint('ℹ️ 저장된 세션이 없습니다 (로그인 필요)');
+        }
+      }
     } catch (e) {
       // 이미 초기화된 경우나 다른 에러가 발생할 수 있음
       debugPrint('Supabase 초기화 중 에러 발생 (무시 가능): $e');

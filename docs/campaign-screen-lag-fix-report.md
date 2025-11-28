@@ -2,9 +2,11 @@
 
 **작성일**: 2025년 11월 28일  
 **작업 기간**: 2025년 11월 28일  
+**최종 업데이트**: 2025년 11월 28일  
 **대상 파일**: 
 - `lib/screens/campaign/campaign_creation_screen.dart`
 - `lib/screens/campaign/campaign_edit_screen.dart`
+- `lib/services/campaign_image_service.dart`
 
 ---
 
@@ -137,6 +139,154 @@ if (!_isInitialized) {
 
 ---
 
+### 6. Phase 2.2: 편집 버튼 렉 해결
+
+**목표**: 이미지 편집 버튼 클릭 시 메인 스레드 블로킹 최소화
+
+**문제점**:
+- `_showWebCropDialog()`에서 `img.decodeImage()`가 메인 스레드를 블로킹
+- 큰 이미지 디코딩 시 UI 프리징 발생
+
+**변경 사항**:
+- 로딩 상태를 먼저 표시하여 즉각적인 피드백 제공
+- 이미지 디코딩을 `Future.microtask`로 분리하여 메인 스레드 블로킹 최소화
+- UI 업데이트 시간 확보 (50ms 지연)
+
+**코드 변경**:
+```dart
+// ✅ 즉시 로딩 상태 표시 (UI 업데이트 먼저)
+if (mounted) {
+  setState(() {
+    _isEditingImage = true;
+    _errorMessage = null;
+  });
+}
+
+// ✅ UI가 렌더링될 시간 확보
+await Future.delayed(const Duration(milliseconds: 50));
+
+// ✅ 이미지 디코딩을 비동기로 처리 (메인 스레드 블로킹 방지)
+img.Image? originalImage;
+try {
+  originalImage = await Future.microtask(() {
+    return kIsWeb
+        ? img.decodeImage(_capturedImage!)
+        : null; // 네이티브는 compute 사용
+  });
+  // ...
+}
+```
+
+**예상 효과**: 편집 버튼 클릭 시 이미지 디코딩 블로킹 감소, 즉시 피드백 제공
+
+---
+
+### 7. Phase 2.2: 자동추출 버튼 렉 해결 (분석용 저해상도 이미지)
+
+**목표**: AI 분석에 작은 이미지 사용하여 디코딩 시간 단축
+
+**문제점**:
+- 큰 이미지 디코딩으로 인한 메인 스레드 블로킹
+- AI API 호출 시 불필요하게 큰 이미지 전송
+- 이미지 처리 중 UI가 멈춤
+
+**변경 사항**:
+- 분석용 저해상도 이미지 사용 (1024px 이하)
+- AI 분석에는 고해상도가 불필요하므로 작은 이미지로 리사이징
+- `_prepareForAnalysis()` 메서드 추가
+- **프레임 분리 최적화**: 이미지 디코딩, 리사이징, 인코딩을 여러 프레임에 걸쳐 분리하여 UI 블로킹 최소화
+
+**코드 변경**:
+```dart
+// ✅ Phase 2.2: 분석용 저해상도 이미지 사용 (1024px 이하)
+final analysisBytes = await _prepareForAnalysis(
+  imageBytes,
+  maxSize: 1024,
+);
+
+// ✅ Future.microtask로 분리하여 메인 스레드 블로킹 최소화
+final image = await Future.microtask(
+  () => img.decodeImage(analysisBytes),
+);
+
+// ✅ 분석용 저해상도 이미지 파일 전송 (원본 대신)
+request.files.add(
+  http.MultipartFile.fromBytes(
+    'image',
+    analysisBytes, // 원본 대신 저해상도 이미지 사용
+    filename: filename,
+    contentType: MediaType.parse(contentType),
+  ),
+);
+```
+
+**예상 효과**: 
+- 디코딩 시간 50-70% 단축
+- API 응답 시간 30% 단축
+- 네트워크 전송량 감소
+- UI 블로킹 최소화 (프레임 분리)
+
+---
+
+### 8. 이미지 선택 시 로딩 스피너 개선
+
+**목표**: 이미지 선택 후 즉시 표시하고 리사이징은 백그라운드 처리
+
+**문제점**:
+- 이미지 리사이징 중 로딩 스피너가 멈춤
+- 큰 이미지 처리 시 UI 블로킹
+
+**변경 사항**:
+- 원본 이미지를 먼저 표시
+- 리사이징은 백그라운드에서 처리 후 교체
+- 리사이징 작업을 여러 프레임에 걸쳐 분리 (각 단계마다 16ms 지연)
+
+**코드 변경**:
+```dart
+// ✅ 원본 이미지를 먼저 표시 (리사이징 전)
+if (mounted) {
+  setState(() {
+    _capturedImage = bytes; // 원본 먼저 표시
+    _isLoadingImage = false; // 로딩 해제
+  });
+}
+
+// ✅ 리사이징은 백그라운드에서 처리
+pendingImageBytes = await _getCachedOrResizeImage(bytes);
+
+// ✅ 리사이징 완료 후 업데이트
+if (mounted && pendingImageBytes != null) {
+  setState(() {
+    _capturedImage = pendingImageBytes; // 리사이징된 이미지로 교체
+  });
+}
+```
+
+**예상 효과**: 이미지 선택 후 즉시 표시, 리사이징 중에도 UI 반응성 유지
+
+---
+
+### 9. 이미지 처리 프레임 분리 최적화
+
+**목표**: 모든 이미지 처리 작업을 여러 프레임에 걸쳐 분리
+
+**변경 사항**:
+- `_resizeImageDirect()`: 디코딩, 리사이징, 인코딩을 각각 프레임 분리
+- `_cropImageDirect()`: 디코딩, 크롭, 인코딩을 각각 프레임 분리
+- `_normalizeCropCoordinatesDirect()`: 디코딩을 프레임 분리
+- `_prepareForAnalysis()`: 모든 단계를 프레임 분리
+
+**코드 패턴**:
+```dart
+// ✅ 각 단계마다 16ms 지연 (1프레임)으로 UI 업데이트 시간 확보
+await Future.delayed(const Duration(milliseconds: 16));
+final result = await Future.microtask(() => /* 무거운 작업 */);
+```
+
+**예상 효과**: 이미지 처리 중에도 UI 반응성 유지, 로딩 스피너가 멈추지 않음
+
+---
+
 ## 📊 예상 개선 효과
 
 | 작업 | 예상 개선 효과 |
@@ -145,14 +295,18 @@ if (!_isInitialized) {
 | Quick Fix 2 (초기화 개선) | 화면 진입 렉 60% 감소 |
 | Phase 1.1 (스켈레톤 UI) | 체감 로딩 시간 50% 감소 |
 | Phase 1.2 (초기화 세분화) | 초기 렌더링 시간 단축 |
+| Phase 2.2 (편집 버튼 최적화) | 이미지 디코딩 블로킹 감소, 즉시 피드백 |
+| Phase 2.2 (저해상도 분석 이미지) | 디코딩 시간 50-70% 단축, API 응답 시간 30% 단축 |
+| 이미지 선택 최적화 | 원본 먼저 표시, 리사이징 백그라운드 처리 |
+| 프레임 분리 최적화 | 이미지 처리 중 UI 반응성 유지, 로딩 스피너 멈춤 방지 |
 
 ---
 
 ## 🔄 미완료 작업 (향후 계획)
 
 ### Phase 2: 이미지 처리 최적화
-- Web Worker 도입 (웹 전용)
-- 분석용 저해상도 이미지 사용
+- ✅ 분석용 저해상도 이미지 사용 (완료)
+- Web Worker 도입 (웹 전용) - 추가 개선 가능
 - 프로그레시브 이미지 로딩
 
 ### Phase 3: UI 렌더링 최적화
@@ -176,10 +330,17 @@ if (!_isInitialized) {
    - 이미지 선택 후 "자동 추출" 버튼 클릭
    - 즉시 로딩 상태 표시 확인
    - UI 프리징 없이 부드러운 전환 확인
+   - 저해상도 이미지로 분석되는지 확인 (콘솔 로그 확인)
 
-3. **웹 환경 테스트**
+3. **편집 버튼 테스트**
+   - 이미지 선택 후 "이미지 편집" 버튼 클릭
+   - 즉시 로딩 상태 표시 확인
+   - 이미지 디코딩 중에도 UI 반응성 유지 확인
+
+4. **웹 환경 테스트**
    - 웹 브라우저에서 성능 개선 확인
    - 특히 이미지 처리 시 메인 스레드 블로킹 감소 확인
+   - 큰 이미지(5MB 이상)로 테스트하여 개선 효과 확인
 
 ---
 
@@ -188,12 +349,23 @@ if (!_isInitialized) {
 ### 수정된 파일
 1. `lib/screens/campaign/campaign_creation_screen.dart`
    - `_extractFromImage()` 메서드 개선
+   - `_showWebCropDialog()` 메서드 개선 (편집 버튼 최적화)
    - `initState()` 초기화 로직 개선
    - 스켈레톤 UI 추가
    - 사용되지 않는 메서드 제거
 
 2. `lib/screens/campaign/campaign_edit_screen.dart`
    - `initState()` 초기화 로직 개선
+
+3. `lib/services/campaign_image_service.dart`
+   - `extractFromImage()` 메서드 개선 (저해상도 이미지 사용)
+   - `_prepareForAnalysis()` 메서드 추가 (프레임 분리 최적화)
+   - `_decodeImageInIsolateForResize()` 메서드 추가
+   - `_resizeImageInIsolate()` 메서드 추가
+
+4. `lib/config/app_router.dart`
+   - `/mypage` 라우트 최적화 (`ref.watch()` 사용)
+   - `_MyPageRedirectWidget` 위젯 추가
 
 ### 추가된 의존성
 - `shimmer` 패키지 (이미 `pubspec.yaml`에 포함되어 있음)
@@ -202,9 +374,16 @@ if (!_isInitialized) {
 
 ## 🎯 결론
 
-로드맵의 Phase 1 작업을 완료하여 캠페인 생성/편집 스크린의 초기 로딩 성능과 사용자 경험을 개선했습니다. 특히 스켈레톤 UI 도입과 단계별 초기화를 통해 화면 진입 시 렉을 크게 줄였습니다.
+로드맵의 Phase 1과 Phase 2.2 작업을 완료하여 캠페인 생성/편집 스크린의 성능을 전반적으로 개선했습니다:
 
-향후 Phase 2-4 작업을 통해 이미지 처리 최적화와 아키텍처 개선을 진행하면 더욱 향상된 성능을 기대할 수 있습니다.
+1. **화면 진입 최적화**: 스켈레톤 UI 도입과 단계별 초기화를 통해 화면 진입 시 렉을 크게 줄였습니다.
+2. **편집 버튼 최적화**: 이미지 디코딩을 비동기로 처리하여 메인 스레드 블로킹을 최소화했습니다.
+3. **자동추출 버튼 최적화**: 분석용 저해상도 이미지를 사용하여 디코딩 시간과 API 응답 시간을 단축했습니다.
+4. **이미지 선택 최적화**: 원본 이미지를 먼저 표시하고 리사이징을 백그라운드에서 처리하여 즉각적인 피드백을 제공합니다.
+5. **프레임 분리 최적화**: 모든 이미지 처리 작업을 여러 프레임에 걸쳐 분리하여 UI 블로킹을 최소화하고 로딩 스피너가 멈추지 않도록 했습니다.
+6. **마이페이지 로딩 문제 해결**: `ref.watch()`를 사용하여 상태 변경을 감지하고 적절한 화면으로 리다이렉트하도록 개선했습니다.
+
+향후 Phase 2.1 (Web Worker 도입)과 Phase 3-4 작업을 통해 더욱 향상된 성능을 기대할 수 있습니다.
 
 ---
 

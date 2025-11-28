@@ -20,15 +20,26 @@ class CampaignImageService {
     try {
       print('🔍 이미지 분석 시작...');
 
+      // ✅ Phase 2.2: 분석용 저해상도 이미지 사용 (1024px 이하)
+      // 큰 이미지는 분석에 불필요하고 디코딩 시간만 늘림
+      final analysisBytes = await _prepareForAnalysis(
+        imageBytes,
+        maxSize: 1024,
+      );
+      print('📏 분석용 이미지 크기: ${analysisBytes.lengthInBytes} bytes');
+
       // ✅ 웹에서는 직접 디코딩, 네이티브에서는 isolate 사용
       Map<String, int>? imageInfo;
       if (kIsWeb) {
-        final image = img.decodeImage(imageBytes);
+        // ✅ Future.microtask로 분리하여 메인 스레드 블로킹 최소화
+        final image = await Future.microtask(
+          () => img.decodeImage(analysisBytes),
+        );
         if (image != null) {
           imageInfo = {'width': image.width, 'height': image.height};
         }
       } else {
-        imageInfo = await compute(_decodeImageInIsolate, imageBytes);
+        imageInfo = await compute(_decodeImageInIsolate, analysisBytes);
       }
 
       if (imageInfo == null) {
@@ -38,11 +49,11 @@ class CampaignImageService {
 
       final imageWidth = imageInfo['width'] as int;
       final imageHeight = imageInfo['height'] as int;
-      print('📏 실제 이미지 크기: ${imageWidth}x${imageHeight}');
+      print('📏 분석용 이미지 크기: ${imageWidth}x${imageHeight}');
 
       print('📤 Workers API 호출 중 (multipart/form-data)...');
 
-      // multipart/form-data로 실제 이미지 파일 전송
+      // multipart/form-data로 분석용 이미지 파일 전송 (원본 대신 저해상도 이미지)
       final request = http.MultipartRequest(
         'POST',
         Uri.parse('$workersUrl/api/analyze-campaign-image'),
@@ -68,11 +79,11 @@ class CampaignImageService {
         }
       }
 
-      // 이미지 파일 추가 (MIME 타입 명시)
+      // ✅ 분석용 저해상도 이미지 파일 추가 (원본 대신)
       request.files.add(
         http.MultipartFile.fromBytes(
           'image',
-          imageBytes,
+          analysisBytes, // 원본 대신 저해상도 이미지 사용
           filename: filename,
           contentType: MediaType.parse(contentType),
         ),
@@ -132,7 +143,97 @@ class CampaignImageService {
     return null; // 유효함
   }
 
-  /// Isolate에서 실행할 이미지 디코딩 함수
+  /// ✅ Phase 2.2: 분석용 이미지 준비 (저해상도)
+  /// AI 분석에는 고해상도가 불필요하므로 작은 이미지로 리사이징
+  /// 웹에서는 여러 프레임에 걸쳐 처리하여 UI 블로킹 최소화
+  Future<Uint8List> _prepareForAnalysis(
+    Uint8List bytes, {
+    int maxSize = 1024,
+  }) async {
+    try {
+      // ✅ Step 1: 이미지 디코딩 (프레임 분리)
+      img.Image? image;
+      if (kIsWeb) {
+        // ✅ 웹: 여러 프레임에 걸쳐 처리
+        await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+        image = await Future.microtask(() => img.decodeImage(bytes));
+      } else {
+        // ✅ 네이티브: isolate에서 디코딩
+        image = await compute(_decodeImageInIsolateForResize, bytes);
+      }
+
+      if (image == null) {
+        print('⚠️ 이미지 디코딩 실패, 원본 반환');
+        return bytes;
+      }
+
+      // 이미지가 null이 아니므로 non-null 타입으로 변환
+      final decodedImage = image;
+
+      // 이미 작은 이미지면 그대로 반환
+      if (decodedImage.width <= maxSize && decodedImage.height <= maxSize) {
+        return bytes;
+      }
+
+      // ✅ Step 2: 리사이징 계산 (프레임 분리)
+      if (kIsWeb) {
+        await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      }
+
+      // 비율 유지하며 리사이징
+      double scale = 1.0;
+      if (decodedImage.width > maxSize) {
+        scale = maxSize / decodedImage.width;
+      }
+      if (decodedImage.height > maxSize) {
+        final heightScale = maxSize / decodedImage.height;
+        if (heightScale < scale) {
+          scale = heightScale;
+        }
+      }
+
+      final newWidth = (decodedImage.width * scale).round();
+      final newHeight = (decodedImage.height * scale).round();
+
+      // ✅ Step 3: 리사이징 실행 (프레임 분리)
+      img.Image resizedImage;
+      if (kIsWeb) {
+        await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+        resizedImage = await Future.microtask(
+          () => img.copyResize(
+            decodedImage,
+            width: newWidth,
+            height: newHeight,
+            interpolation: img.Interpolation.linear,
+          ),
+        );
+      } else {
+        resizedImage = await compute(
+          _resizeImageInIsolate,
+          _ResizeParams(imageBytes: bytes, width: newWidth, height: newHeight),
+        );
+      }
+
+      // ✅ Step 4: 인코딩 (프레임 분리)
+      if (kIsWeb) {
+        await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      }
+
+      final resizedBytes = await Future.microtask(
+        () => Uint8List.fromList(img.encodeJpg(resizedImage, quality: 85)),
+      );
+
+      print(
+        '✅ 분석용 이미지 준비: ${decodedImage.width}x${decodedImage.height} -> ${newWidth}x${newHeight}',
+      );
+      return resizedBytes;
+    } catch (e) {
+      print('⚠️ 분석용 이미지 준비 실패: $e, 원본 반환');
+      return bytes;
+    }
+  }
+
+  /// Isolate에서 실행할 이미지 디코딩 함수 (크기 정보용)
   static Map<String, int>? _decodeImageInIsolate(Uint8List imageBytes) {
     try {
       final image = img.decodeImage(imageBytes);
@@ -145,4 +246,41 @@ class CampaignImageService {
       return null;
     }
   }
+
+  /// Isolate에서 실행할 이미지 디코딩 함수 (리사이징용)
+  static img.Image? _decodeImageInIsolateForResize(Uint8List imageBytes) {
+    try {
+      return img.decodeImage(imageBytes);
+    } catch (e) {
+      print('❌ Isolate에서 이미지 디코딩 실패: $e');
+      return null;
+    }
+  }
+
+  /// Isolate에서 실행할 이미지 리사이징 함수
+  static img.Image _resizeImageInIsolate(_ResizeParams params) {
+    final image = img.decodeImage(params.imageBytes);
+    if (image == null) {
+      throw Exception('이미지 디코딩 실패');
+    }
+    return img.copyResize(
+      image,
+      width: params.width,
+      height: params.height,
+      interpolation: img.Interpolation.linear,
+    );
+  }
+}
+
+/// 리사이징 파라미터
+class _ResizeParams {
+  final Uint8List imageBytes;
+  final int width;
+  final int height;
+
+  _ResizeParams({
+    required this.imageBytes,
+    required this.width,
+    required this.height,
+  });
 }

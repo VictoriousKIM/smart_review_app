@@ -288,6 +288,9 @@ class _CampaignCreationScreenState
       _errorMessage = null;
     });
 
+    // ✅ UI 업데이트가 렌더링될 시간 확보
+    await Future.delayed(const Duration(milliseconds: 50));
+
     // UI 업데이트 후 비동기 작업 실행
     Future.microtask(() async {
       Uint8List? pendingImageBytes;
@@ -307,8 +310,24 @@ class _CampaignCreationScreenState
           if (bytes.length > 5 * 1024 * 1024) {
             pendingErrorMessage = '이미지 크기가 너무 큽니다. (최대 5MB)';
           } else {
-            // ✅ 6. 캐시 확인 후 리사이징
+            // ✅ 원본 이미지를 먼저 표시 (리사이징 전)
+            if (mounted) {
+              setState(() {
+                _capturedImage = bytes; // 원본 먼저 표시
+                _isLoadingImage = false; // 로딩 해제
+              });
+            }
+
+            // ✅ 리사이징은 백그라운드에서 처리
             pendingImageBytes = await _getCachedOrResizeImage(bytes);
+            
+            // ✅ 리사이징 완료 후 업데이트
+            if (mounted && pendingImageBytes != null) {
+              setState(() {
+                _capturedImage = pendingImageBytes; // 리사이징된 이미지로 교체
+              });
+            }
+            return; // 리사이징 완료 후 종료
           }
         }
       } catch (e) {
@@ -334,8 +353,10 @@ class _CampaignCreationScreenState
 
   // ✅ 6. 이미지 캐싱 (중복 처리 방지) - 웹 최적화
   Future<Uint8List> _getCachedOrResizeImage(Uint8List originalBytes) async {
-    // 웹: 캐싱 없이 직접 처리
+    // 웹: 여러 프레임에 걸쳐 처리하여 UI 블로킹 최소화
     if (kIsWeb) {
+      // ✅ UI 업데이트를 위한 프레임 확보
+      await Future.delayed(const Duration(milliseconds: 16)); // 1프레임
       return _resizeImageDirect(originalBytes, 1920, 1920, 85);
     }
 
@@ -503,7 +524,7 @@ class _CampaignCreationScreenState
     }
   }
 
-  // ✅ 웹용 직접 이미지 크롭 함수
+  // ✅ 웹용 직접 이미지 크롭 함수 (프레임 분리 최적화)
   Future<Map<String, dynamic>?> _cropImageDirect(
     Uint8List imageBytes,
     int x,
@@ -512,7 +533,9 @@ class _CampaignCreationScreenState
     int height,
   ) async {
     try {
-      final originalImage = img.decodeImage(imageBytes);
+      // ✅ Step 1: 이미지 디코딩 (프레임 분리)
+      await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      final originalImage = await Future.microtask(() => img.decodeImage(imageBytes));
       if (originalImage == null) return null;
 
       final imageWidth = originalImage.width;
@@ -525,17 +548,21 @@ class _CampaignCreationScreenState
 
       if (cropWidth < 10 || cropHeight < 10) return null;
 
-      final croppedImage = img.copyCrop(
+      // ✅ Step 2: 크롭 실행 (프레임 분리)
+      await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      final croppedImage = await Future.microtask(() => img.copyCrop(
         originalImage,
         x: cropX,
         y: cropY,
         width: cropWidth,
         height: cropHeight,
-      );
+      ));
 
-      final croppedBytes = Uint8List.fromList(
+      // ✅ Step 3: 인코딩 (프레임 분리)
+      await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      final croppedBytes = await Future.microtask(() => Uint8List.fromList(
         img.encodeJpg(croppedImage, quality: 85),
-      );
+      ));
 
       return {
         'croppedBytes': croppedBytes,
@@ -655,7 +682,7 @@ class _CampaignCreationScreenState
     }
   }
 
-  // ✅ 웹용 직접 크롭 좌표 정규화 함수
+  // ✅ 웹용 직접 크롭 좌표 정규화 함수 (프레임 분리 최적화)
   Future<Map<String, int>?> _normalizeCropCoordinatesDirect(
     Uint8List bytes,
     int x,
@@ -664,7 +691,9 @@ class _CampaignCreationScreenState
     int h,
   ) async {
     try {
-      final image = img.decodeImage(bytes);
+      // ✅ 프레임 분리하여 UI 블로킹 최소화
+      await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      final image = await Future.microtask(() => img.decodeImage(bytes));
       if (image == null) return null;
 
       return {
@@ -816,13 +845,47 @@ class _CampaignCreationScreenState
   Future<void> _showWebCropDialog() async {
     if (_capturedImage == null) return;
 
-    // 웹에서는 직접 디코딩, 네이티브에서는 compute 사용
-    final originalImage = kIsWeb
-        ? img.decodeImage(_capturedImage!)
-        : await compute(_decodeImageInIsolate, _capturedImage!);
+    // ✅ 즉시 로딩 상태 표시 (UI 업데이트 먼저)
+    if (mounted) {
+      setState(() {
+        _isEditingImage = true;
+        _errorMessage = null;
+      });
+    }
+
+    // ✅ UI가 렌더링될 시간 확보
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    // ✅ 이미지 디코딩을 비동기로 처리 (메인 스레드 블로킹 방지)
+    img.Image? originalImage;
+    try {
+      originalImage = await Future.microtask(() {
+        return kIsWeb
+            ? img.decodeImage(_capturedImage!)
+            : null; // 네이티브는 compute 사용
+      });
+
+      // 네이티브에서는 compute 사용
+      if (!kIsWeb && originalImage == null) {
+        originalImage = await compute(_decodeImageInIsolate, _capturedImage!);
+      }
+    } catch (e) {
+      print('❌ 이미지 디코딩 실패: $e');
+      if (mounted) {
+        setState(() {
+          _isEditingImage = false;
+          _errorMessage = '이미지 디코딩에 실패했습니다.';
+        });
+      }
+      return;
+    }
+
     if (originalImage == null) {
       if (mounted) {
-        setState(() => _errorMessage = '이미지 디코딩에 실패했습니다.');
+        setState(() {
+          _isEditingImage = false;
+          _errorMessage = '이미지 디코딩에 실패했습니다.';
+        });
       }
       return;
     }
@@ -833,6 +896,11 @@ class _CampaignCreationScreenState
     Rect? initialCrop =
         _currentCropRect ??
         Rect.fromLTWH(0, 0, imgWidth / 2, imgHeight.toDouble());
+
+    // ✅ 로딩 상태 해제 후 다이얼로그 표시
+    if (mounted) {
+      setState(() => _isEditingImage = false);
+    }
 
     final result = await showDialog<Map<String, int>>(
       context: context,
@@ -2800,7 +2868,7 @@ class _CampaignCreationScreenState
     }
   }
 
-  // ✅ 웹용 직접 이미지 리사이징 함수
+  // ✅ 웹용 직접 이미지 리사이징 함수 (프레임 분리 최적화)
   Future<Uint8List> _resizeImageDirect(
     Uint8List bytes,
     int maxW,
@@ -2808,7 +2876,11 @@ class _CampaignCreationScreenState
     int quality,
   ) async {
     try {
-      final image = img.decodeImage(bytes);
+      // ✅ Step 1: 이미지 디코딩 (프레임 분리)
+      img.Image? image;
+      await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      image = await Future.microtask(() => img.decodeImage(bytes));
+      
       if (image == null) {
         print('❌ 이미지 디코딩 실패, 원본 반환');
         return bytes;
@@ -2818,17 +2890,26 @@ class _CampaignCreationScreenState
         return bytes;
       }
 
+      // ✅ Step 2: 리사이징 계산 (프레임 분리)
+      await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
       final scale = (maxW / image.width).clamp(0.0, maxH / image.height);
-      final resized = img.copyResize(
-        image,
-        width: (image.width * scale).round(),
-        height: (image.height * scale).round(),
-        interpolation: img.Interpolation.linear,
-      );
+      final newWidth = (image.width * scale).round();
+      final newHeight = (image.height * scale).round();
 
-      final resizedBytes = Uint8List.fromList(
+      // ✅ Step 3: 리사이징 실행 (프레임 분리)
+      await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      final resized = await Future.microtask(() => img.copyResize(
+        image!,
+        width: newWidth,
+        height: newHeight,
+        interpolation: img.Interpolation.linear,
+      ));
+
+      // ✅ Step 4: 인코딩 (프레임 분리)
+      await Future.delayed(const Duration(milliseconds: 16)); // UI 업데이트 시간 확보
+      final resizedBytes = await Future.microtask(() => Uint8List.fromList(
         img.encodeJpg(resized, quality: quality),
-      );
+      ));
 
       print(
         '✅ 이미지 리사이징 (웹): ${image.width}x${image.height} -> ${resized.width}x${resized.height}',

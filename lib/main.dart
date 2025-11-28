@@ -12,6 +12,38 @@ void main() async {
   // Supabase 초기화
   await SupabaseConfig.initialize();
 
+  // 웹 환경에서 세션 복원 대기 (F5 새로고침 시 로그인 상태 유지)
+  if (kIsWeb) {
+    try {
+      final supabase = SupabaseConfig.client;
+      // localStorage에서 세션 복원 완료될 때까지 대기
+      // Supabase는 initialize() 후 자동으로 세션을 복원하지만, 완료될 때까지 약간의 시간이 필요
+      // onAuthStateChange 스트림의 첫 이벤트를 기다림 (타임아웃 1초)
+      try {
+        await supabase.auth.onAuthStateChange
+            .timeout(
+              const Duration(seconds: 1),
+              onTimeout: (sink) {
+                sink.close();
+              },
+            )
+            .first;
+      } catch (e) {
+        // 타임아웃 시에도 계속 진행 (세션이 없을 수도 있음)
+        debugPrint('세션 복원 대기 타임아웃 (무시 가능): $e');
+      }
+      // 세션 복원 확인
+      final session = supabase.auth.currentSession;
+      if (session != null) {
+        debugPrint('✅ 웹 세션 복원 완료: ${session.user.email ?? session.user.id}');
+      } else {
+        debugPrint('ℹ️ 저장된 세션이 없습니다 (로그인 필요)');
+      }
+    } catch (e) {
+      debugPrint('⚠️ 웹 세션 복원 중 에러 (무시 가능): $e');
+    }
+  }
+
   // Google Sign-In 초기화 (웹에서는 자동으로 초기화됨)
   // GoogleSignIn.instance는 웹에서 자동으로 초기화됩니다
 
