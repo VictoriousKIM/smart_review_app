@@ -11,6 +11,7 @@ import '../../../services/wallet_service.dart';
 import '../../../services/company_user_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../models/campaign.dart';
+import '../../../utils/date_time_utils.dart';
 
 class AdvertiserMyPageScreen extends ConsumerStatefulWidget {
   final app_user.User? user;
@@ -172,7 +173,7 @@ class _AdvertiserMyPageScreenState
         }
 
         // 상태별 카운트 계산
-        final now = DateTime.now();
+        final now = DateTimeUtils.nowKST(); // 한국 시간 사용
 
         // 모집 (대기중): 시작기간이 되지 않았을 때 (active 상태만)
         _pendingCount = allCampaigns.where((campaign) {

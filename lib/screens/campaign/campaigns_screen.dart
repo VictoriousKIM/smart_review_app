@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/campaign.dart';
 import '../../services/campaign_service.dart';
 import '../../widgets/campaign_card.dart';
+import '../../utils/date_time_utils.dart';
 
 class CampaignsScreen extends ConsumerStatefulWidget {
   const CampaignsScreen({super.key});
@@ -14,19 +15,21 @@ class CampaignsScreen extends ConsumerStatefulWidget {
 
 class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
   final CampaignService _campaignService = CampaignService();
-  List<Campaign> _campaigns = [];
-  List<Campaign> _filteredCampaigns = [];
+
+  List<Campaign> _allCampaigns = [];
+  List<Campaign> _recruitingCampaigns = []; // 모집중인 캠페인만 표시
+
   bool _isLoading = true;
   String _selectedCategory = 'all';
   String _searchQuery = '';
   bool _isSearchVisible = false;
   final TextEditingController _searchController = TextEditingController();
 
-  final List<Map<String, String>> _categories = [
-    {'key': 'all', 'label': '전체'},
-    {'key': 'reviewer', 'label': '리뷰어'},
-    {'key': 'press', 'label': '기자단'},
-    {'key': 'visit', 'label': '방문형'},
+  final List<Map<String, dynamic>> _categories = [
+    {'key': 'all', 'label': '전체', 'icon': Icons.apps},
+    {'key': 'reviewer', 'label': '리뷰어', 'icon': Icons.rate_review},
+    {'key': 'press', 'label': '기자단', 'icon': Icons.article},
+    {'key': 'visit', 'label': '방문형', 'icon': Icons.store},
   ];
 
   @override
@@ -50,10 +53,18 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
   }
 
   void _filterCampaigns() {
-    if (_searchQuery.isEmpty) {
-      _filteredCampaigns = _campaigns;
-    } else {
-      _filteredCampaigns = _campaigns.where((campaign) {
+    // 검색어에 따라 필터링된 캠페인 목록 업데이트
+    _updateFilteredCampaigns();
+  }
+
+  /// 모집중인 캠페인만 필터링 (광고주 마이캠페인 화면과 동일한 로직)
+  void _updateFilteredCampaigns() {
+    final now = DateTimeUtils.nowKST(); // 한국 시간 사용
+
+    // 검색어 필터링
+    List<Campaign> searchFiltered = _allCampaigns;
+    if (_searchQuery.isNotEmpty) {
+      searchFiltered = _allCampaigns.where((campaign) {
         return campaign.title.toLowerCase().contains(
               _searchQuery.toLowerCase(),
             ) ||
@@ -65,6 +76,17 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
             );
       }).toList();
     }
+
+    // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
+    _recruitingCampaigns = searchFiltered.where((campaign) {
+      if (campaign.status != CampaignStatus.active) return false;
+      if (campaign.applyStartDate.isAfter(now)) return false;
+      if (campaign.applyEndDate.isBefore(now)) return false;
+      if (campaign.maxParticipants != null &&
+          campaign.currentParticipants >= campaign.maxParticipants!)
+        return false;
+      return true;
+    }).toList();
   }
 
   Future<void> _loadCampaigns() async {
@@ -79,8 +101,8 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
 
       if (response.success && response.data != null) {
         setState(() {
-          _campaigns = response.data!;
-          _filterCampaigns();
+          _allCampaigns = response.data!;
+          _updateFilteredCampaigns();
           _isLoading = false;
         });
       } else {
@@ -127,7 +149,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _filteredCampaigns.isEmpty
+                : _recruitingCampaigns.isEmpty
                 ? _buildEmptyState()
                 : _buildCampaignList(),
           ),
@@ -219,38 +241,103 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
 
   Widget _buildCategoryFilter() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(color: Colors.white),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: _categories.map((category) {
-            final isSelected = _selectedCategory == category['key'];
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text(category['label']!),
-                selected: isSelected,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedCategory = category['key']!;
-                  });
-                  _loadCampaigns();
-                },
-                selectedColor: const Color(0xFF137fec),
-                checkmarkColor: Colors.white,
-                labelStyle: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey[700],
-                  fontWeight: FontWeight.w600,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: _categories.map((category) {
+              final isSelected = _selectedCategory == category['key'];
+              final icon = category['icon'] as IconData;
+              return Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedCategory = category['key'] as String;
+                        });
+                        _loadCampaigns();
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF137fec)
+                              : Colors.grey[50],
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF137fec)
+                                : Colors.grey[300]!,
+                            width: isSelected ? 0 : 1,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF137fec,
+                                    ).withOpacity(0.3),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 16,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.grey[600],
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              category['label'] as String,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                backgroundColor: Colors.white,
-                side: BorderSide(color: Colors.grey[300]!, width: 1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
@@ -258,10 +345,10 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
 
   Widget _buildCampaignList() {
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _filteredCampaigns.length,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      itemCount: _recruitingCampaigns.length,
       itemBuilder: (context, index) {
-        final campaign = _filteredCampaigns[index];
+        final campaign = _recruitingCampaigns[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: CampaignCard(
@@ -278,6 +365,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
 
   Widget _buildEmptyState() {
     final isSearching = _searchQuery.isNotEmpty;
+    final message = isSearching ? '검색 결과가 없습니다' : '모집중인 캠페인이 없습니다';
 
     return Center(
       child: Column(
@@ -290,7 +378,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            isSearching ? '검색 결과가 없습니다' : '캠페인이 없습니다',
+            message,
             style: TextStyle(
               fontSize: 18,
               color: Colors.grey[600],

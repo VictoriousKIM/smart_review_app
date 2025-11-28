@@ -130,6 +130,13 @@ class _AdvertiserMyCampaignsScreenState
             debugPrint('✅ Campaign 객체를 받았습니다. 목록에 직접 추가합니다.');
             _shouldRefreshOnRestore = false; // 성공적으로 처리되었으므로 플래그 해제
             _addCampaignDirectly(result);
+            // DB에서 최신 데이터를 다시 조회하여 확실하게 반영
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                debugPrint('🔄 DB에서 최신 캠페인 목록 다시 조회');
+                _loadCampaigns();
+              }
+            });
           } else if (result == true) {
             // 일반 새로고침
             debugPrint('🔄 일반 새로고침 실행 (result == true)');

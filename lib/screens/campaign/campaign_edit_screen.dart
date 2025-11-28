@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -155,10 +156,11 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               .toString();
         }
 
-        // ✅ [중요] 데이터 세팅 완료 후 플래그 해제 및 비용 1회 계산
+        // ✅ [중요] 데이터 세팅 완료 후 플래그 해제
         _ignoreCostListeners = false;
         _updateDateTimeControllers();
-        _calculateCost(); // 여기서 딱 한 번만 계산
+        // 편집 화면에서는 비용 계산 제거 (추가 비용 변동 없음)
+        // _calculateCost(); // 여기서 딱 한 번만 계산
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -206,7 +208,8 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     await Future.microtask(() {
       if (mounted) {
         _updateDateTimeControllers();
-        _calculateCost(); // 초기 비용 계산
+        // 편집 화면에서는 비용 계산 제거 (추가 비용 변동 없음)
+        // _calculateCost(); // 초기 비용 계산
       }
     });
   }
@@ -237,18 +240,20 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   }
 
   void _setupCostListeners() {
-    _paymentAmountController.addListener(_calculateCostDebounced);
-    _campaignRewardController.addListener(_calculateCostDebounced);
-    _maxParticipantsController.addListener(_calculateCostDebounced);
+    // 편집 화면에서는 비용 계산 리스너 제거 (추가 비용 변동 없음)
+    // _paymentAmountController.addListener(_calculateCostDebounced);
+    // _campaignRewardController.addListener(_calculateCostDebounced);
+    // _maxParticipantsController.addListener(_calculateCostDebounced);
   }
 
   // ✅ 5. 디바운싱된 비용 계산
+  // 편집 화면에서는 비용 계산 제거 (추가 비용 변동 없음)
   void _calculateCostDebounced() {
-    if (_ignoreCostListeners) return;
-    _costCalculationTimer?.cancel();
-    _costCalculationTimer = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) _calculateCost();
-    });
+    // if (_ignoreCostListeners) return;
+    // _costCalculationTimer?.cancel();
+    // _costCalculationTimer = Timer(const Duration(milliseconds: 500), () {
+    //   if (mounted) _calculateCost();
+    // });
   }
 
   Future<void> _loadCompanyBalance() async {
@@ -407,9 +412,21 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       }
 
       // 날짜 검증
+      final nowKST = DateTimeUtils.nowKST();
+      
       if (_applyStartDateTime == null) {
         setState(() {
           _errorMessage = '신청 시작일시를 선택해주세요';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      // 신청 시작일시는 현재 시간보다 나중이어야 함
+      if (_applyStartDateTime!.isBefore(nowKST) ||
+          _applyStartDateTime!.isAtSameMomentAs(nowKST)) {
+        setState(() {
+          _errorMessage = '신청 시작일시는 현재 시간보다 나중이어야 합니다';
           _isCreatingCampaign = false;
         });
         return;
@@ -426,6 +443,16 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       if (_reviewStartDateTime == null) {
         setState(() {
           _errorMessage = '리뷰 시작일시를 선택해주세요';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      // 리뷰 시작일시는 현재 시간보다 나중이어야 함
+      if (_reviewStartDateTime!.isBefore(nowKST) ||
+          _reviewStartDateTime!.isAtSameMomentAs(nowKST)) {
+        setState(() {
+          _errorMessage = '리뷰 시작일시는 현재 시간보다 나중이어야 합니다';
           _isCreatingCampaign = false;
         });
         return;
@@ -773,6 +800,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                     labelText: '개수 *',
                     hintText: '1',
                     keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return '개수를 입력해주세요';
@@ -799,9 +829,17 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               controller: _paymentAmountController,
               labelText: '상품가격 *',
               keyboardType: TextInputType.number,
+              readOnly: true,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return '상품가격을 입력해주세요';
+                }
+                final price = int.tryParse(value);
+                if (price == null || price < 0) {
+                  return '올바른 가격을 입력해주세요';
                 }
                 return null;
               },
@@ -947,6 +985,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 labelText: '텍스트 리뷰 최소 글자 수 *',
                 hintText: '100',
                 keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 validator: (value) {
                   if (_reviewType == 'star_text' ||
                       _reviewType == 'star_text_image') {
@@ -969,6 +1010,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 labelText: '사진 최소 개수 *',
                 hintText: '1',
                 keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 validator: (value) {
                   if (_reviewType == 'star_text_image') {
                     if (value == null || value.isEmpty) {
@@ -989,6 +1033,19 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               labelText: '리뷰비',
               hintText: '선택사항, 미입력 시 0',
               keyboardType: TextInputType.number,
+              readOnly: true,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              validator: (value) {
+                if (value != null && value.isNotEmpty) {
+                  final reward = int.tryParse(value);
+                  if (reward == null || reward < 0) {
+                    return '올바른 리뷰비를 입력해주세요';
+                  }
+                }
+                return null;
+              },
             ),
           ],
         ),
@@ -1092,6 +1149,16 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               labelText: '모집 인원 *',
               hintText: '10',
               keyboardType: TextInputType.number,
+              readOnly: true,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onChanged: (value) {
+                // 리뷰어당 신청 가능 개수 필드의 validator 재실행
+                if (_formKey.currentState != null) {
+                  _formKey.currentState!.validate();
+                }
+              },
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return '모집 인원을 입력해주세요';
@@ -1099,6 +1166,12 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 final count = int.tryParse(value);
                 if (count == null || count <= 0) {
                   return '올바른 인원수를 입력해주세요';
+                }
+                // 리뷰어당 신청 가능 개수보다 작으면 안 됨
+                final maxPerReviewer =
+                    int.tryParse(_maxPerReviewerController.text) ?? 0;
+                if (maxPerReviewer > 0 && count < maxPerReviewer) {
+                  return '모집 인원은 리뷰어당 신청 가능 개수($maxPerReviewer개) 이상이어야 합니다';
                 }
                 return null;
               },
@@ -1109,6 +1182,15 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               labelText: '리뷰어당 신청 가능 개수',
               hintText: '1',
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onChanged: (value) {
+                // 모집 인원 필드의 validator 재실행
+                if (_formKey.currentState != null) {
+                  _formKey.currentState!.validate();
+                }
+              },
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return '리뷰어당 신청 가능 개수를 입력해주세요';
@@ -1152,6 +1234,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         initialTime: _applyStartDateTime != null
             ? TimeOfDay.fromDateTime(_applyStartDateTime!)
             : TimeOfDay.fromDateTime(nowKST),
+        initialEntryMode: TimePickerEntryMode.input,
       );
 
       if (time != null) {
@@ -1165,6 +1248,19 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           second: 0,
           millisecond: 0,
         );
+
+        // 현재 시간보다 나중인지 검증
+        if (dateTime.isBefore(nowKST) || dateTime.isAtSameMomentAs(nowKST)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('신청 시작일시는 현재 시간보다 나중이어야 합니다'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
 
         setState(() {
           _applyStartDateTime = dateTime;
@@ -1253,6 +1349,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       final time = await showTimePicker(
         context: context,
         initialTime: initialTime,
+        initialEntryMode: TimePickerEntryMode.input,
       );
 
       if (time != null) {
@@ -1323,6 +1420,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         initialTime: _reviewStartDateTime != null
             ? TimeOfDay.fromDateTime(_reviewStartDateTime!)
             : TimeOfDay.fromDateTime(nowKST),
+        initialEntryMode: TimePickerEntryMode.input,
       );
 
       if (time != null) {
@@ -1336,6 +1434,19 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           second: 0,
           millisecond: 0,
         );
+
+        // 현재 시간보다 나중인지 검증
+        if (dateTime.isBefore(nowKST) || dateTime.isAtSameMomentAs(nowKST)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('리뷰 시작일시는 현재 시간보다 나중이어야 합니다'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
 
         setState(() {
           _reviewStartDateTime = dateTime;
@@ -1371,7 +1482,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(initialDate),
+      initialTime: _reviewEndDateTime != null
+          ? TimeOfDay.fromDateTime(_reviewEndDateTime!)
+          : TimeOfDay.fromDateTime(initialDate),
+      initialEntryMode: TimePickerEntryMode.input,
     );
 
     if (time == null) return;
@@ -1424,7 +1538,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               controlAffinity: ListTileControlAffinity.leading,
             ),
             CheckboxListTile(
-              title: const Text('스토어 중복 금지'),
+              title: const Text('판매자(스토어) 중복 금지'),
               subtitle: const Text('동일 스토어에 대한 중복 참여 방지'),
               value: _preventStoreDuplicate,
               onChanged: (value) {
@@ -1458,6 +1572,8 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   }
 
   Widget _buildCostSection() {
+    // 편집 화면에서는 추가 비용 변동이 없으므로 비용 섹션 제거
+    // 회사 지갑 잔액만 정보성으로 표시
     return Card(
       elevation: 2,
       color: Colors.blue[50],
@@ -1468,102 +1584,21 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.calculate, color: Colors.blue[800]),
+                Icon(Icons.info_outline, color: Colors.blue[800]),
                 const SizedBox(width: 8),
                 const Text(
-                  '비용 설정',
+                  '비용 정보',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _paymentType,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: '비용 지급 방법 *',
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
+            const SizedBox(height: 8),
+            const Text(
+              '편집 시에는 추가 비용이 발생하지 않습니다.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
               ),
-              selectedItemBuilder: (BuildContext context) {
-                final maxParticipants = _maxParticipantsController.text.isEmpty
-                    ? '0'
-                    : _maxParticipantsController.text;
-                final paymentAmount = _paymentAmountController.text.isEmpty
-                    ? '0'
-                    : _paymentAmountController.text;
-                final campaignReward = _campaignRewardController.text.isEmpty
-                    ? '0'
-                    : _campaignRewardController.text;
-
-                return [
-                  Text(
-                    '직접 지급 [플랫폼수수료(500) × 모집인원($maxParticipants)]',
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  Text(
-                    '플랫폼 지급 [플랫폼수수료(500) + 제품금액($paymentAmount) + 리뷰비($campaignReward)] × 모집인원($maxParticipants) (추가예정)',
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ];
-              },
-              items: [
-                DropdownMenuItem(
-                  value: 'direct',
-                  child: Builder(
-                    builder: (context) {
-                      final maxParticipants =
-                          _maxParticipantsController.text.isEmpty
-                          ? '0'
-                          : _maxParticipantsController.text;
-                      return Text(
-                        '직접 지급 [플랫폼수수료(500) × 모집인원($maxParticipants)]',
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        maxLines: 2,
-                      );
-                    },
-                  ),
-                  enabled: true,
-                ),
-                DropdownMenuItem(
-                  value: 'platform',
-                  child: Builder(
-                    builder: (context) {
-                      final maxParticipants =
-                          _maxParticipantsController.text.isEmpty
-                          ? '0'
-                          : _maxParticipantsController.text;
-                      final paymentAmount =
-                          _paymentAmountController.text.isEmpty
-                          ? '0'
-                          : _paymentAmountController.text;
-                      final campaignReward =
-                          _campaignRewardController.text.isEmpty
-                          ? '0'
-                          : _campaignRewardController.text;
-                      return Text(
-                        '플랫폼 지급 [플랫폼수수료(500) + 제품금액($paymentAmount) + 리뷰비($campaignReward)] × 모집인원($maxParticipants) (추가예정)',
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        maxLines: 2,
-                      );
-                    },
-                  ),
-                  enabled: false,
-                ),
-              ],
-              onChanged: (value) {
-                if (value != null && value == 'direct') {
-                  setState(() {
-                    _paymentType = value;
-                    _calculateCost();
-                  });
-                }
-              },
             ),
             const SizedBox(height: 16),
             Container(
@@ -1573,105 +1608,39 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.blue[200]!),
               ),
-              child: Column(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.account_balance_wallet,
-                            color: Colors.green[600],
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            '회사 지갑 잔액',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                      Icon(
+                        Icons.account_balance_wallet,
+                        color: Colors.green[600],
                       ),
-                      _isLoadingBalance
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              '$_formattedBalance P',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green[700],
-                              ),
-                            ),
-                    ],
-                  ),
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
+                      const SizedBox(width: 8),
                       const Text(
-                        '예상 총 비용',
+                        '회사 지갑 잔액',
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        '$_formattedTotalCost P',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('잔여 금액'),
-                      Text(
-                        '$_formattedRemaining P',
-                        style: TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: _totalCost <= _currentBalance
-                              ? Colors.green[700]
-                              : Colors.red[700],
                         ),
                       ),
                     ],
                   ),
-                  if (_totalCost > _currentBalance) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.warning, color: Colors.red[700], size: 16),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '잔액이 부족합니다. 포인트를 충전해주세요.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.red[800],
-                              ),
-                            ),
+                  _isLoadingBalance
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          '$_formattedBalance P',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green[700],
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
+                        ),
                 ],
               ),
             ),
@@ -1685,12 +1654,12 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     final productName = _productNameController.text.trim();
     final maxParticipants = _maxParticipantsController.text;
 
+    // 편집 시에는 비용 체크 제거 (추가 비용 변동 없음)
     return productName.isNotEmpty &&
         _applyStartDateTime != null &&
         _applyEndDateTime != null &&
         _reviewStartDateTime != null &&
         _reviewEndDateTime != null &&
-        _totalCost <= _currentBalance &&
         (int.tryParse(maxParticipants) ?? 0) > 0 &&
         !_isCreatingCampaign; // ✅ 중복 호출 방지
   }

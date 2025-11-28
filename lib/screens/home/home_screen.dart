@@ -6,6 +6,7 @@ import '../../models/user.dart' as app_user;
 import '../../models/campaign.dart';
 import '../../widgets/campaign_card.dart';
 import '../../services/campaign_service.dart';
+import '../../utils/date_time_utils.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +17,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final CampaignService _campaignService = CampaignService();
-  List<Campaign> _campaigns = [];
+  List<Campaign> _allCampaigns = [];
+  List<Campaign> _recruitingCampaigns = []; // 모집중인 캠페인만 표시
   bool _isLoading = true;
 
   @override
@@ -36,7 +38,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       setState(() {
         if (campaignsResponse.success && campaignsResponse.data != null) {
-          _campaigns = campaignsResponse.data!;
+          _allCampaigns = campaignsResponse.data!;
+          _updateFilteredCampaigns(); // 모집중인 캠페인만 필터링
         }
         _isLoading = false;
       });
@@ -53,6 +56,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
       }
     }
+  }
+
+  /// 모집중인 캠페인만 필터링 (광고주 마이캠페인 화면과 동일한 로직)
+  void _updateFilteredCampaigns() {
+    final now = DateTimeUtils.nowKST(); // 한국 시간 사용
+
+    // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
+    _recruitingCampaigns = _allCampaigns.where((campaign) {
+      if (campaign.status != CampaignStatus.active) return false;
+      // 날짜는 필수이므로 null 체크 불필요
+      if (campaign.applyStartDate.isAfter(now)) return false;
+      if (campaign.applyEndDate.isBefore(now)) return false;
+      if (campaign.maxParticipants != null &&
+          campaign.currentParticipants >= campaign.maxParticipants!)
+        return false;
+      return true;
+    }).toList();
   }
 
   @override
@@ -124,19 +144,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            // 전체 캠페인
+            // 모집중인 캠페인
             _buildSection(
-              title: '전체 캠페인',
+              title: '모집중인 캠페인',
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : _campaigns.isEmpty
-                  ? const Center(child: Text('캠페인이 없습니다'))
+                  : _recruitingCampaigns.isEmpty
+                  ? const Center(child: Text('모집중인 캠페인이 없습니다'))
                   : ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _campaigns.length,
+                      itemCount: _recruitingCampaigns.length,
                       itemBuilder: (context, index) {
-                        final campaign = _campaigns[index];
+                        final campaign = _recruitingCampaigns[index];
                         return Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,

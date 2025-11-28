@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, compute;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -422,8 +423,9 @@ class _CampaignCreationScreenState
               _quantityController.text = (extractedData['quantity'] ?? 1)
                   .toString();
               _sellerController.text = extractedData['seller'] ?? '';
-              _productNumberController.text =
-                  extractedData['productNumber'] ?? '';
+              // 상품번호에서 띄어쓰기 제거
+              final productNumber = extractedData['productNumber'] ?? '';
+              _productNumberController.text = productNumber.toString().replaceAll(' ', '');
               _paymentAmountController.text =
                   (extractedData['productPrice'] ??
                           extractedData['paymentAmount'] ??
@@ -1260,9 +1262,21 @@ class _CampaignCreationScreenState
       }
 
       // 날짜 검증
+      final nowKST = DateTimeUtils.nowKST();
+      
       if (_applyStartDateTime == null) {
         setState(() {
           _errorMessage = '신청 시작일시를 선택해주세요';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      // 신청 시작일시는 현재 시간보다 나중이어야 함
+      if (_applyStartDateTime!.isBefore(nowKST) ||
+          _applyStartDateTime!.isAtSameMomentAs(nowKST)) {
+        setState(() {
+          _errorMessage = '신청 시작일시는 현재 시간보다 나중이어야 합니다';
           _isCreatingCampaign = false;
         });
         return;
@@ -1279,6 +1293,16 @@ class _CampaignCreationScreenState
       if (_reviewStartDateTime == null) {
         setState(() {
           _errorMessage = '리뷰 시작일시를 선택해주세요';
+          _isCreatingCampaign = false;
+        });
+        return;
+      }
+
+      // 리뷰 시작일시는 현재 시간보다 나중이어야 함
+      if (_reviewStartDateTime!.isBefore(nowKST) ||
+          _reviewStartDateTime!.isAtSameMomentAs(nowKST)) {
+        setState(() {
+          _errorMessage = '리뷰 시작일시는 현재 시간보다 나중이어야 합니다';
           _isCreatingCampaign = false;
         });
         return;
@@ -1373,7 +1397,12 @@ class _CampaignCreationScreenState
             // 생성된 Campaign 객체 전체를 반환
             // GoRouter의 pop()이 반환값을 제대로 전달하지 못할 수 있으므로,
             // _navigateToCreateCampaign에서 타임아웃을 설정하여 fallback 처리
-            context.pop(campaign);
+            // 약간의 지연 후 pop하여 DB 반영 시간 확보
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) {
+                context.pop(campaign);
+              }
+            });
           } else {
             debugPrint('⚠️ Campaign 객체가 null입니다. 일반 새로고침으로 대체합니다.');
             // Campaign 객체가 null인 경우 일반 새로고침
@@ -1878,6 +1907,9 @@ class _CampaignCreationScreenState
                     labelText: '개수 *',
                     hintText: '1',
                     keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return '개수를 입력해주세요';
@@ -1904,9 +1936,16 @@ class _CampaignCreationScreenState
               controller: _paymentAmountController,
               labelText: '상품가격 *',
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return '상품가격을 입력해주세요';
+                }
+                final price = int.tryParse(value);
+                if (price == null || price < 0) {
+                  return '올바른 가격을 입력해주세요';
                 }
                 return null;
               },
@@ -2052,6 +2091,9 @@ class _CampaignCreationScreenState
                 labelText: '텍스트 리뷰 최소 글자 수 *',
                 hintText: '100',
                 keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 validator: (value) {
                   if (_reviewType == 'star_text' ||
                       _reviewType == 'star_text_image') {
@@ -2074,6 +2116,9 @@ class _CampaignCreationScreenState
                 labelText: '사진 최소 개수 *',
                 hintText: '1',
                 keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 validator: (value) {
                   if (_reviewType == 'star_text_image') {
                     if (value == null || value.isEmpty) {
@@ -2094,6 +2139,18 @@ class _CampaignCreationScreenState
               labelText: '리뷰비',
               hintText: '선택사항, 미입력 시 0',
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              validator: (value) {
+                if (value != null && value.isNotEmpty) {
+                  final reward = int.tryParse(value);
+                  if (reward == null || reward < 0) {
+                    return '올바른 리뷰비를 입력해주세요';
+                  }
+                }
+                return null;
+              },
             ),
           ],
         ),
@@ -2197,6 +2254,15 @@ class _CampaignCreationScreenState
               labelText: '모집 인원 *',
               hintText: '10',
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onChanged: (value) {
+                // 리뷰어당 신청 가능 개수 필드의 validator 재실행
+                if (_formKey.currentState != null) {
+                  _formKey.currentState!.validate();
+                }
+              },
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return '모집 인원을 입력해주세요';
@@ -2204,6 +2270,12 @@ class _CampaignCreationScreenState
                 final count = int.tryParse(value);
                 if (count == null || count <= 0) {
                   return '올바른 인원수를 입력해주세요';
+                }
+                // 리뷰어당 신청 가능 개수보다 작으면 안 됨
+                final maxPerReviewer =
+                    int.tryParse(_maxPerReviewerController.text) ?? 0;
+                if (maxPerReviewer > 0 && count < maxPerReviewer) {
+                  return '모집 인원은 리뷰어당 신청 가능 개수($maxPerReviewer개) 이상이어야 합니다';
                 }
                 return null;
               },
@@ -2214,6 +2286,15 @@ class _CampaignCreationScreenState
               labelText: '리뷰어당 신청 가능 개수',
               hintText: '1',
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onChanged: (value) {
+                // 모집 인원 필드의 validator 재실행
+                if (_formKey.currentState != null) {
+                  _formKey.currentState!.validate();
+                }
+              },
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return '리뷰어당 신청 가능 개수를 입력해주세요';
@@ -2257,6 +2338,7 @@ class _CampaignCreationScreenState
         initialTime: _applyStartDateTime != null
             ? TimeOfDay.fromDateTime(_applyStartDateTime!)
             : TimeOfDay.fromDateTime(nowKST),
+        initialEntryMode: TimePickerEntryMode.input,
       );
 
       if (time != null) {
@@ -2270,6 +2352,19 @@ class _CampaignCreationScreenState
           second: 0,
           millisecond: 0,
         );
+
+        // 현재 시간보다 나중인지 검증
+        if (dateTime.isBefore(nowKST) || dateTime.isAtSameMomentAs(nowKST)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('신청 시작일시는 현재 시간보다 나중이어야 합니다'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
 
         setState(() {
           _applyStartDateTime = dateTime;
@@ -2358,6 +2453,7 @@ class _CampaignCreationScreenState
       final time = await showTimePicker(
         context: context,
         initialTime: initialTime,
+        initialEntryMode: TimePickerEntryMode.input,
       );
 
       if (time != null) {
@@ -2428,6 +2524,7 @@ class _CampaignCreationScreenState
         initialTime: _reviewStartDateTime != null
             ? TimeOfDay.fromDateTime(_reviewStartDateTime!)
             : TimeOfDay.fromDateTime(nowKST),
+        initialEntryMode: TimePickerEntryMode.input,
       );
 
       if (time != null) {
@@ -2441,6 +2538,19 @@ class _CampaignCreationScreenState
           second: 0,
           millisecond: 0,
         );
+
+        // 현재 시간보다 나중인지 검증
+        if (dateTime.isBefore(nowKST) || dateTime.isAtSameMomentAs(nowKST)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('리뷰 시작일시는 현재 시간보다 나중이어야 합니다'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
 
         setState(() {
           _reviewStartDateTime = dateTime;
@@ -2476,7 +2586,10 @@ class _CampaignCreationScreenState
 
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(initialDate),
+      initialTime: _reviewEndDateTime != null
+          ? TimeOfDay.fromDateTime(_reviewEndDateTime!)
+          : TimeOfDay.fromDateTime(initialDate),
+      initialEntryMode: TimePickerEntryMode.input,
     );
 
     if (time == null) return;
@@ -2529,7 +2642,7 @@ class _CampaignCreationScreenState
               controlAffinity: ListTileControlAffinity.leading,
             ),
             CheckboxListTile(
-              title: const Text('스토어 중복 금지'),
+              title: const Text('판매자(스토어) 중복 금지'),
               subtitle: const Text('동일 스토어에 대한 중복 참여 방지'),
               value: _preventStoreDuplicate,
               onChanged: (value) {
