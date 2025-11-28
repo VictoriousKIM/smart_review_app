@@ -367,8 +367,8 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
     switch (category) {
       case CampaignCategory.all:
         return '전체';
-      case CampaignCategory.reviewer:
-        return '리뷰어';
+      case CampaignCategory.store:
+        return '스토어';
       case CampaignCategory.press:
         return '기자단';
       case CampaignCategory.visit:

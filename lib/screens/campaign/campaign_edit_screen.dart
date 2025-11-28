@@ -47,7 +47,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   final _productProvisionOtherController = TextEditingController();
 
   // 선택 필드
-  String _campaignType = 'reviewer';
+  String _campaignType = 'store';
   String _platform = 'coupang';
   String _paymentType = 'direct';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
@@ -708,7 +708,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'reviewer', child: Text('리뷰어')),
+                DropdownMenuItem(value: 'store', child: Text('스토어')),
               ],
               onChanged: null, // 변경 불가능하게 설정
             ),

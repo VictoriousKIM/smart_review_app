@@ -88,17 +88,17 @@ class Campaign {
   });
 
   factory Campaign.fromJson(Map<String, dynamic> json) {
-    // DB의 campaign_type 값 매핑: 'journalist' -> 'press', 'reviewer' -> 'reviewer', 'visit' -> 'visit'
+    // DB의 campaign_type 값 매핑: 'journalist' -> 'press', 'store' -> 'store', 'visit' -> 'visit'
     CampaignCategory mapCampaignType(String? type) {
       switch (type) {
         case 'journalist':
           return CampaignCategory.press;
-        case 'reviewer':
-          return CampaignCategory.reviewer;
+        case 'store':
+          return CampaignCategory.store;
         case 'visit':
           return CampaignCategory.visit;
         default:
-          return CampaignCategory.reviewer; // 기본값
+          return CampaignCategory.store; // 기본값
       }
     }
 
@@ -177,12 +177,12 @@ class Campaign {
       switch (type) {
         case CampaignCategory.press:
           return 'journalist';
-        case CampaignCategory.reviewer:
-          return 'reviewer';
+        case CampaignCategory.store:
+          return 'store';
         case CampaignCategory.visit:
           return 'visit';
         case CampaignCategory.all:
-          return 'reviewer'; // 기본값
+          return 'store'; // 기본값
       }
     }
 
@@ -314,10 +314,10 @@ class Campaign {
 /// 캠페인 카테고리
 ///
 /// DB 값 매핑:
-/// - reviewer -> 'reviewer'
+/// - store -> 'store'
 /// - press -> 'journalist' (DB에서는 'journalist' 사용)
 /// - visit -> 'visit'
-/// - all -> Flutter 전용 (DB에는 없음, 기본값으로 'reviewer' 사용)
-enum CampaignCategory { all, reviewer, press, visit }
+/// - all -> Flutter 전용 (DB에는 없음, 기본값으로 'store' 사용)
+enum CampaignCategory { all, store, press, visit }
 
 enum CampaignStatus { active, inactive }

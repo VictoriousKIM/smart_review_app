@@ -26,10 +26,10 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   final List<Map<String, dynamic>> _categories = [
-    {'key': 'all', 'label': '전체', 'icon': Icons.apps},
-    {'key': 'reviewer', 'label': '리뷰어', 'icon': Icons.rate_review},
-    {'key': 'press', 'label': '기자단', 'icon': Icons.article},
-    {'key': 'visit', 'label': '방문형', 'icon': Icons.store},
+    {'key': 'all', 'label': '전체', 'icon': Icons.apps, 'enabled': true},
+    {'key': 'store', 'label': '스토어', 'icon': Icons.store, 'enabled': true},
+    {'key': 'press', 'label': '기자단', 'icon': Icons.article, 'enabled': false},
+    {'key': 'visit', 'label': '방문형', 'icon': Icons.store, 'enabled': false},
   ];
 
   @override
@@ -261,6 +261,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
             children: _categories.map((category) {
               final isSelected = _selectedCategory == category['key'];
               final icon = category['icon'] as IconData;
+              final isEnabled = category['enabled'] as bool? ?? true;
               return Padding(
                 padding: const EdgeInsets.only(right: 10),
                 child: AnimatedContainer(
@@ -269,12 +270,14 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedCategory = category['key'] as String;
-                        });
-                        _loadCampaigns();
-                      },
+                      onTap: isEnabled
+                          ? () {
+                              setState(() {
+                                _selectedCategory = category['key'] as String;
+                              });
+                              _loadCampaigns();
+                            }
+                          : null,
                       borderRadius: BorderRadius.circular(20),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
@@ -286,12 +289,16 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
                         decoration: BoxDecoration(
                           color: isSelected
                               ? const Color(0xFF137fec)
-                              : Colors.grey[50],
+                              : (isEnabled
+                                    ? Colors.grey[50]
+                                    : Colors.grey[100]),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: isSelected
                                 ? const Color(0xFF137fec)
-                                : Colors.grey[300]!,
+                                : (isEnabled
+                                      ? Colors.grey[300]!
+                                      : Colors.grey[200]!),
                             width: isSelected ? 0 : 1,
                           ),
                           boxShadow: isSelected
@@ -314,7 +321,9 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
                               size: 16,
                               color: isSelected
                                   ? Colors.white
-                                  : Colors.grey[600],
+                                  : (isEnabled
+                                        ? Colors.grey[600]
+                                        : Colors.grey[400]),
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -326,7 +335,9 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
                                     : FontWeight.w500,
                                 color: isSelected
                                     ? Colors.white
-                                    : Colors.grey[700],
+                                    : (isEnabled
+                                          ? Colors.grey[700]
+                                          : Colors.grey[400]),
                               ),
                             ),
                           ],

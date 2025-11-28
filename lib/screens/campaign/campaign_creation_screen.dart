@@ -69,7 +69,7 @@ class _CampaignCreationScreenState
   final _productProvisionOtherController = TextEditingController();
 
   // 선택 필드
-  String _campaignType = 'reviewer';
+  String _campaignType = 'store';
   String _platform = 'coupang';
   String _paymentType = 'direct';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
@@ -1394,19 +1394,21 @@ class _CampaignCreationScreenState
             debugPrint(
               '✅ 캠페인 생성 성공 - campaignId: ${campaign.id}, title: ${campaign.title}',
             );
-            // 생성된 Campaign 객체 전체를 반환
-            // GoRouter의 pop()이 반환값을 제대로 전달하지 못할 수 있으므로,
-            // _navigateToCreateCampaign에서 타임아웃을 설정하여 fallback 처리
-            // 약간의 지연 후 pop하여 DB 반영 시간 확보
+            // 캠페인 생성 완료 후 "나의 캠페인"의 "대기중" 탭으로 이동
+            // 약간의 지연 후 이동하여 DB 반영 시간 확보
             Future.delayed(const Duration(milliseconds: 300), () {
               if (mounted) {
-                context.pop(campaign);
+                context.go('/mypage/advertiser/my-campaigns?tab=pending');
               }
             });
           } else {
-            debugPrint('⚠️ Campaign 객체가 null입니다. 일반 새로고침으로 대체합니다.');
-            // Campaign 객체가 null인 경우 일반 새로고침
-            context.pop(true); // true를 반환하여 새로고침 필요함을 알림
+            debugPrint('⚠️ Campaign 객체가 null입니다. "나의 캠페인"의 "대기중" 탭으로 이동합니다.');
+            // Campaign 객체가 null인 경우에도 "나의 캠페인"의 "대기중" 탭으로 이동
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) {
+                context.go('/mypage/advertiser/my-campaigns?tab=pending');
+              }
+            });
           }
         }
       } else {
@@ -1815,7 +1817,7 @@ class _CampaignCreationScreenState
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'reviewer', child: Text('리뷰어')),
+                DropdownMenuItem(value: 'store', child: Text('스토어')),
               ],
               onChanged: null, // 변경 불가능하게 설정
             ),
