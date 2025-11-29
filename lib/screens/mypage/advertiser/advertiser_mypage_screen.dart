@@ -175,49 +175,58 @@ class _AdvertiserMyPageScreenState
         // 상태별 카운트 계산
         final now = DateTimeUtils.nowKST(); // 한국 시간 사용
 
-        // 모집 (대기중): 시작기간이 되지 않았을 때 (active 상태만)
+        // 1. 대기중: 신청 시작일시보다 이전 (active 상태만)
         _pendingCount = allCampaigns.where((campaign) {
           if (campaign.status != CampaignStatus.active) return false;
-          // applyStartDate는 필수이므로 null 체크 불필요
           return campaign.applyStartDate.isAfter(now);
         }).length;
 
-        // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
-        final recruitingCampaigns = allCampaigns.where((campaign) {
+        // 2. 모집중: 신청 시작일 ~ 신청 종료일 사이
+        _recruitingCount = allCampaigns.where((campaign) {
           if (campaign.status != CampaignStatus.active) return false;
-          // 날짜는 필수이므로 null 체크 불필요
+          // 신청 시작일이 지났고, 신청 종료일이 아직 안 지났어야 함
           if (campaign.applyStartDate.isAfter(now)) return false;
           if (campaign.applyEndDate.isBefore(now)) return false;
+          // 참여자가 다 차지 않은 경우만
           if (campaign.maxParticipants != null &&
               campaign.currentParticipants >= campaign.maxParticipants!)
             return false;
           return true;
-        }).toList();
-
-        _recruitingCount = recruitingCampaigns.length;
-
-        // 선정완료: 시작기간과 종료기간 사이면서 참여자가 다 찬 경우
-        _selectedCount = allCampaigns.where((campaign) {
-          if (campaign.status != CampaignStatus.active) return false;
-          if (campaign.applyStartDate.isAfter(now)) return false;
-          if (campaign.applyEndDate.isBefore(now)) return false;
-          if (campaign.maxParticipants == null) return false;
-          return campaign.currentParticipants >= campaign.maxParticipants!;
         }).length;
 
-        // 등록기간: 리뷰 시작일시부터 리뷰 종료일시까지
+        // 3. 선정완료: 신청 시작일 ~ 리뷰 시작일 사이 OR (신청 종료일 지남 + 참여자 다 참)
+        _selectedCount = allCampaigns.where((campaign) {
+          if (campaign.status != CampaignStatus.active) return false;
+          if (campaign.maxParticipants == null) return false;
+          // 참여자가 다 찬 경우만
+          if (campaign.currentParticipants < campaign.maxParticipants!) return false;
+          
+          // 조건 1: 신청 시작일 ~ 리뷰 시작일 사이
+          final isBetweenApplyAndReview = 
+              !campaign.applyStartDate.isAfter(now) &&
+              campaign.reviewStartDate.isAfter(now);
+          
+          // 조건 2: 신청 종료일이 지났고 참여자 다 참
+          final isAfterApplyEndAndFull = 
+              campaign.applyEndDate.isBefore(now);
+          
+          return isBetweenApplyAndReview || isAfterApplyEndAndFull;
+        }).length;
+
+        // 4. 등록기간: 리뷰 시작일 ~ 리뷰 종료일 사이
         _registeredCount = allCampaigns.where((campaign) {
           if (campaign.status != CampaignStatus.active) return false;
+          // 리뷰 시작일이 지났고, 리뷰 종료일이 아직 안 지났어야 함
           if (campaign.reviewStartDate.isAfter(now)) return false;
           if (campaign.reviewEndDate.isBefore(now)) return false;
           return true;
         }).length;
 
-        // 종료: 리뷰 종료일시가 지나거나 status가 inactive
+        // 5. 종료: 리뷰 종료일 이후 또는 inactive 상태
         _completedCount = allCampaigns.where((campaign) {
           if (campaign.status == CampaignStatus.inactive) return true;
-          if (campaign.reviewEndDate.isBefore(now)) return true;
-          return false;
+          // 리뷰 종료일이 지난 경우
+          return campaign.reviewEndDate.isBefore(now);
         }).length;
       }
 

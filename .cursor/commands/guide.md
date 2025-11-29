@@ -11,7 +11,7 @@
 
 2. **브라우저 탭 열기** (Playwright MCP 사용)
    - 첫 번째 탭: Flutter 웹 앱 (http://localhost:3001/) - 개발자 계정으로 로그인
-   - 두 번째 탭: Supabase 대시보드 (http://127.0.0.1:54503)
+   - 두 번째 탭: Supabase 프로덕션 대시보드 (https://supabase.com/dashboard/project/ythmnhadeyfusmfhcgdr)
    - 세 번째 탭: Cloudflare Workers 대시보드 (https://dash.cloudflare.com)
 
 3. **접근성 활성화** (Flutter 웹 앱에서 필수!)
@@ -62,10 +62,14 @@ await page.evaluate(() => {
 - http://localhost:3001/
 
 **Supabase 서비스:**
+- 프로덕션 대시보드: https://supabase.com/dashboard/project/ythmnhadeyfusmfhcgdr
+- 프로덕션 API URL: https://ythmnhadeyfusmfhcgdr.supabase.co
+<!-- 로컬 개발 환경 (주석 처리):
 - API URL: http://127.0.0.1:54500
 - Studio (대시보드): http://127.0.0.1:54503
 - Database: postgresql://postgres:postgres@127.0.0.1:54501/postgres
 - Mailpit (이메일 테스트): http://127.0.0.1:54504
+-->
 
 **Cloudflare Workers 대시보드:**
 - https://dash.cloudflare.com

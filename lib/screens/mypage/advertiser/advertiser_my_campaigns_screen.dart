@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/campaign.dart';
+import '../../../models/campaign_realtime_event.dart';
 import '../../../services/campaign_service.dart';
+import '../../../services/campaign_realtime_manager.dart';
+import '../../../services/company_user_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../utils/date_time_utils.dart';
@@ -31,8 +35,11 @@ class AdvertiserMyCampaignsScreen extends ConsumerStatefulWidget {
 class _AdvertiserMyCampaignsScreenState
     extends ConsumerState<AdvertiserMyCampaignsScreen>
     with SingleTickerProviderStateMixin {
+  // WidgetsBindingObserver 제거 (앱 레벨에서 처리)
   late TabController _tabController;
   final CampaignService _campaignService = CampaignService();
+  final _realtimeManager = CampaignRealtimeManager.instance;
+  static const String _screenId = 'advertiser_my_campaigns';
 
   List<Campaign> _allCampaigns = [];
   List<Campaign> _pendingCampaigns = [];
@@ -43,6 +50,14 @@ class _AdvertiserMyCampaignsScreenState
 
   bool _isLoading = true;
   bool _shouldRefreshOnRestore = false; // 화면 복원 시 새로고침 플래그
+
+  // Pull-to-Refresh 충돌 방지용 큐
+  List<CampaignRealtimeEvent> _pendingRealtimeEvents = [];
+
+  // 디바운싱/스로틀링용 타이머
+  Timer? _updateTimer;
+  DateTime? _lastParticipantsUpdate;
+  CampaignRealtimeEvent? _pendingEvent; // 마지막 이벤트 저장 (debounce용)
 
   @override
   void initState() {
@@ -83,10 +98,152 @@ class _AdvertiserMyCampaignsScreenState
 
     // 초기 데이터 로드
     _loadCampaigns();
+
+    // Realtime 구독 시작
+    _initRealtimeSubscription();
+  }
+
+  /// Realtime 구독 초기화
+  Future<void> _initRealtimeSubscription() async {
+    try {
+      // 이미 일시정지된 구독이 있으면 재개
+      if (_realtimeManager.isSubscribed(_screenId)) {
+        debugPrint('ℹ️ 이미 구독 중입니다: $_screenId');
+        return;
+      }
+      
+      // 일시정지된 구독이 있으면 재개
+      final subscriptionInfo = _realtimeManager.getSubscriptionInfo(_screenId);
+      if (subscriptionInfo['exists'] == true && subscriptionInfo['isPaused'] == true) {
+        debugPrint('▶️ 일시정지된 구독 재개: $_screenId');
+        _realtimeManager.resumeSubscription(_screenId);
+        return;
+      }
+      
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) return;
+
+      // 회사 ID 조회
+      final companyId = await CompanyUserService.getUserCompanyId(user.id);
+      if (companyId == null) {
+        debugPrint('⚠️ 회사 ID를 찾을 수 없어 Realtime 구독을 시작하지 않습니다.');
+        return;
+      }
+
+      await _realtimeManager.subscribeWithRetry(
+        screenId: _screenId,
+        companyId: companyId,
+        activeOnly: false, // 모든 상태의 캠페인 구독
+        onEvent: _handleRealtimeUpdate,
+        onError: (error) {
+          debugPrint('❌ Realtime 구독 에러: $error');
+        },
+      );
+    } catch (e) {
+      debugPrint('❌ Realtime 구독 초기화 실패: $e');
+    }
+  }
+
+  /// Realtime 이벤트 처리 (디바운싱/스로틀링 적용)
+  void _handleRealtimeUpdate(CampaignRealtimeEvent event) {
+    debugPrint('📨 Realtime 이벤트 수신: ${event.type} - ${event.campaign?.id ?? 'N/A'}');
+    
+    // Pull-to-Refresh 중이면 이벤트를 큐에 저장
+    if (_isLoading) {
+      debugPrint('⏳ 로딩 중 - 이벤트 큐에 저장');
+      _pendingRealtimeEvents.add(event);
+      return;
+    }
+
+    // 참여자 수 업데이트는 Throttle (500ms)
+    // 하지만 debounce 타이머는 항상 설정하여 마지막 이벤트를 처리
+    if (event.isUpdate && event.campaign != null) {
+      final now = DateTime.now();
+      if (_lastParticipantsUpdate != null &&
+          now.difference(_lastParticipantsUpdate!) <
+              const Duration(milliseconds: 500)) {
+        // Throttle: 500ms 이내의 업데이트는 마지막 이벤트만 저장
+        debugPrint('⏱️ Throttle 적용 - 마지막 이벤트 저장 (참여자 수: ${event.campaign?.currentParticipants})');
+        _pendingEvent = event;
+        // debounce 타이머는 계속 설정 (마지막 이벤트 처리)
+        _updateTimer?.cancel();
+        _updateTimer = Timer(const Duration(milliseconds: 1000), () {
+          if (_pendingEvent != null) {
+            debugPrint('✅ Debounce 완료 - 이벤트 처리 (참여자 수: ${_pendingEvent!.campaign?.currentParticipants})');
+            _processRealtimeEvent(_pendingEvent!);
+            _pendingEvent = null;
+          }
+        });
+        return;
+      }
+      _lastParticipantsUpdate = now;
+    }
+
+    // 리스트 갱신은 Debounce (1초)
+    // 마지막 이벤트 저장
+    debugPrint('⏱️ Debounce 타이머 설정 (1초)');
+    _pendingEvent = event;
+    _updateTimer?.cancel();
+    _updateTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (_pendingEvent != null) {
+        debugPrint('✅ Debounce 완료 - 이벤트 처리');
+        _processRealtimeEvent(_pendingEvent!);
+        _pendingEvent = null;
+      }
+    });
+  }
+
+  /// Realtime 이벤트 처리 (실제 업데이트)
+  void _processRealtimeEvent(CampaignRealtimeEvent event) {
+    if (!mounted) {
+      debugPrint('⚠️ 화면이 마운트되지 않음 - 이벤트 처리 건너뜀');
+      return;
+    }
+
+    debugPrint('🔄 이벤트 처리 시작: ${event.type} - ${event.campaign?.id ?? 'N/A'}');
+
+    setState(() {
+      if (event.isInsert && event.campaign != null) {
+        // 새 캠페인 추가
+        if (!_allCampaigns.any((c) => c.id == event.campaign!.id)) {
+          debugPrint('➕ 새 캠페인 추가: ${event.campaign!.id}');
+          _allCampaigns.insert(0, event.campaign!);
+          _updateFilteredCampaigns();
+        }
+      } else if (event.isUpdate && event.campaign != null) {
+        // 캠페인 정보 업데이트
+        final index = _allCampaigns.indexWhere(
+          (c) => c.id == event.campaign!.id,
+        );
+        if (index != -1) {
+          final oldCampaign = _allCampaigns[index];
+          final oldParticipants = oldCampaign.currentParticipants;
+          final newParticipants = event.campaign!.currentParticipants;
+          debugPrint('🔄 캠페인 업데이트: ${event.campaign!.id} (참여자 수: $oldParticipants → $newParticipants)');
+          _allCampaigns[index] = event.campaign!;
+          _updateFilteredCampaigns();
+        } else {
+          debugPrint('⚠️ 캠페인을 찾을 수 없음: ${event.campaign!.id}');
+        }
+      } else if (event.isDelete && event.oldRecord != null) {
+        // 캠페인 삭제
+        final campaignId = event.oldRecord!['id'] as String?;
+        if (campaignId != null) {
+          debugPrint('🗑️ 캠페인 삭제: $campaignId');
+          _allCampaigns.removeWhere((c) => c.id == campaignId);
+          _updateFilteredCampaigns();
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _updateTimer?.cancel();
+    _pendingEvent = null;
+    // 화면이 dispose될 때는 일시정지만 (구독 정보는 유지)
+    // 완전히 제거될 때만 force=true로 해제
+    _realtimeManager.unsubscribe(_screenId, force: false);
     _tabController.dispose();
     super.dispose();
   }
@@ -94,12 +251,15 @@ class _AdvertiserMyCampaignsScreenState
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 화면이 다시 활성화될 때 (pop 후 복원될 때) 새로고침
-    if (_shouldRefreshOnRestore) {
-      _shouldRefreshOnRestore = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final route = ModalRoute.of(context);
-        if (route?.isCurrent == true && mounted) {
+    // 화면이 다시 활성화될 때 (pop 후 복원될 때) 구독 재개 및 새로고침
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final route = ModalRoute.of(context);
+      if (route?.isCurrent == true && mounted) {
+        // 일시정지된 구독이 있으면 재개
+        _realtimeManager.resumeSubscription(_screenId);
+        
+        if (_shouldRefreshOnRestore) {
+          _shouldRefreshOnRestore = false;
           debugPrint('🔄 화면 복원 감지 - 캠페인 목록 새로고침');
           // DB에 캠페인이 반영될 시간을 주기 위해 약간의 지연 후 새로고침
           Future.delayed(const Duration(milliseconds: 300), () {
@@ -108,8 +268,8 @@ class _AdvertiserMyCampaignsScreenState
             }
           });
         }
-      });
-    }
+      }
+    });
   }
 
   /// 캠페인 생성 화면으로 이동 (push().then() 패턴)
@@ -422,6 +582,14 @@ class _AdvertiserMyCampaignsScreenState
         setState(() {
           _isLoading = false;
         });
+
+        // 로딩이 끝나면 큐에 쌓인 Realtime 이벤트 처리
+        if (_pendingRealtimeEvents.isNotEmpty) {
+          for (final event in _pendingRealtimeEvents) {
+            _processRealtimeEvent(event);
+          }
+          _pendingRealtimeEvents.clear();
+        }
       }
     } catch (e) {
       print('❌ 캠페인 로드 실패: $e');
@@ -542,51 +710,68 @@ class _AdvertiserMyCampaignsScreenState
   }
 
   /// 상태별 필터링 업데이트
+  /// 
+  /// 제안된 필터 기준:
+  /// 1. 대기중: 캠페인 신청기간 이전
+  /// 2. 모집중: 캠페인 신청기간 - 캠페인 종료기간 (and 신청자 다 안참)
+  /// 3. 선정완료: 캠페인 신청기간 - 캠페인 종료기간 (and 신청자 다 참) OR 캠페인 종료기간 - 리뷰신청기간
+  /// 4. 등록기간: 리뷰신청기간 - 리뷰종료기간
+  /// 5. 종료: 리뷰종료기간 이후 또는 status가 inactive
   void _updateFilteredCampaigns() {
     final now = DateTimeUtils.nowKST(); // 한국 시간 사용
 
-    // 모집 (대기중): 시작기간이 되지 않았을 때 (active 상태만)
-    _pendingCampaigns = _allCampaigns.where((campaign) {
-      if (campaign.status != CampaignStatus.active) return false;
-      // applyStartDate는 필수이므로 null 체크 불필요
-      return campaign.applyStartDate.isAfter(now);
-    }).toList();
+    // 모든 리스트 초기화
+    _pendingCampaigns = [];
+    _recruitingCampaigns = [];
+    _selectedCampaigns = [];
+    _registeredCampaigns = [];
+    _completedCampaigns = [];
 
-    // 모집중: 시작기간과 종료기간 사이면서 참여자가 다 차지 않은 경우
-    _recruitingCampaigns = _allCampaigns.where((campaign) {
-      if (campaign.status != CampaignStatus.active) return false;
-      // 날짜는 필수이므로 null 체크 불필요
-      if (campaign.applyStartDate.isAfter(now)) return false;
-      if (campaign.applyEndDate.isBefore(now)) return false;
-      if (campaign.maxParticipants != null &&
-          campaign.currentParticipants >= campaign.maxParticipants!)
-        return false;
-      return true;
-    }).toList();
+    for (final campaign in _allCampaigns) {
+      // 1. 종료: inactive 상태 또는 리뷰 종료일 이후
+      if (campaign.status == CampaignStatus.inactive ||
+          campaign.reviewEndDate.isBefore(now)) {
+        _completedCampaigns.add(campaign);
+        continue;
+      }
 
-    // 선정완료: 시작기간과 종료기간 사이면서 참여자가 다 찬 경우
-    _selectedCampaigns = _allCampaigns.where((campaign) {
-      if (campaign.status != CampaignStatus.active) return false;
-      if (campaign.applyStartDate.isAfter(now)) return false;
-      if (campaign.applyEndDate.isBefore(now)) return false;
-      if (campaign.maxParticipants == null) return false;
-      return campaign.currentParticipants >= campaign.maxParticipants!;
-    }).toList();
+      // active 상태만 계속 처리
+      if (campaign.status != CampaignStatus.active) continue;
 
-    // 등록기간: 리뷰 시작일시부터 리뷰 종료일시까지
-    _registeredCampaigns = _allCampaigns.where((campaign) {
-      if (campaign.status != CampaignStatus.active) return false;
-      if (campaign.reviewStartDate.isAfter(now)) return false;
-      if (campaign.reviewEndDate.isBefore(now)) return false;
-      return true;
-    }).toList();
+      // 2. 등록기간: 리뷰 시작일 ~ 리뷰 종료일 사이
+      if (!campaign.reviewStartDate.isAfter(now) &&
+          !campaign.reviewEndDate.isBefore(now)) {
+        _registeredCampaigns.add(campaign);
+        continue;
+      }
 
-    // 종료: 리뷰 종료일시가 지나거나 status가 inactive
-    _completedCampaigns = _allCampaigns.where((campaign) {
-      if (campaign.status == CampaignStatus.inactive) return true;
-      // reviewEndDate는 필수이므로 null 체크 불필요
-      return campaign.reviewEndDate.isBefore(now);
-    }).toList();
+      // 3. 선정완료: 
+      //    - 신청기간 ~ 종료기간 사이 AND 신청자 다 참
+      //    - OR 종료기간 ~ 리뷰시작기간 사이
+      final isInApplyPeriod = !campaign.applyStartDate.isAfter(now) &&
+                              !campaign.applyEndDate.isBefore(now);
+      final isBetweenApplyEndAndReviewStart = campaign.applyEndDate.isBefore(now) &&
+                                              campaign.reviewStartDate.isAfter(now);
+      final isFull = campaign.currentParticipants == campaign.maxParticipants!;
+
+      if ((isInApplyPeriod && isFull) || isBetweenApplyEndAndReviewStart) {
+        _selectedCampaigns.add(campaign);
+        continue;
+      }
+
+      // 4. 모집중: 신청기간 ~ 종료기간 사이 AND 신청자 다 안참
+      if (isInApplyPeriod &&
+          campaign.currentParticipants < campaign.maxParticipants!) {
+        _recruitingCampaigns.add(campaign);
+        continue;
+      }
+
+      // 5. 대기중: 신청기간 이전
+      if (campaign.applyStartDate.isAfter(now)) {
+        _pendingCampaigns.add(campaign);
+        continue;
+      }
+    }
   }
 
   @override

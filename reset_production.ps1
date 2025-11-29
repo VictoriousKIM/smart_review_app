@@ -14,3 +14,5 @@ Write-Host "마이그레이션 적용 중..." -ForegroundColor Green
 npx supabase db push --linked --include-seed
 
 
+
+

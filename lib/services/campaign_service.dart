@@ -233,6 +233,44 @@ class CampaignService {
     }
   }
 
+  /// 최적화된 활성 캠페인 조회 (다음 오픈 시간 포함)
+  /// 이그레스 비용 최소화: 미래 캠페인 데이터를 전송하지 않고, 다음 오픈 시간만 반환
+  Future<ApiResponse<Map<String, dynamic>>> getActiveCampaignsOptimized() async {
+    try {
+      final response = await _supabase.rpc('get_active_campaigns_optimized');
+
+      final campaignsJson = response['campaigns'] as List?;
+      final nextOpenAtStr = response['next_open_at'] as String?;
+
+      final campaigns = campaignsJson != null
+          ? (campaignsJson as List)
+              .map((json) => Campaign.fromJson(json))
+              .toList()
+          : <Campaign>[];
+
+      DateTime? nextOpenAt;
+      if (nextOpenAtStr != null) {
+        // ⚠️ 중요: DB에서 받은 UTC 시간을 KST로 변환
+        // parseKST()는 UTC 문자열을 KST DateTime으로 변환함
+        nextOpenAt = DateTimeUtils.parseKST(nextOpenAtStr);
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: true,
+        data: {
+          'campaigns': campaigns,
+          'nextOpenAt': nextOpenAt,
+        },
+      );
+    } catch (e) {
+      debugPrint('❌ getActiveCampaignsOptimized 실패: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        error: e.toString(),
+      );
+    }
+  }
+
   // 중복 체크 필터링 헬퍼 메서드
   Future<List<Campaign>> _filterDuplicateCampaigns(
     List<Campaign> campaigns,

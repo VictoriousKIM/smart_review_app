@@ -127,7 +127,7 @@ class _CampaignCreationScreenState
     // ✅ Phase 1.2: 더 긴 지연 + 프레임 콜백 조합
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 600), () async {
-        if (!mounted) return;
+    if (!mounted) return;
 
         // ✅ 1단계: UI 먼저 표시 (50ms 후)
         setState(() => _isInitialized = true);
@@ -138,14 +138,14 @@ class _CampaignCreationScreenState
         if (mounted) _loadCompanyBalance();
 
         // ✅ 3단계: 리스너 설정 (200ms 후)
-        await Future.delayed(const Duration(milliseconds: 200));
-        if (mounted) {
-          _ignoreCostListeners = true;
-          _setupCostListeners();
-          _updateDateTimeControllers();
-          _ignoreCostListeners = false;
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (mounted) {
+      _ignoreCostListeners = true;
+      _setupCostListeners();
+      _updateDateTimeControllers();
+      _ignoreCostListeners = false;
           _calculateCost();
-        }
+    }
       });
     });
   }
@@ -863,7 +863,7 @@ class _CampaignCreationScreenState
     try {
       originalImage = await Future.microtask(() {
         return kIsWeb
-            ? img.decodeImage(_capturedImage!)
+        ? img.decodeImage(_capturedImage!)
             : null; // 네이티브는 compute 사용
       });
 

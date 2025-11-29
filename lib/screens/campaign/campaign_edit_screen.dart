@@ -98,9 +98,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     // ✅ Phase 1.2: 더 긴 지연 + 프레임 콜백 조합
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) {
-          _loadCampaignData();
-        }
+      if (mounted) {
+        _loadCampaignData();
+      }
       });
     });
   }
@@ -1609,39 +1609,39 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 border: Border.all(color: Colors.blue[200]!),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(
-                        Icons.account_balance_wallet,
-                        color: Colors.green[600],
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        '회사 지갑 잔액',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  _isLoadingBalance
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
-                          '$_formattedBalance P',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green[700],
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.account_balance_wallet,
+                            color: Colors.green[600],
                           ),
-                        ),
-                ],
+                          const SizedBox(width: 8),
+                          const Text(
+                            '회사 지갑 잔액',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      _isLoadingBalance
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              '$_formattedBalance P',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green[700],
+                              ),
+                            ),
+                    ],
               ),
             ),
           ],

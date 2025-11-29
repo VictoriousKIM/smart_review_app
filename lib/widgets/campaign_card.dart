@@ -1,20 +1,36 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/campaign.dart';
+import '../utils/date_time_utils.dart';
 
-class CampaignCard extends StatelessWidget {
+class CampaignCard extends StatefulWidget {
   final Campaign campaign;
   final VoidCallback? onTap;
 
   const CampaignCard({super.key, required this.campaign, this.onTap});
 
   @override
+  State<CampaignCard> createState() => _CampaignCardState();
+}
+
+class _CampaignCardState extends State<CampaignCard> {
+
+  @override
   Widget build(BuildContext context) {
+    final now = DateTimeUtils.nowKST();
+    final isUpcoming = widget.campaign.applyStartDate.isAfter(now);
+    final isRecruiting = !isUpcoming &&
+        widget.campaign.status == CampaignStatus.active &&
+        !widget.campaign.applyEndDate.isBefore(now) &&
+        (widget.campaign.maxParticipants == null ||
+            widget.campaign.currentParticipants < widget.campaign.maxParticipants!);
+    
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: onTap,
+        onTap: isUpcoming ? null : widget.onTap, // 오픈 예정일 때는 비활성화
         borderRadius: BorderRadius.circular(12),
         child: Container(
           constraints: const BoxConstraints(minHeight: 140),
@@ -30,9 +46,9 @@ class CampaignCard extends StatelessWidget {
                       topLeft: Radius.circular(12),
                       bottomLeft: Radius.circular(12),
                     ),
-                    child: campaign.productImageUrl.isNotEmpty
+                    child: widget.campaign.productImageUrl.isNotEmpty
                         ? CachedNetworkImage(
-                            imageUrl: campaign.productImageUrl,
+                            imageUrl: widget.campaign.productImageUrl,
                             width: 140,
                             fit: BoxFit.contain,
                             placeholder: (context, url) => Container(
@@ -44,7 +60,7 @@ class CampaignCard extends StatelessWidget {
                             ),
                             errorWidget: (context, url, error) {
                               // 디버깅 로그
-                              debugPrint('🖼️ 이미지 로딩 실패: ${campaign.productImageUrl}');
+                              debugPrint('🖼️ 이미지 로딩 실패: ${widget.campaign.productImageUrl}');
                               debugPrint('에러: $error');
                               return Container(
                                 width: 140,
@@ -91,7 +107,7 @@ class CampaignCard extends StatelessWidget {
                       children: [
                         // 제목
                         Text(
-                          campaign.title.isNotEmpty ? campaign.title : '제목 없음',
+                          widget.campaign.title.isNotEmpty ? widget.campaign.title : '제목 없음',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -105,6 +121,15 @@ class CampaignCard extends StatelessWidget {
                         const SizedBox(height: 8),
                         // 플랫폼 정보
                         _buildPlatformInfo(),
+                        const SizedBox(height: 8),
+                        // 상태 표시 (오픈 예정 / 모집중)
+                        if (isUpcoming)
+                          _buildUpcomingBadge()
+                        else if (isRecruiting)
+                          _buildRecruitingBadge(),
+                        const SizedBox(height: 8),
+                        // 참여자 수 및 신청 가능 여부
+                        _buildParticipantsInfo(),
                       ],
                     ),
                   ),
@@ -116,22 +141,118 @@ class CampaignCard extends StatelessWidget {
       ),
     );
   }
+  
+  Widget _buildUpcomingBadge() {
+    return CountdownWidget(targetDate: widget.campaign.applyStartDate);
+  }
+
+  Widget _buildRecruitingBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.green, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle, size: 14, color: Colors.green[700]),
+          const SizedBox(width: 4),
+          Text(
+            '신청 가능',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.green[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParticipantsInfo() {
+    final now = DateTimeUtils.nowKST();
+    final isRecruiting = widget.campaign.status == CampaignStatus.active &&
+        !widget.campaign.applyStartDate.isAfter(now) &&
+        !widget.campaign.applyEndDate.isBefore(now);
+    final isFull = widget.campaign.maxParticipants != null &&
+        widget.campaign.currentParticipants >= widget.campaign.maxParticipants!;
+    final canApply = isRecruiting && !isFull;
+    
+    return Container(
+      padding: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.people,
+                size: 14,
+                color: Colors.grey[600],
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '참여자',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                '${widget.campaign.currentParticipants}${widget.campaign.maxParticipants != null ? '/${widget.campaign.maxParticipants}' : ''}명',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isFull ? Colors.red : Colors.black87,
+                ),
+              ),
+              if (!canApply && isRecruiting) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '마감',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildPriceInfo() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (campaign.productPrice != null && campaign.productPrice! > 0)
+        if (widget.campaign.productPrice != null && widget.campaign.productPrice! > 0)
           _buildPriceRow(
             '제품 가격',
-            '${campaign.productPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
+            '${widget.campaign.productPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
           ),
-        if (campaign.productPrice != null && campaign.productPrice! > 0)
+        if (widget.campaign.productPrice != null && widget.campaign.productPrice! > 0)
           const SizedBox(height: 1),
-        if (campaign.campaignReward > 0)
+        if (widget.campaign.campaignReward > 0)
           _buildPriceRow(
             '리뷰 보상',
-            '${campaign.campaignReward.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
+            '${widget.campaign.campaignReward.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
             isReward: true,
           ),
       ],
@@ -156,7 +277,7 @@ class CampaignCard extends StatelessWidget {
   }
 
   Widget _buildPlatformInfo() {
-    final platformName = _getPlatformName(campaign.platform);
+    final platformName = _getPlatformName(widget.campaign.platform);
     
     return Container(
       padding: const EdgeInsets.only(top: 4),
@@ -200,5 +321,80 @@ class CampaignCard extends StatelessWidget {
         debugPrint('⚠️ 알 수 없는 플랫폼: $platform');
         return platform;
     }
+  }
+}
+
+/// 카운트다운 전용 위젯 (성능 최적화: CampaignCard 전체 리빌드 방지)
+class CountdownWidget extends StatelessWidget {
+  final DateTime targetDate;
+
+  const CountdownWidget({super.key, required this.targetDate});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DateTime>(
+      stream: Stream.periodic(const Duration(seconds: 1), (_) => DateTimeUtils.nowKST()),
+      builder: (context, snapshot) {
+        final now = snapshot.data ?? DateTimeUtils.nowKST();
+        final difference = targetDate.difference(now);
+
+        if (difference.isNegative) {
+          // 오픈 시간 도달
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.green, width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle, size: 14, color: Colors.green[700]),
+                const SizedBox(width: 4),
+                Text(
+                  '지금 신청 가능!',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final hours = difference.inHours;
+        final minutes = difference.inMinutes % 60;
+        final seconds = difference.inSeconds % 60;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.orange, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.schedule, size: 14, color: Colors.orange[700]),
+              const SizedBox(width: 4),
+              Text(
+                hours > 0
+                    ? '${hours}시간 ${minutes.toString().padLeft(2, '0')}분 후 오픈'
+                    : '${minutes}분 ${seconds.toString().padLeft(2, '0')}초 후 오픈',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange[700],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
