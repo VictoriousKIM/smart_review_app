@@ -59,6 +59,9 @@ class _AdvertiserMyCampaignsScreenState
   DateTime? _lastParticipantsUpdate;
   CampaignRealtimeEvent? _pendingEvent; // 마지막 이벤트 저장 (debounce용)
 
+  // 다음 캠페인 오픈 시간 예약용 타이머
+  Timer? _preciseTimer;
+
   @override
   void initState() {
     super.initState();
@@ -111,15 +114,16 @@ class _AdvertiserMyCampaignsScreenState
         debugPrint('ℹ️ 이미 구독 중입니다: $_screenId');
         return;
       }
-      
+
       // 일시정지된 구독이 있으면 재개
       final subscriptionInfo = _realtimeManager.getSubscriptionInfo(_screenId);
-      if (subscriptionInfo['exists'] == true && subscriptionInfo['isPaused'] == true) {
+      if (subscriptionInfo['exists'] == true &&
+          subscriptionInfo['isPaused'] == true) {
         debugPrint('▶️ 일시정지된 구독 재개: $_screenId');
         _realtimeManager.resumeSubscription(_screenId);
         return;
       }
-      
+
       final user = SupabaseConfig.client.auth.currentUser;
       if (user == null) return;
 
@@ -146,12 +150,34 @@ class _AdvertiserMyCampaignsScreenState
 
   /// Realtime 이벤트 처리 (디바운싱/스로틀링 적용)
   void _handleRealtimeUpdate(CampaignRealtimeEvent event) {
-    debugPrint('📨 Realtime 이벤트 수신: ${event.type} - ${event.campaign?.id ?? 'N/A'}');
-    
+    debugPrint('');
+    debugPrint('🔄 ========================================');
+    debugPrint('🔄 _handleRealtimeUpdate 호출 (advertiser_my_campaigns)');
+    debugPrint('🔄 event.type: ${event.type}');
+    debugPrint('🔄 event.isInsert: ${event.isInsert}');
+    debugPrint('🔄 event.isUpdate: ${event.isUpdate}');
+    debugPrint('🔄 event.campaign?.id: ${event.campaign?.id}');
+    debugPrint('🔄 _isLoading: $_isLoading');
+    debugPrint('🔄 ========================================');
+
     // Pull-to-Refresh 중이면 이벤트를 큐에 저장
     if (_isLoading) {
       debugPrint('⏳ 로딩 중 - 이벤트 큐에 저장');
       _pendingRealtimeEvents.add(event);
+      return;
+    }
+
+    // INSERT 이벤트는 즉시 처리 (새 캠페인 생성은 즉시 반영되어야 함)
+    if (event.isInsert && event.campaign != null) {
+      debugPrint('🚀 INSERT 이벤트 - 즉시 처리');
+      _processRealtimeEvent(event);
+      return;
+    }
+
+    // DELETE 이벤트도 즉시 처리
+    if (event.isDelete && event.oldRecord != null) {
+      debugPrint('🚀 DELETE 이벤트 - 즉시 처리');
+      _processRealtimeEvent(event);
       return;
     }
 
@@ -163,13 +189,17 @@ class _AdvertiserMyCampaignsScreenState
           now.difference(_lastParticipantsUpdate!) <
               const Duration(milliseconds: 500)) {
         // Throttle: 500ms 이내의 업데이트는 마지막 이벤트만 저장
-        debugPrint('⏱️ Throttle 적용 - 마지막 이벤트 저장 (참여자 수: ${event.campaign?.currentParticipants})');
+        debugPrint(
+          '⏱️ Throttle 적용 - 마지막 이벤트 저장 (참여자 수: ${event.campaign?.currentParticipants})',
+        );
         _pendingEvent = event;
         // debounce 타이머는 계속 설정 (마지막 이벤트 처리)
         _updateTimer?.cancel();
         _updateTimer = Timer(const Duration(milliseconds: 1000), () {
           if (_pendingEvent != null) {
-            debugPrint('✅ Debounce 완료 - 이벤트 처리 (참여자 수: ${_pendingEvent!.campaign?.currentParticipants})');
+            debugPrint(
+              '✅ Debounce 완료 - 이벤트 처리 (참여자 수: ${_pendingEvent!.campaign?.currentParticipants})',
+            );
             _processRealtimeEvent(_pendingEvent!);
             _pendingEvent = null;
           }
@@ -179,39 +209,57 @@ class _AdvertiserMyCampaignsScreenState
       _lastParticipantsUpdate = now;
     }
 
-    // 리스트 갱신은 Debounce (1초)
+    // UPDATE 이벤트는 Debounce (1초)
     // 마지막 이벤트 저장
-    debugPrint('⏱️ Debounce 타이머 설정 (1초)');
-    _pendingEvent = event;
-    _updateTimer?.cancel();
-    _updateTimer = Timer(const Duration(milliseconds: 1000), () {
-      if (_pendingEvent != null) {
-        debugPrint('✅ Debounce 완료 - 이벤트 처리');
-        _processRealtimeEvent(_pendingEvent!);
-        _pendingEvent = null;
-      }
-    });
+    if (event.isUpdate) {
+      debugPrint('⏱️ UPDATE 이벤트 - Debounce 타이머 설정 (1초)');
+      _pendingEvent = event;
+      _updateTimer?.cancel();
+      _updateTimer = Timer(const Duration(milliseconds: 1000), () {
+        if (_pendingEvent != null) {
+          debugPrint('✅ Debounce 완료 - 이벤트 처리');
+          _processRealtimeEvent(_pendingEvent!);
+          _pendingEvent = null;
+        }
+      });
+    }
   }
 
-  /// Realtime 이벤트 처리 (실제 업데이트)
+  /// Realtime 이벤트 처리 (실제 업데이트) - 디버깅 강화
   void _processRealtimeEvent(CampaignRealtimeEvent event) {
     if (!mounted) {
       debugPrint('⚠️ 화면이 마운트되지 않음 - 이벤트 처리 건너뜀');
       return;
     }
 
-    debugPrint('🔄 이벤트 처리 시작: ${event.type} - ${event.campaign?.id ?? 'N/A'}');
+    debugPrint('');
+    debugPrint('🔄 ========================================');
+    debugPrint('🔄 _processRealtimeEvent 시작 (advertiser_my_campaigns)');
+    debugPrint('🔄 event.type: ${event.type}');
+    debugPrint('🔄 event.isInsert: ${event.isInsert}');
+    debugPrint('🔄 event.isUpdate: ${event.isUpdate}');
+    debugPrint('🔄 event.isDelete: ${event.isDelete}');
+    debugPrint('🔄 event.campaign?.id: ${event.campaign?.id}');
+    debugPrint('🔄 ========================================');
 
     setState(() {
       if (event.isInsert && event.campaign != null) {
         // 새 캠페인 추가
+        debugPrint('➕ INSERT 이벤트 처리');
         if (!_allCampaigns.any((c) => c.id == event.campaign!.id)) {
-          debugPrint('➕ 새 캠페인 추가: ${event.campaign!.id}');
+          debugPrint('✅ 새 캠페인 추가: ${event.campaign!.id}');
+          debugPrint('   제목: ${event.campaign!.title}');
+          debugPrint('   상태: ${event.campaign!.status}');
           _allCampaigns.insert(0, event.campaign!);
           _updateFilteredCampaigns();
+          _scheduleNextCampaignOpen();
+          debugPrint('✅ 캠페인 추가 완료, _allCampaigns 개수: ${_allCampaigns.length}');
+        } else {
+          debugPrint('⚠️ 이미 존재하는 캠페인: ${event.campaign!.id}');
         }
       } else if (event.isUpdate && event.campaign != null) {
         // 캠페인 정보 업데이트
+        debugPrint('📝 UPDATE 이벤트 처리');
         final index = _allCampaigns.indexWhere(
           (c) => c.id == event.campaign!.id,
         );
@@ -219,20 +267,46 @@ class _AdvertiserMyCampaignsScreenState
           final oldCampaign = _allCampaigns[index];
           final oldParticipants = oldCampaign.currentParticipants;
           final newParticipants = event.campaign!.currentParticipants;
-          debugPrint('🔄 캠페인 업데이트: ${event.campaign!.id} (참여자 수: $oldParticipants → $newParticipants)');
+
+          // 이전 상태 확인 (대기중인지)
+          final now = DateTimeUtils.nowKST();
+          final wasPending = oldCampaign.applyStartDate.isAfter(now);
+
+          debugPrint(
+            '✅ 캠페인 업데이트: ${event.campaign!.id} (참여자 수: $oldParticipants → $newParticipants)',
+          );
+          debugPrint('   이전 상태: ${wasPending ? "대기중" : "대기중 아님"}');
+
           _allCampaigns[index] = event.campaign!;
           _updateFilteredCampaigns();
+
+          // 다음 상태 전환 시간 예약 업데이트
+          _scheduleNextCampaignOpen();
         } else {
           debugPrint('⚠️ 캠페인을 찾을 수 없음: ${event.campaign!.id}');
+          // 목록에 없으면 추가 (새로 생성된 캠페인일 수 있음)
+          debugPrint('➕ 목록에 없으므로 추가 시도');
+          _allCampaigns.insert(0, event.campaign!);
+          _updateFilteredCampaigns();
+          _scheduleNextCampaignOpen();
         }
       } else if (event.isDelete && event.oldRecord != null) {
         // 캠페인 삭제
+        debugPrint('🗑️ DELETE 이벤트 처리');
         final campaignId = event.oldRecord!['id'] as String?;
         if (campaignId != null) {
-          debugPrint('🗑️ 캠페인 삭제: $campaignId');
+          debugPrint('✅ 캠페인 삭제: $campaignId');
           _allCampaigns.removeWhere((c) => c.id == campaignId);
           _updateFilteredCampaigns();
+          _scheduleNextCampaignOpen();
         }
+      } else {
+        debugPrint('⚠️ 처리되지 않은 이벤트');
+        debugPrint('   event.isInsert: ${event.isInsert}');
+        debugPrint('   event.isUpdate: ${event.isUpdate}');
+        debugPrint('   event.isDelete: ${event.isDelete}');
+        debugPrint('   event.campaign: ${event.campaign}');
+        debugPrint('   event.oldRecord: ${event.oldRecord}');
       }
     });
   }
@@ -257,7 +331,7 @@ class _AdvertiserMyCampaignsScreenState
       if (route?.isCurrent == true && mounted) {
         // 일시정지된 구독이 있으면 재개
         _realtimeManager.resumeSubscription(_screenId);
-        
+
         if (_shouldRefreshOnRestore) {
           _shouldRefreshOnRestore = false;
           debugPrint('🔄 화면 복원 감지 - 캠페인 목록 새로고침');
@@ -563,6 +637,9 @@ class _AdvertiserMyCampaignsScreenState
       // 상태별 필터링
       _updateFilteredCampaigns();
 
+      // 다음 캠페인 오픈 시간 예약
+      _scheduleNextCampaignOpen();
+
       // 디버깅 로그
       debugPrint('📊 캠페인 상태 분류:');
       debugPrint('   전체: ${_allCampaigns.length}개');
@@ -709,8 +786,81 @@ class _AdvertiserMyCampaignsScreenState
     }
   }
 
+  /// 다음 상태 전환 시간에 맞춰 정확한 타이밍에 필터링 실행
+  void _scheduleNextCampaignOpen() {
+    _preciseTimer?.cancel(); // 기존 예약 취소 (타이머 누적 방지)
+
+    if (_allCampaigns.isEmpty) return;
+
+    final now = DateTimeUtils.nowKST();
+    DateTime? nearestTransitionTime;
+
+    // 모든 캠페인의 상태 전환 시간 중 가장 가까운 시간 찾기
+    for (final campaign in _allCampaigns) {
+      if (campaign.status != CampaignStatus.active) continue;
+
+      // 1. 대기중 → 모집중: applyStartDate
+      if (campaign.applyStartDate.isAfter(now)) {
+        if (nearestTransitionTime == null ||
+            campaign.applyStartDate.isBefore(nearestTransitionTime)) {
+          nearestTransitionTime = campaign.applyStartDate;
+        }
+      }
+
+      // 2. 모집중 → 선정완료: applyEndDate (참여자 수에 따라)
+      if (campaign.applyEndDate.isAfter(now)) {
+        if (nearestTransitionTime == null ||
+            campaign.applyEndDate.isBefore(nearestTransitionTime)) {
+          nearestTransitionTime = campaign.applyEndDate;
+        }
+      }
+
+      // 3. 선정완료 → 등록기간: reviewStartDate
+      if (campaign.reviewStartDate.isAfter(now)) {
+        if (nearestTransitionTime == null ||
+            campaign.reviewStartDate.isBefore(nearestTransitionTime)) {
+          nearestTransitionTime = campaign.reviewStartDate;
+        }
+      }
+
+      // 4. 등록기간 → 종료: reviewEndDate
+      if (campaign.reviewEndDate.isAfter(now)) {
+        if (nearestTransitionTime == null ||
+            campaign.reviewEndDate.isBefore(nearestTransitionTime)) {
+          nearestTransitionTime = campaign.reviewEndDate;
+        }
+      }
+    }
+
+    // 예약 걸기
+    if (nearestTransitionTime != null) {
+      // ⚠️ 중요: 타임존 동기화 확인
+      // nearestTransitionTime과 now 모두 KST이므로 타임존 일치
+      final difference = nearestTransitionTime.difference(now);
+
+      // 정확한 타이밍을 위해 +500ms 정도 여유를 둠 (시스템 딜레이 고려)
+      // ⚠️ 참고: 네트워크 딜레이(0.5~1초)는 별도로 고려됨
+      final duration = difference + const Duration(milliseconds: 500);
+
+      if (!duration.isNegative) {
+        debugPrint(
+          '💰 [나의 캠페인] 다음 상태 전환 예약: ${duration.inSeconds}초 후 (${nearestTransitionTime})',
+        );
+        _preciseTimer = Timer(duration, () {
+          if (mounted) {
+            debugPrint('⏰ [나의 캠페인] 상태 전환 시간 도달! 리스트 갱신');
+            setState(() {
+              _updateFilteredCampaigns(); // 리스트 새로고침
+            });
+            _scheduleNextCampaignOpen(); // 그 다음 전환 시간 예약
+          }
+        });
+      }
+    }
+  }
+
   /// 상태별 필터링 업데이트
-  /// 
+  ///
   /// 제안된 필터 기준:
   /// 1. 대기중: 캠페인 신청기간 이전
   /// 2. 모집중: 캠페인 신청기간 - 캠페인 종료기간 (and 신청자 다 안참)
@@ -745,13 +895,15 @@ class _AdvertiserMyCampaignsScreenState
         continue;
       }
 
-      // 3. 선정완료: 
+      // 3. 선정완료:
       //    - 신청기간 ~ 종료기간 사이 AND 신청자 다 참
       //    - OR 종료기간 ~ 리뷰시작기간 사이
-      final isInApplyPeriod = !campaign.applyStartDate.isAfter(now) &&
-                              !campaign.applyEndDate.isBefore(now);
-      final isBetweenApplyEndAndReviewStart = campaign.applyEndDate.isBefore(now) &&
-                                              campaign.reviewStartDate.isAfter(now);
+      final isInApplyPeriod =
+          !campaign.applyStartDate.isAfter(now) &&
+          !campaign.applyEndDate.isBefore(now);
+      final isBetweenApplyEndAndReviewStart =
+          campaign.applyEndDate.isBefore(now) &&
+          campaign.reviewStartDate.isAfter(now);
       final isFull = campaign.currentParticipants == campaign.maxParticipants!;
 
       if ((isInApplyPeriod && isFull) || isBetweenApplyEndAndReviewStart) {
