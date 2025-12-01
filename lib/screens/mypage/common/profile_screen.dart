@@ -7,6 +7,7 @@ import '../../../services/company_service.dart';
 import '../../../services/wallet_service.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../models/wallet_models.dart';
+import '../../../config/supabase_config.dart';
 import 'business_registration_form.dart';
 import 'account_registration_form.dart';
 
@@ -47,7 +48,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _loadPendingManagerRequest();
     _loadWalletData();
 
-    // URL 파라미터로 사업자 탭을 요청한 경우 자동으로 사업자 탭으로 이동
+    // URL 파라미터로 광고주 탭을 요청한 경우 자동으로 광고주 탭으로 이동
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final uri = Uri.parse(GoRouterState.of(context).uri.toString());
       if (uri.queryParameters['tab'] == 'business') {
@@ -148,7 +149,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               indicatorColor: const Color(0xFF137fec),
               tabs: const [
                 Tab(text: '리뷰어'),
-                Tab(text: '사업자'),
+                Tab(text: '광고주'),
               ],
             ),
           ),
@@ -158,7 +159,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               controller: _tabController,
               children: [
                 _buildProfileContent(), // 리뷰어 탭
-                _buildBusinessTab(), // 사업자 탭
+                _buildBusinessTab(), // 광고주 탭
               ],
             ),
           ),
@@ -609,16 +610,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       child: Column(
         children: [
           const SizedBox(height: 24),
-          // 사업자등록폼 통합
+          // 광고주등록폼 통합
           _buildBusinessRegistrationForm(),
           const SizedBox(height: 24),
-          // 계좌정보 섹션 (사업자 탭)
+          // 계좌정보 섹션 (광고주 탭)
           AccountRegistrationForm(
             companyWallet: _companyWallet,
             onSaved: _loadWalletData,
             isBusinessTab: true,
           ),
-          // 사업자 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
+          // 광고주 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
           if (_existingCompanyData == null && !_isLoadingCompanyData) ...[
             const SizedBox(height: 24),
             _buildManagerRequestButton(),
@@ -646,7 +647,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       child: BusinessRegistrationForm(
         hasPendingManagerRequest: _pendingManagerRequest != null,
         onVerificationComplete: () async {
-          // 사업자 인증 완료 시 프로필 및 회사 데이터 다시 로드
+          // 광고주 인증 완료 시 프로필 및 회사 데이터 다시 로드
           await _loadUserProfile();
           await _loadCompanyData();
           await _loadWalletData(); // 지갑 데이터 로드 (계좌정보 표시를 위해 필요)
@@ -899,7 +900,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
           const SizedBox(height: 12),
           Text(
-            '사업자 등록이 완료된 회사의 매니저로 등록을 요청할 수 있습니다.',
+            '광고주 등록이 완료된 회사의 매니저로 등록을 요청할 수 있습니다.',
             style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
           const SizedBox(height: 20),
@@ -1058,139 +1059,376 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   /// 매니저 등록 요청 다이얼로그
   void _showManagerRequestDialog() {
-    final businessNameController = TextEditingController();
-    final businessNumberController = TextEditingController();
+    final searchController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    bool isSearching = false;
     bool isSubmitting = false;
+    Map<String, dynamic>? foundCompany;
+    String? errorMessage;
 
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('매니저 등록 요청'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
+        builder: (context, setDialogState) {
+          // 검색 함수
+          Future<void> searchCompany() async {
+            final businessName = searchController.text.trim();
+            
+            if (businessName.isEmpty) {
+              setDialogState(() {
+                errorMessage = '사업자명을 입력해주세요.';
+                foundCompany = null;
+              });
+              return;
+            }
+
+            setDialogState(() {
+              isSearching = true;
+              errorMessage = null;
+              foundCompany = null;
+            });
+
+            try {
+              final supabase = SupabaseConfig.client;
+              
+              final response = await supabase
+                  .from('companies')
+                  .select('id, business_name, business_number, representative_name, address')
+                  .eq('business_name', businessName)
+                  .maybeSingle();
+
+              if (response != null) {
+                setDialogState(() {
+                  foundCompany = response;
+                  isSearching = false;
+                });
+              } else {
+                setDialogState(() {
+                  errorMessage = '등록된 광고사를 찾을 수 없습니다. 사업자명을 정확히 입력해주세요.';
+                  foundCompany = null;
+                  isSearching = false;
+                });
+              }
+            } catch (e) {
+              print('❌ 광고사 검색 실패: $e');
+              setDialogState(() {
+                errorMessage = '검색 중 오류가 발생했습니다: $e';
+                foundCompany = null;
+                isSearching = false;
+              });
+            }
+          }
+
+          // 요청 함수
+          Future<void> submitRequest() async {
+            if (foundCompany == null) {
+              setDialogState(() {
+                errorMessage = '먼저 사업자명을 검색해주세요.';
+              });
+              return;
+            }
+
+            setDialogState(() {
+              isSubmitting = true;
+            });
+
+            try {
+              await CompanyService.requestManagerRole(
+                businessName: foundCompany!['business_name'],
+                businessNumber: foundCompany!['business_number'],
+              );
+
+              if (context.mounted) {
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      '매니저 등록 요청이 완료되었습니다. 승인 대기 중입니다.',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                // 회사 데이터 및 pending 요청 다시 로드
+                await _loadCompanyData();
+                await _loadPendingManagerRequest();
+              }
+            } catch (e) {
+              setDialogState(() {
+                isSubmitting = false;
+              });
+
+              String errorMsg = '등록 요청 실패: $e';
+              if (e.toString().contains('1분 후에 다시 시도')) {
+                errorMsg = '3번 틀리셨습니다. 1분 후에 다시 시도해주세요.';
+              } else if (e.toString().contains('등록된 사업자정보가 없습니다')) {
+                final match = RegExp(r'\((\d+)/3\)').firstMatch(e.toString());
+                if (match != null) {
+                  final count = match.group(1);
+                  errorMsg = '등록된 광고주정보가 없습니다. ($count/3)';
+                }
+              }
+
+              setDialogState(() {
+                errorMessage = errorMsg;
+              });
+            }
+          }
+
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextFormField(
-                    controller: businessNameController,
-                    decoration: const InputDecoration(
-                      labelText: '사업자명',
-                      hintText: '등록된 사업자명을 입력하세요',
-                      border: OutlineInputBorder(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Form(
+                        key: formKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 제목
+                            const Text(
+                              '광고주 - 매니저 요청',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF333333),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // 안내 메시지
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blue[200]!),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline, color: Colors.blue[700], size: 24),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      '광고사에 매니저로 등록을 요청할 수 있습니다.\n사업자명을 정확히 입력해주세요.',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.blue[900],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // 검색 섹션
+                            const Text(
+                              '사업자명 검색',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF333333),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: searchController,
+                                    decoration: InputDecoration(
+                                      labelText: '사업자명',
+                                      hintText: '등록된 사업자명을 정확히 입력하세요',
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: isSearching
+                                          ? const Padding(
+                                              padding: EdgeInsets.all(12),
+                                              child: SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                              ),
+                                            )
+                                          : null,
+                                    ),
+                                    onFieldSubmitted: (_) => searchCompany(),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  onPressed: isSearching ? null : searchCompany,
+                                  icon: const Icon(Icons.search),
+                                  label: const Text('검색'),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            // 에러 메시지
+                            if (errorMessage != null) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.red[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.red[200]!),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.error_outline, color: Colors.red[700], size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        errorMessage!,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.red[700],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            // 검색 결과
+                            if (foundCompany != null) ...[
+                              const SizedBox(height: 24),
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.grey.withValues(alpha: 0.1),
+                                      spreadRadius: 1,
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.business, color: Colors.blue[700], size: 24),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          '검색된 광고사',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF333333),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildInfoRowInDialog('사업자명', foundCompany!['business_name'] ?? ''),
+                                    const SizedBox(height: 12),
+                                    _buildInfoRowInDialog('사업자등록번호', foundCompany!['business_number'] ?? ''),
+                                    if (foundCompany!['representative_name'] != null) ...[
+                                      const SizedBox(height: 12),
+                                      _buildInfoRowInDialog('대표자명', foundCompany!['representative_name'] ?? ''),
+                                    ],
+                                    if (foundCompany!['address'] != null) ...[
+                                      const SizedBox(height: 12),
+                                      _buildInfoRowInDialog('주소', foundCompany!['address'] ?? ''),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            if (isSubmitting) ...[
+                              const SizedBox(height: 24),
+                              const Center(child: CircularProgressIndicator()),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return '사업자명을 입력해주세요';
-                      }
-                      return null;
-                    },
                   ),
+                  // Actions 버튼
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: businessNumberController,
-                    decoration: const InputDecoration(
-                      labelText: '사업자등록번호',
-                      hintText: '123-45-67890',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return '사업자등록번호를 입력해주세요';
-                      }
-                      return null;
-                    },
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: isSubmitting
+                            ? null
+                            : () {
+                                Navigator.pop(dialogContext);
+                              },
+                        child: const Text('취소'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: isSubmitting || foundCompany == null
+                            ? null
+                            : submitRequest,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue[600],
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('요청하기'),
+                      ),
+                    ],
                   ),
-                  if (isSubmitting) ...[
-                    const SizedBox(height: 16),
-                    const Center(child: CircularProgressIndicator()),
-                  ],
                 ],
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting
-                  ? null
-                  : () {
-                      Navigator.pop(dialogContext);
-                    },
-              child: const Text('취소'),
-            ),
-            ElevatedButton(
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
-                      if (formKey.currentState!.validate()) {
-                        setDialogState(() {
-                          isSubmitting = true;
-                        });
-
-                        try {
-                          await CompanyService.requestManagerRole(
-                            businessName: businessNameController.text.trim(),
-                            businessNumber: businessNumberController.text
-                                .trim(),
-                          );
-
-                          if (context.mounted) {
-                            Navigator.pop(dialogContext);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  '매니저 등록 요청이 완료되었습니다. 승인 대기 중입니다.',
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                            // 회사 데이터 및 pending 요청 다시 로드
-                            await _loadCompanyData();
-                            await _loadPendingManagerRequest();
-                          }
-                        } catch (e) {
-                          setDialogState(() {
-                            isSubmitting = false;
-                          });
-
-                          String errorMessage = '등록 요청 실패: $e';
-                          if (e.toString().contains('1분 후에 다시 시도')) {
-                            errorMessage = '3번 틀리셨습니다. 1분 후에 다시 시도해주세요.';
-                          } else if (e.toString().contains('등록된 사업자정보가 없습니다')) {
-                            final match = RegExp(
-                              r'\((\d+)/3\)',
-                            ).firstMatch(e.toString());
-                            if (match != null) {
-                              final count = match.group(1);
-                              errorMessage = '등록된 사업자정보가 없습니다. ($count/3)';
-                            }
-                          }
-
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(errorMessage),
-                                backgroundColor: Colors.red,
-                                duration: const Duration(seconds: 3),
-                              ),
-                            );
-                          }
-                        }
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[600],
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('요청하기'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
+    ).then((_) {
+      searchController.dispose();
+    });
+  }
+
+  Widget _buildInfoRowInDialog(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF333333),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

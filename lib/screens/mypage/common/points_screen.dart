@@ -322,7 +322,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '입금/출금 권한이 없습니다. (owner만 가능)',
+                '입금/출금 권한이 없습니다. (대표만 가능)',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.orange[700],

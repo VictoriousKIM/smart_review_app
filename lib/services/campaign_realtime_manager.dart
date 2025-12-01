@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint, kDebugMode, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, debugPrint, kDebugMode, visibleForTesting;
 import 'package:flutter/widgets.dart';
 import 'campaign_realtime_service.dart';
 import '../models/campaign_realtime_event.dart';
@@ -8,10 +9,11 @@ import '../models/campaign_realtime_event.dart';
 enum LogLevel { debug, info, warning, error }
 
 /// 구독 상태 콜백 타입
-typedef SubscriptionStateCallback = void Function(String screenId, bool isConnected);
+typedef SubscriptionStateCallback =
+    void Function(String screenId, bool isConnected);
 
 /// Realtime 구독 중앙 관리자
-/// 
+///
 /// 모든 Realtime 구독을 중앙에서 관리하여:
 /// - 중복 구독 방지
 /// - 구독 상태 추적
@@ -45,10 +47,10 @@ class CampaignRealtimeManager {
 
   // 화면별 구독 추적
   final Map<String, _SubscriptionInfo> _subscriptions = {};
-  
+
   // 경쟁 조건 방지: 구독 진행 중인 화면 추적
   final Set<String> _pendingSubscriptions = {};
-  
+
   // 생명주기 이벤트 처리
   bool _isAppInBackground = false;
   Timer? _lifecycleDebounceTimer;
@@ -67,13 +69,13 @@ class CampaignRealtimeManager {
   }
 
   /// 구독 시작 (중복 방지, 경쟁 조건 방지)
-  /// 
+  ///
   /// [screenId]: 화면 식별자 (예: 'advertiser_my_campaigns', 'home', 'campaigns')
   /// [onEvent]: 이벤트 처리 콜백
   /// [companyId]: 회사 ID (광고주 화면에서 사용)
   /// [campaignId]: 캠페인 ID (상세 화면에서 사용)
   /// [activeOnly]: 활성화된 캠페인만 구독 (기본값: true)
-  /// 
+  ///
   /// 반환값: 구독 성공 여부
   bool subscribe({
     required String screenId,
@@ -127,9 +129,11 @@ class CampaignRealtimeManager {
           }
           onEvent(event);
         },
-        onError: onError ?? (error) {
-          _log('❌ Realtime 구독 에러 ($screenId): $error', LogLevel.error);
-        },
+        onError:
+            onError ??
+            (error) {
+              _log('❌ Realtime 구독 에러 ($screenId): $error', LogLevel.error);
+            },
       );
 
       // 구독 정보 저장
@@ -164,7 +168,7 @@ class CampaignRealtimeManager {
   }
 
   /// 재시도 로직을 포함한 구독 시작
-  /// 
+  ///
   /// [maxRetries]: 최대 재시도 횟수 (기본값: 3)
   /// [retryDelay]: 재시도 간격 (기본값: 2초)
   Future<bool> subscribeWithRetry({
@@ -205,7 +209,7 @@ class CampaignRealtimeManager {
   }
 
   /// 구독 해제
-  /// 
+  ///
   /// [screenId]: 화면 식별자
   /// [force]: true면 강제 해제, false면 일시정지만 (기본값: false)
   void unsubscribe(String screenId, {bool force = false}) {
@@ -216,7 +220,7 @@ class CampaignRealtimeManager {
       _pauseSubscription(screenId);
     }
   }
-  
+
   /// 구독 일시정지 (화면이 dispose될 때 호출)
   void _pauseSubscription(String screenId) {
     final info = _subscriptions[screenId];
@@ -224,21 +228,21 @@ class CampaignRealtimeManager {
       _log('ℹ️ 구독이 없습니다: $screenId', LogLevel.info);
       return;
     }
-    
+
     if (info.isPaused) {
       _log('ℹ️ 이미 일시정지됨: $screenId', LogLevel.info);
       return;
     }
-    
+
     info.inactivityTimer?.cancel();
     info.service.unsubscribe();
     info.subscription.cancel();
     info.isPaused = true;
     _notifyStateChange(screenId, false);
-    
+
     _log('⏸️ Realtime 구독 일시정지: $screenId', LogLevel.info);
   }
-  
+
   /// 구독 재개 (화면이 다시 활성화될 때 호출)
   void resumeSubscription(String screenId) {
     final info = _subscriptions[screenId];
@@ -246,12 +250,12 @@ class CampaignRealtimeManager {
       _log('ℹ️ 구독이 없습니다: $screenId', LogLevel.info);
       return;
     }
-    
+
     if (!info.isPaused) {
       _log('ℹ️ 이미 활성화됨: $screenId', LogLevel.info);
       return;
     }
-    
+
     _resubscribe(screenId, info);
   }
 
@@ -332,9 +336,11 @@ class CampaignRealtimeManager {
           }
           oldInfo.onEvent(event);
         },
-        onError: oldInfo.onError ?? (error) {
-          _log('❌ Realtime 구독 에러 ($screenId): $error', LogLevel.error);
-        },
+        onError:
+            oldInfo.onError ??
+            (error) {
+              _log('❌ Realtime 구독 에러 ($screenId): $error', LogLevel.error);
+            },
       );
 
       // 기존 정보 업데이트
@@ -363,7 +369,7 @@ class CampaignRealtimeManager {
   }
 
   /// 앱 생명주기 이벤트 처리
-  /// 
+  ///
   /// [state]: 앱 생명주기 상태
   void handleAppLifecycleState(AppLifecycleState state) {
     // 웹 환경에서는 생명주기 이벤트 무시 (탭 전환 시에도 구독 유지)
@@ -445,17 +451,17 @@ class CampaignRealtimeManager {
 class _SubscriptionInfo {
   /// 재구독 시 업데이트됨
   CampaignRealtimeService service;
-  
+
   /// 재구독 시 업데이트됨
   StreamSubscription<CampaignRealtimeEvent> subscription;
-  
+
   final String screenId;
   final String? companyId;
   final String? campaignId;
   final bool activeOnly;
   final void Function(CampaignRealtimeEvent) onEvent;
   final void Function(Object)? onError;
-  
+
   bool isPaused = false;
   DateTime lastEventTime = DateTime.now();
   Timer? inactivityTimer;
@@ -477,4 +483,3 @@ class _SubscriptionInfo {
     inactivityTimer = Timer(const Duration(minutes: 30), onTimeout);
   }
 }
-

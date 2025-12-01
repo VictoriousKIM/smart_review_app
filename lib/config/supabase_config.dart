@@ -1,37 +1,47 @@
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseConfig {
-  // 프로덕션 Supabase 사용 (소셜 로그인을 위해 항상 프로덕션 연결)
-  // 로컬 개발이 필요한 경우 환경 변수로 제어 가능
+  // 로컬 Supabase 사용 (기본값)
+  // 프로덕션 사용이 필요한 경우 환경 변수로 제어 가능
   static String get supabaseUrl {
-    // 환경 변수로 로컬 개발 모드 제어 (기본값: 프로덕션)
-    const useLocal = String.fromEnvironment('USE_LOCAL_SUPABASE', defaultValue: 'false');
-    if (useLocal == 'true' && kIsWeb && kDebugMode) {
-      // 웹 개발 환경: 로컬 Supabase 사용 (환경 변수로 명시적으로 설정한 경우만)
-      return 'http://127.0.0.1:54500';
-    } else {
-      // 프로덕션 Supabase 사용 (기본값)
+    // 환경 변수로 프로덕션 모드 제어 (기본값: 로컬)
+    const useProduction = String.fromEnvironment(
+      'USE_PRODUCTION_SUPABASE',
+      defaultValue: 'false',
+    );
+    if (useProduction == 'true') {
+      // 프로덕션 Supabase 사용 (환경 변수로 명시적으로 설정한 경우만)
       return 'https://ythmnhadeyfusmfhcgdr.supabase.co';
+    } else {
+      // 로컬 Supabase 사용 (기본값)
+      return 'http://127.0.0.1:54500';
     }
   }
 
   static String get supabaseAnonKey {
-    // 환경 변수로 로컬 개발 모드 제어 (기본값: 프로덕션)
-    const useLocal = String.fromEnvironment('USE_LOCAL_SUPABASE', defaultValue: 'false');
-    if (useLocal == 'true' && kIsWeb && kDebugMode) {
-      // 웹 개발 환경: 로컬 개발 키 (환경 변수로 명시적으로 설정한 경우만)
-      return 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
-    } else {
-      // 프로덕션 키 사용 (기본값)
+    // 환경 변수로 프로덕션 모드 제어 (기본값: 로컬)
+    const useProduction = String.fromEnvironment(
+      'USE_PRODUCTION_SUPABASE',
+      defaultValue: 'false',
+    );
+    if (useProduction == 'true') {
+      // 프로덕션 키 사용 (환경 변수로 명시적으로 설정한 경우만)
       return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0aG1uaGFkZXlmdXNtZmhjZ2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMDU4MDQsImV4cCI6MjA3MzU4MTgwNH0.BzTELGjnSewXprm_3mjJnOXusvp5Sw5jagpmKUYEM50';
+    } else {
+      // 로컬 개발 키 사용 (기본값)
+      // npx supabase status --output json에서 확인한 실제 JWT 키
+      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
     }
   }
 
   // Cloudflare Workers API URL
-  // 프로덕션 환경만 사용 (로컬 개발도 프로덕션 Workers 사용)
+  // 로컬 개발도 프로덕션 Workers 사용 (필요시 환경 변수로 제어 가능)
   static const String workersApiUrl =
       'https://smart-review-api.nightkille.workers.dev';
+  // 프로덕션 사용 시 (주석 처리):
+  // static const String workersApiUrl =
+  //     'https://smart-review-api.nightkille.workers.dev';
 
   // R2 Public URL
   static const String r2PublicUrl =
@@ -64,7 +74,7 @@ class SupabaseConfig {
         ),
       );
       debugPrint('Supabase 초기화 완료');
-      
+
       // 웹 환경에서 세션 복원 확인
       if (kIsWeb) {
         final session = Supabase.instance.client.auth.currentSession;
