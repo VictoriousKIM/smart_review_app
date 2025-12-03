@@ -6,13 +6,12 @@ class Campaign {
   final String title;
   final String description;
   final String companyId; // DB에 있는 필드 추가
-  final String? productName; // DB에 있는 필드 추가
+  final String productName; // DB에 있는 필드 추가 (NOT NULL)
   final String productImageUrl;
   final String platform;
   final CampaignCategory campaignType;
-  final int? productPrice;
-  final int
-  campaignReward; // DB에 있는 필드 (campaign_reward) - review_cost와 review_reward 통합
+  final int productPrice; // NOT NULL
+  final int campaignReward; // DB에 있는 필드 (campaign_reward)
   final DateTime applyStartDate;  // 신청 시작일시 (기존: startDate)
   final DateTime applyEndDate;    // 신청 종료일시 (기존: endDate)
   final DateTime reviewStartDate; // 리뷰 시작일시 (신규)
@@ -28,7 +27,7 @@ class Campaign {
   final String? keyword;
   final String? option;
   final int quantity;
-  final String? seller;
+  final String seller; // NOT NULL
   final String? productNumber;
   final String purchaseMethod;
 
@@ -36,6 +35,7 @@ class Campaign {
   final String reviewType; // 'star_only', 'star_text', 'star_text_image'
   final int reviewTextLength;
   final int reviewImageCount;
+  final String? reviewKeywords; // 리뷰 키워드 (콤마로 구분된 문자열)
 
   // 중복 방지 설정
   final bool preventProductDuplicate;
@@ -51,11 +51,11 @@ class Campaign {
     required this.title,
     required this.description,
     required this.companyId,
-    this.productName,
+    required this.productName,
     required this.productImageUrl,
     required this.platform,
     required this.campaignType,
-    this.productPrice,
+    required this.productPrice,
     required this.campaignReward,
     required this.applyStartDate,
     required this.applyEndDate,
@@ -71,13 +71,14 @@ class Campaign {
     this.keyword,
     this.option,
     this.quantity = 1,
-    this.seller,
+    required this.seller,
     this.productNumber,
     this.purchaseMethod = 'mobile',
     // 리뷰 설정
     this.reviewType = 'star_only',
     this.reviewTextLength = 100,
     this.reviewImageCount = 0,
+    this.reviewKeywords,
     // 중복 방지 설정
     this.preventProductDuplicate = false,
     this.preventStoreDuplicate = false,
@@ -107,38 +108,27 @@ class Campaign {
       title: json['title'] ?? '',
       description: json['description'] ?? '',
       companyId: json['company_id'] ?? '',
-      productName: json['product_name'],
+      productName: json['product_name'] ?? '',
       productImageUrl: json['product_image_url'] ?? '',
       platform: json['platform'] ?? '',
       campaignType: mapCampaignType(json['campaign_type']),
-      productPrice: json['product_price'],
-      campaignReward:
-          json['campaign_reward'] ??
-          (json['review_reward'] ?? json['review_cost'] ?? 0), // 하위 호환성
-      // 하위 호환성: 기존 필드명도 지원
+      productPrice: json['product_price'] ?? 0,
+      campaignReward: json['campaign_reward'] ?? 0,
       // DB에서 가져온 UTC 시간을 한국 시간(KST, UTC+9)으로 변환
       applyStartDate: json['apply_start_date'] != null
           ? DateTimeUtils.parseKST(json['apply_start_date'])
-          : (json['start_date'] != null
-              ? DateTimeUtils.parseKST(json['start_date'])
-              : DateTimeUtils.nowKST().add(const Duration(days: 1))),
+          : DateTimeUtils.nowKST().add(const Duration(days: 1)),
       applyEndDate: json['apply_end_date'] != null
           ? DateTimeUtils.parseKST(json['apply_end_date'])
-          : (json['end_date'] != null
-              ? DateTimeUtils.parseKST(json['end_date'])
-              : DateTimeUtils.nowKST().add(const Duration(days: 8))),
+          : DateTimeUtils.nowKST().add(const Duration(days: 8)),
       reviewStartDate: json['review_start_date'] != null
           ? DateTimeUtils.parseKST(json['review_start_date'])
           : (json['apply_end_date'] != null
               ? DateTimeUtils.parseKST(json['apply_end_date']).add(const Duration(days: 1))
-              : (json['end_date'] != null
-                  ? DateTimeUtils.parseKST(json['end_date']).add(const Duration(days: 1))
-                  : DateTimeUtils.nowKST().add(const Duration(days: 9)))),
+              : DateTimeUtils.nowKST().add(const Duration(days: 9))),
       reviewEndDate: json['review_end_date'] != null
           ? DateTimeUtils.parseKST(json['review_end_date'])
-          : (json['expiration_date'] != null
-              ? DateTimeUtils.parseKST(json['expiration_date'])
-              : DateTimeUtils.nowKST().add(const Duration(days: 38))),
+          : DateTimeUtils.nowKST().add(const Duration(days: 38)),
       currentParticipants: json['current_participants'] ?? 0,
       maxParticipants: json['max_participants'],
       maxPerReviewer: json['max_per_reviewer'] ?? 1,
@@ -154,13 +144,14 @@ class Campaign {
       keyword: json['keyword'],
       option: json['option'],
       quantity: json['quantity'] ?? 1,
-      seller: json['seller'],
+      seller: json['seller'] ?? '',
       productNumber: json['product_number'],
       purchaseMethod: json['purchase_method'] ?? 'mobile',
       // 리뷰 설정
       reviewType: json['review_type'] ?? 'star_only',
       reviewTextLength: json['review_text_length'] ?? 100,
       reviewImageCount: json['review_image_count'] ?? 0,
+      reviewKeywords: json['review_keywords'],
       // 중복 방지 설정
       preventProductDuplicate: json['prevent_product_duplicate'] ?? false,
       preventStoreDuplicate: json['prevent_store_duplicate'] ?? false,
@@ -218,6 +209,7 @@ class Campaign {
       'review_type': reviewType,
       'review_text_length': reviewTextLength,
       'review_image_count': reviewImageCount,
+      'review_keywords': reviewKeywords,
       // 중복 방지 설정
       'prevent_product_duplicate': preventProductDuplicate,
       'prevent_store_duplicate': preventStoreDuplicate,
@@ -259,6 +251,7 @@ class Campaign {
     String? reviewType,
     int? reviewTextLength,
     int? reviewImageCount,
+    String? reviewKeywords,
     // 중복 방지 설정
     bool? preventProductDuplicate,
     bool? preventStoreDuplicate,
@@ -298,6 +291,7 @@ class Campaign {
       reviewType: reviewType ?? this.reviewType,
       reviewTextLength: reviewTextLength ?? this.reviewTextLength,
       reviewImageCount: reviewImageCount ?? this.reviewImageCount,
+      reviewKeywords: reviewKeywords ?? this.reviewKeywords,
       // 중복 방지 설정
       preventProductDuplicate:
           preventProductDuplicate ?? this.preventProductDuplicate,

@@ -2,10 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Providers & Services
 import '../providers/auth_provider.dart';
 import '../models/user.dart' as app_user;
+import '../config/supabase_config.dart';
+import '../services/auth_service.dart';
 
 // Widgets & Shells
 import '../widgets/main_shell.dart';
@@ -14,6 +17,9 @@ import '../widgets/mypage_route_wrapper.dart';
 
 // Screens - Auth & Home
 import '../screens/auth/login_screen.dart';
+import '../screens/auth/signup_screen.dart';
+import '../screens/auth/reviewer_signup_screen.dart';
+import '../screens/auth/advertiser_signup_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/guide/guide_screen.dart';
 
@@ -24,19 +30,19 @@ import '../screens/campaign/campaign_edit_screen.dart';
 import '../screens/campaign/campaign_detail_screen.dart';
 
 // Screens - Mypage (Reviewer)
-import '../screens/mypage/reviewer/reviewer_mypage_screen.dart';
 import '../screens/mypage/reviewer/my_campaigns_screen.dart';
 import '../screens/mypage/reviewer/reviewer_reviews_screen.dart';
 import '../screens/mypage/reviewer/sns_connection_screen.dart';
+import '../screens/mypage/reviewer/reviewer_company_request_screen.dart';
 
 // Screens - Mypage (Advertiser)
-import '../screens/mypage/advertiser/advertiser_mypage_screen.dart';
 import '../screens/mypage/advertiser/advertiser_my_campaigns_screen.dart';
 import '../screens/mypage/advertiser/advertiser_campaign_detail_screen.dart';
 import '../screens/mypage/advertiser/advertiser_analytics_screen.dart';
 import '../screens/mypage/advertiser/advertiser_participants_screen.dart';
 import '../screens/mypage/advertiser/advertiser_manager_screen.dart';
 import '../screens/mypage/advertiser/advertiser_penalties_screen.dart';
+import '../screens/mypage/advertiser/advertiser_reviewer_screen.dart';
 
 // Screens - Mypage (Common)
 import '../screens/mypage/common/profile_screen.dart';
@@ -56,11 +62,6 @@ import '../screens/mypage/admin/admin_statistics_screen.dart';
 import '../screens/mypage/admin/admin_settings_screen.dart';
 
 // Screens - Common & Settings
-import '../screens/common/notices_screen.dart';
-import '../screens/common/events_screen.dart';
-import '../screens/common/inquiry_screen.dart';
-import '../screens/common/advertisement_inquiry_screen.dart';
-import '../screens/settings/notification_settings_screen.dart';
 import '../screens/account_deletion_screen.dart';
 
 /// GoRouter Refresh Notifier
@@ -98,36 +99,51 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     // [1] 전역 Redirect
     redirect: (context, state) async {
       final matchedLocation = state.matchedLocation;
+      final fullPath = state.uri.path;
+      final uriString = state.uri.toString();
+
+      debugPrint('Redirect: 실행됨 - matchedLocation=$matchedLocation, fullPath=$fullPath, uri=$uriString');
 
       final isLoggingIn = matchedLocation == '/login';
       final isRoot = matchedLocation == '/';
       final isMyPage = matchedLocation.startsWith('/mypage');
 
-      // 1. 마이페이지 경로는 전역 redirect에서 특별 처리 (새로고침 시 경로 유지)
-      // Builder에서 권한 체크를 수행하므로 여기서는 로그인 체크만
-      if (isMyPage) {
-        final user = await authService.currentUser;
-        if (user == null) {
-          // 비로그인 시에만 로그인으로 리다이렉트
-          return '/login';
-        }
-        // 로그인 상태면 경로 유지 (null 반환)
+      // Signup 관련 경로는 redirect 제외 (무한 루프 방지)
+      // matchedLocation과 fullPath 모두 확인하여 이중 방어
+      if (matchedLocation.startsWith('/signup') || fullPath.startsWith('/signup')) {
+        debugPrint('Redirect: Signup 경로는 redirect 제외: matchedLocation=$matchedLocation, fullPath=$fullPath');
         return null;
       }
 
-      // 2. 세션 확인 (비동기)
-      final user = await authService.currentUser;
-      final isLoggedIn = user != null;
+      // 1. 마이페이지 경로는 전역 redirect에서 특별 처리 (새로고침 시 경로 유지)
+      if (isMyPage) {
+        final userState = await authService.getUserState();
+        if (userState == UserState.notLoggedIn || userState == UserState.tempSession) {
+          return '/login';
+        }
+        return null;
+      }
 
-      // 3. 비로그인 상태
-      if (!isLoggedIn) {
+      // 2. 사용자 상태 확인 (중복 프로필 체크 제거)
+      final userState = await authService.getUserState();
+
+      // 3. 임시 세션 (프로필 없음) → signup으로 리다이렉트
+      if (userState == UserState.tempSession) {
+        final session = SupabaseConfig.client.auth.currentSession;
+        if (session != null) {
+          final provider = _extractProvider(session.user);
+          return '/signup?type=oauth&provider=$provider';
+        }
+      }
+
+      // 4. 비로그인 상태
+      if (userState == UserState.notLoggedIn) {
         if (isLoggingIn) return null;
         return '/login';
       }
 
-      // 4. 로그인 상태
-      if (isLoggedIn) {
-        // 로그인 페이지나 루트 접근 시 홈으로
+      // 5. 로그인 상태
+      if (userState == UserState.loggedIn) {
         if (isLoggingIn || isRoot) return '/home';
       }
 
@@ -147,6 +163,48 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginScreen(),
+      ),
+
+      // 회원가입 (OAuth 로그인 후 프로필 없을 때)
+      GoRoute(
+        path: '/signup',
+        name: 'signup',
+        builder: (context, state) {
+          final type = state.uri.queryParameters['type']; // 'oauth'
+          final provider =
+              state.uri.queryParameters['provider']; // 'google', 'kakao'
+          final companyId = state.uri.queryParameters['companyid'];
+          return SignupScreen(
+            type: type,
+            provider: provider,
+            companyId: companyId,
+          );
+        },
+        routes: [
+          // 리뷰어 회원가입
+          GoRoute(
+            path: 'reviewer',
+            name: 'reviewer-signup',
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              return ReviewerSignupScreen(
+                companyId: extra?['companyId'] as String?,
+                provider: extra?['provider'] as String?,
+              );
+            },
+          ),
+          // 광고주 회원가입
+          GoRoute(
+            path: 'advertiser',
+            name: 'advertiser-signup',
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              return AdvertiserSignupScreen(
+                provider: extra?['provider'] as String?,
+              );
+            },
+          ),
+        ],
       ),
 
       // 메인 쉘
@@ -251,6 +309,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 name: 'reviewer-sns',
                 builder: (context, state) => const SNSConnectionScreen(),
               ),
+              GoRoute(
+                path: 'company-request',
+                name: 'reviewer-company-request',
+                builder: (context, state) =>
+                    const ReviewerCompanyRequestScreen(),
+              ),
             ],
           ),
 
@@ -311,6 +375,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: 'managers',
                 name: 'advertiser-managers',
                 builder: (context, state) => const AdvertiserManagerScreen(),
+              ),
+              GoRoute(
+                path: 'reviewers',
+                name: 'advertiser-reviewers',
+                builder: (context, state) => const AdvertiserReviewerScreen(),
               ),
               GoRoute(
                 path: 'penalties',
@@ -446,6 +515,43 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
+/// OAuth Provider 정보 추출 헬퍼 함수
+String _extractProvider(User user) {
+  // 1. identities에서 provider 추출 (가장 신뢰할 수 있음)
+  if (user.identities != null && user.identities!.isNotEmpty) {
+    final identity = user.identities!.firstWhere(
+      (i) => i.provider != 'email',
+      orElse: () => user.identities!.first,
+    );
+    if (identity.provider != 'email') {
+      return identity.provider;
+    }
+  }
+
+  // 2. appMetadata에서 추출
+  final metadata = user.appMetadata;
+  if (metadata.containsKey('provider')) {
+    return metadata['provider'] as String;
+  }
+
+  // 3. userMetadata에서 추출
+  final userMetadata = user.userMetadata;
+  if (userMetadata != null && userMetadata.containsKey('provider')) {
+    return userMetadata['provider'] as String;
+  }
+
+  // 4. email 도메인으로 추정 (google.com → google)
+  if (user.email != null) {
+    final domain = user.email!.split('@')[1];
+    if (domain == 'gmail.com' || domain.contains('google')) {
+      return 'google';
+    }
+  }
+
+  // 5. fallback
+  return 'unknown';
+}
+
 /// 마이페이지 리다이렉트 위젯
 /// ref.watch()를 사용하여 사용자 상태 변경을 감지하고 적절한 화면으로 리다이렉트
 class _MyPageRedirectWidget extends ConsumerWidget {
@@ -489,11 +595,7 @@ class _MyPageRedirectWidget extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red,
-              ),
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
               Text('데이터 로드 실패: $err'),
               const SizedBox(height: 16),

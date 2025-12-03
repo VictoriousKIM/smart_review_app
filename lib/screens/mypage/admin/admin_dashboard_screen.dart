@@ -215,14 +215,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   ),
                 ),
               ),
-              // 사업자 전환 버튼 (companyId가 있는 경우만 표시)
+              // 광고주 전환 버튼 (companyId가 있는 경우만 표시)
               if (user.companyId != null)
                 TextButton.icon(
                   onPressed: () {
                     context.go('/mypage/advertiser');
                   },
                   icon: const Icon(Icons.business_outlined, size: 18),
-                  label: const Text('사업자'),
+                  label: const Text('광고주'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(

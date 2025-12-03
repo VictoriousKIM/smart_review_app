@@ -33,10 +33,35 @@ void main() async {
         // 타임아웃 시에도 계속 진행 (세션이 없을 수도 있음)
         debugPrint('세션 복원 대기 타임아웃 (무시 가능): $e');
       }
-      // 세션 복원 확인
+      // 세션 복원 확인 및 검증
       final session = supabase.auth.currentSession;
       if (session != null) {
-        debugPrint('✅ 웹 세션 복원 완료: ${session.user.email ?? session.user.id}');
+        // 세션이 만료되었는지 확인하고, 만료된 경우 갱신 시도
+        if (session.isExpired) {
+          try {
+            final refreshedSession = await supabase.auth.refreshSession();
+            if (refreshedSession.session != null) {
+              debugPrint('✅ 웹 세션 복원 및 갱신 완료: ${refreshedSession.session!.user.email ?? refreshedSession.session!.user.id}');
+            } else {
+              debugPrint('⚠️ 세션 갱신 실패: 세션이 null입니다');
+            }
+          } catch (e) {
+            // "missing destination name scopes" 에러인 경우 손상된 세션으로 간주하고 삭제
+            if (e.toString().toLowerCase().contains('missing destination name scopes')) {
+              debugPrint('⚠️ 손상된 세션 감지. 자동 로그아웃 처리');
+              try {
+                await supabase.auth.signOut();
+              } catch (_) {
+                // 로그아웃 실패는 무시
+              }
+              debugPrint('ℹ️ 손상된 세션이 삭제되었습니다. 다시 로그인해주세요.');
+            } else {
+              debugPrint('⚠️ 세션 갱신 실패 (무시 가능): $e');
+            }
+          }
+        } else {
+          debugPrint('✅ 웹 세션 복원 완료: ${session.user.email ?? session.user.id}');
+        }
       } else {
         debugPrint('ℹ️ 저장된 세션이 없습니다 (로그인 필요)');
       }

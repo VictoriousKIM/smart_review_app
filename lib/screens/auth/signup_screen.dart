@@ -1,0 +1,243 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../models/user.dart' as app_user;
+import '../../config/supabase_config.dart';
+
+/// 회원가입 화면
+/// OAuth 로그인 후 프로필이 없을 때 표시됨
+class SignupScreen extends ConsumerStatefulWidget {
+  final String? type; // 'oauth'
+  final String? provider; // 'google', 'kakao'
+  final String? companyId; // URL 파라미터 또는 쿠키에서 가져온 값
+
+  const SignupScreen({super.key, this.type, this.provider, this.companyId});
+
+  @override
+  ConsumerState<SignupScreen> createState() => _SignupScreenState();
+}
+
+class _SignupScreenState extends ConsumerState<SignupScreen> {
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // companyId가 있으면 회사 정보 미리 로드
+    if (widget.companyId != null) {
+      _loadCompanyInfo(widget.companyId!);
+    }
+  }
+
+  Future<void> _loadCompanyInfo(String companyId) async {
+    // TODO: 회사 정보 로드
+    debugPrint('회사 정보 로드: $companyId');
+  }
+
+  void _onUserTypeSelected(app_user.UserType userType) {
+    // 선택한 타입에 따라 다음 화면으로 이동
+    if (userType == app_user.UserType.user) {
+      // 리뷰어 플로우
+      context.push(
+        '/signup/reviewer',
+        extra: {'companyId': widget.companyId, 'provider': widget.provider},
+      );
+    } else {
+      // 광고주 플로우
+      context.push('/signup/advertiser', extra: {'provider': widget.provider});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () async {
+            // 토큰 정보 삭제 (로그아웃)
+            try {
+              await SupabaseConfig.client.auth.signOut();
+            } catch (e) {
+              debugPrint('로그아웃 중 에러 발생: $e');
+            }
+            // 로그인 화면으로 이동
+            if (mounted) {
+              context.go('/login');
+            }
+          },
+        ),
+      ),
+      body: _buildUserTypeSelection(),
+      bottomNavigationBar: _buildProgressIndicator(
+        currentStep: 0,
+        totalSteps: 4,
+      ),
+    );
+  }
+
+  Widget _buildUserTypeSelection() {
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // 상단 섹션
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 32),
+                        // 제목
+                        const Text(
+                          '회원가입',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -1.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        // 질문
+                        Text(
+                          '어떤 용도로 사용하시나요?',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                            height: 1.4,
+                            letterSpacing: -0.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 64),
+                        // 리뷰어 버튼
+                        ElevatedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () =>
+                                    _onUserTypeSelected(app_user.UserType.user),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEDE7F6), // 연한 보라색
+                            foregroundColor: const Color(0xFF512DA8), // 진한 보라색
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            '리뷰어로 시작하기',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.5,
+                              color: Color(0xFF512DA8), // 진한 보라색
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // 광고주 버튼
+                        OutlinedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  // 광고주 플로우
+                                  context.push('/signup/advertiser', extra: {'provider': widget.provider});
+                                },
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF512DA8), // 진한 보라색
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            side: const BorderSide(
+                              color: Color(0xFF512DA8), // 진한 보라색
+                              width: 2.0, // 2px 테두리
+                            ),
+                          ),
+                          child: const Text(
+                            '광고주로 시작하기',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.5,
+                              color: Color(0xFF512DA8), // 진한 보라색
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildProgressIndicator({
+    required int currentStep,
+    required int totalSteps,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: List.generate(totalSteps, (index) {
+              final stepNumber = index + 1;
+              final isActive = stepNumber < currentStep + 1;
+              final isCurrent = stepNumber == currentStep + 1;
+              return Expanded(
+                child: Container(
+                  height: 4,
+                  margin: EdgeInsets.only(right: index < totalSteps - 1 ? 4 : 0),
+                  decoration: BoxDecoration(
+                    color: isActive || isCurrent
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '1단계: 사용자 타입 선택',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

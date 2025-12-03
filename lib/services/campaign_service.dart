@@ -541,8 +541,10 @@ class CampaignService {
         'campaign_type': previousCampaign.campaignType.name,
         'product_price': previousCampaign.productPrice,
         'campaign_reward': previousCampaign.campaignReward,
-        'start_date': startDate.toIso8601String(),
-        'end_date': endDate.toIso8601String(),
+        'apply_start_date': startDate.toIso8601String(),
+        'apply_end_date': endDate.toIso8601String(),
+        'review_start_date': startDate.toIso8601String(),
+        'review_end_date': endDate.toIso8601String(),
         'max_participants': maxParticipants,
         'current_participants': 0,
         'status': 'active',
@@ -626,8 +628,10 @@ class CampaignService {
           'p_product_price': productPrice,
           'p_campaign_reward': campaignReward,
           'p_max_participants': maxParticipants,
-          'p_start_date': startDate.toIso8601String(),
-          'p_end_date': endDate.toIso8601String(),
+          'p_apply_start_date': startDate.toIso8601String(),
+          'p_apply_end_date': endDate.toIso8601String(),
+          'p_review_start_date': startDate.toIso8601String(),
+          'p_review_end_date': endDate.toIso8601String(),
           'p_product_image_url': productImageUrl,
           'p_platform': platform,
         },
@@ -664,7 +668,7 @@ class CampaignService {
       } else if (errorMessage.contains('회사에 소속되지 않았습니다')) {
         return ApiResponse<Campaign>(
           success: false,
-          error: '회사에 소속되어 있지 않습니다. 사업자 등록을 먼저 진행해주세요.',
+          error: '회사에 소속되어 있지 않습니다. 광고주 등록을 먼저 진행해주세요.',
         );
       } else if (errorMessage.contains('회사 지갑이 없습니다')) {
         return ApiResponse<Campaign>(
@@ -736,19 +740,20 @@ class CampaignService {
     String? keyword,
     String? option,
     int? quantity,
-    String? seller,
+    required String seller, // NOT NULL
     String? productNumber,
-    String? productName, // ✅ 추가
-    int? productPrice, // ✅ 추가 (paymentAmount 대체)
+    required String productName, // NOT NULL
+    required int productPrice, // NOT NULL
     String? reviewType,
-    int? reviewTextLength, // ✅ NULL 가능
-    int? reviewImageCount, // ✅ NULL 가능
+    int? reviewTextLength, // NULL 가능
+    int? reviewImageCount, // NULL 가능
     bool? preventProductDuplicate,
     bool? preventStoreDuplicate,
     int? duplicatePreventDays,
-    String? paymentMethod,
-    String? productImageUrl,
-    String? purchaseMethod, // ✅ 추가
+    required String paymentMethod, // NOT NULL
+    required String productImageUrl, // NOT NULL
+    required String purchaseMethod, // NOT NULL
+    String? reviewKeywords, // 리뷰 키워드
   }) async {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
@@ -822,6 +827,7 @@ class CampaignService {
           'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
           'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
           'p_payment_method': paymentMethod ?? 'platform',
+          'p_review_keywords': reviewKeywords,
         },
       );
 
@@ -859,7 +865,7 @@ class CampaignService {
       } else if (errorMessage.contains('회사에 소속되지 않았습니다')) {
         return ApiResponse<Campaign>(
           success: false,
-          error: '회사에 소속되어 있지 않습니다. 사업자 등록을 먼저 진행해주세요.',
+          error: '회사에 소속되어 있지 않습니다. 광고주 등록을 먼저 진행해주세요.',
         );
       } else if (errorMessage.contains('회사 지갑이 없습니다')) {
         return ApiResponse<Campaign>(
@@ -893,19 +899,20 @@ class CampaignService {
     String? keyword,
     String? option,
     int? quantity,
-    String? seller,
+    required String seller, // NOT NULL
     String? productNumber,
-    String? productName,
-    int? productPrice,
-    String? purchaseMethod,
+    required String productName, // NOT NULL
+    required int productPrice, // NOT NULL
+    required String purchaseMethod, // NOT NULL
     String? reviewType,
     int? reviewTextLength,
     int? reviewImageCount,
     bool? preventProductDuplicate,
     bool? preventStoreDuplicate,
     int? duplicatePreventDays,
-    String? paymentMethod,
-    String? productImageUrl,
+    required String paymentMethod, // NOT NULL
+    required String productImageUrl, // NOT NULL
+    String? reviewKeywords, // 리뷰 키워드
   }) async {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
@@ -948,6 +955,7 @@ class CampaignService {
           'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
           'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
           'p_payment_method': paymentMethod ?? 'platform',
+          'p_review_keywords': reviewKeywords,
         },
       );
 

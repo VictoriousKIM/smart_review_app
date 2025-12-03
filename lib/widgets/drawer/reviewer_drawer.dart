@@ -83,6 +83,16 @@ class ReviewerDrawer extends ConsumerWidget {
                     context.go('/mypage/reviewer/sns');
                   },
                 ),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.business_center_outlined,
+                  title: '광고사 리뷰어',
+                  routePath: '/mypage/reviewer/company-request',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/mypage/reviewer/company-request');
+                  },
+                ),
 
                 const Divider(),
 

@@ -27,8 +27,8 @@ class AdvertiserDrawer extends ConsumerWidget {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                // 사업자 활동 섹션
-                _buildSectionHeader('사업자 활동'),
+                // 광고주 활동 섹션
+                _buildSectionHeader('광고주 활동'),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.business_outlined,
@@ -84,6 +84,18 @@ class AdvertiserDrawer extends ConsumerWidget {
                     onTap: () {
                       Navigator.pop(context);
                       context.go('/mypage/advertiser/managers');
+                    },
+                  ),
+                // 리뷰어 관리 (owner만 표시)
+                if (user.companyRole?.name == 'owner')
+                  _buildMenuItem(
+                    context: context,
+                    icon: Icons.people_outlined,
+                    title: '리뷰어 관리',
+                    routePath: '/mypage/advertiser/reviewers',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/mypage/advertiser/reviewers');
                     },
                   ),
 
@@ -286,9 +298,9 @@ class AdvertiserDrawer extends ConsumerWidget {
                   ),
                   child: Text(
                     user.companyRole?.name == 'owner'
-                        ? '사업 관리자'
+                        ? '광고사 대표'
                         : (user.companyRole?.name == 'manager'
-                              ? '사업 매니저'
+                              ? '광고사 매니저'
                               : '알수없음'),
                     style: const TextStyle(
                       fontSize: 12,

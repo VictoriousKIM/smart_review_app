@@ -16,16 +16,25 @@ class AdvertiserManagerScreen extends ConsumerStatefulWidget {
 }
 
 class _AdvertiserManagerScreenState
-    extends ConsumerState<AdvertiserManagerScreen> {
+    extends ConsumerState<AdvertiserManagerScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   bool _isLoading = true;
   List<Map<String, dynamic>> _pendingManagers = [];
   List<Map<String, dynamic>> _activeManagers = [];
-  String _selectedFilter = 'pending'; // 'pending' or 'active'
+  List<Map<String, dynamic>> _inactiveManagers = [];
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _loadManagers();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadManagers() async {
@@ -65,17 +74,21 @@ class _AdvertiserManagerScreenState
         };
       }).toList();
 
-      // pending과 active로 분리
+      // pending, active, inactive로 분리
       final pendingList = managerList
           .where((item) => item['status'] == 'pending')
           .toList();
       final activeList = managerList
           .where((item) => item['status'] == 'active')
           .toList();
+      final inactiveList = managerList
+          .where((item) => item['status'] == 'inactive')
+          .toList();
 
       setState(() {
         _pendingManagers = pendingList;
         _activeManagers = activeList;
+        _inactiveManagers = inactiveList;
         _isLoading = false;
       });
     } catch (e) {
@@ -107,99 +120,28 @@ class _AdvertiserManagerScreenState
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/mypage/advertiser'),
         ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildContent(),
-    );
-  }
-
-  Widget _buildContent() {
-    return Column(
-      children: [
-        // 필터 탭
-        _buildFilterTabs(),
-        // 매니저 목록
-        Expanded(
-          child: _selectedFilter == 'pending'
-              ? _buildPendingManagersList()
-              : _buildActiveManagersList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFilterTabs() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildFilterTab('pending', '승인 대기', _pendingManagers.length),
-          ),
-          Expanded(
-            child: _buildFilterTab('active', '활성 매니저', _activeManagers.length),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterTab(String filter, String title, int count) {
-    final isSelected = _selectedFilter == filter;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedFilter = filter;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue[50] : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? Colors.blue[700] : Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.blue[600] : Colors.grey[400],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Theme.of(context).colorScheme.primary,
+          unselectedLabelColor: Colors.grey[600],
+          indicatorColor: Theme.of(context).colorScheme.primary,
+          tabs: const [
+            Tab(text: '승인 대기'),
+            Tab(text: '활성 매니저'),
+            Tab(text: '비활성 매니저'),
           ],
         ),
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildPendingManagersList(),
+                _buildActiveManagersList(),
+                _buildInactiveManagersList(),
+              ],
+            ),
     );
   }
 
@@ -229,6 +171,21 @@ class _AdvertiserManagerScreenState
       itemBuilder: (context, index) {
         final manager = _activeManagers[index];
         return _buildActiveManagerCard(manager);
+      },
+    );
+  }
+
+  Widget _buildInactiveManagersList() {
+    if (_inactiveManagers.isEmpty) {
+      return _buildEmptyState('비활성 매니저가 없습니다.');
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _inactiveManagers.length,
+      itemBuilder: (context, index) {
+        final manager = _inactiveManagers[index];
+        return _buildInactiveManagerCard(manager);
       },
     );
   }
@@ -284,10 +241,7 @@ class _AdvertiserManagerScreenState
                       const SizedBox(height: 4),
                       Text(
                         manager['display_name'] ?? '',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],
                   ],
@@ -318,10 +272,7 @@ class _AdvertiserManagerScreenState
                 const SizedBox(width: 4),
                 Text(
                   '신청일시: ${_formatDate(manager['requested_at'])}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -401,20 +352,14 @@ class _AdvertiserManagerScreenState
                   const SizedBox(height: 4),
                   Text(
                     manager['display_name'] ?? '',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                 ],
                 if (manager['created_at'] != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     '등록일시: ${_formatDate(manager['created_at'])}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
                 ],
               ],
@@ -437,7 +382,93 @@ class _AdvertiserManagerScreenState
           ),
           IconButton(
             icon: Icon(Icons.more_vert, color: Colors.grey[600]),
-            onPressed: () => _showManagerMenu(manager),
+            onPressed: () => _showActiveManagerMenu(manager),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInactiveManagerCard(Map<String, dynamic> manager) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: Colors.grey[300],
+            child: Text(
+              (manager['email'] ?? manager['display_name'] ?? 'M')
+                  .substring(0, 1)
+                  .toUpperCase(),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  manager['email'] ?? '',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                if ((manager['display_name'] ?? '') != '') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    manager['display_name'] ?? '',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                ],
+                if (manager['created_at'] != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '등록일시: ${_formatDate(manager['created_at'])}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '비활성',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+            onPressed: () => _showInactiveManagerMenu(manager),
           ),
         ],
       ),
@@ -467,7 +498,7 @@ class _AdvertiserManagerScreenState
   String _formatDate(dynamic dateValue) {
     try {
       if (dateValue == null) return '';
-      
+
       DateTime date;
       if (dateValue is String) {
         date = DateTimeUtils.parseKST(dateValue);
@@ -486,7 +517,7 @@ class _AdvertiserManagerScreenState
   Future<void> _approveManager(Map<String, dynamic> manager) async {
     try {
       final supabase = Supabase.instance.client;
-      
+
       // RPC 함수로 매니저 승인 (복합 키 사용)
       await supabase.rpc(
         'approve_manager',
@@ -510,10 +541,7 @@ class _AdvertiserManagerScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('승인 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('승인 실패: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -532,10 +560,7 @@ class _AdvertiserManagerScreenState
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              '거절',
-              style: TextStyle(color: Colors.red[600]),
-            ),
+            child: Text('거절', style: TextStyle(color: Colors.red[600])),
           ),
         ],
       ),
@@ -545,7 +570,7 @@ class _AdvertiserManagerScreenState
 
     try {
       final supabase = Supabase.instance.client;
-      
+
       // RPC 함수로 매니저 거절 (복합 키 사용)
       await supabase.rpc(
         'reject_manager',
@@ -569,16 +594,13 @@ class _AdvertiserManagerScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('거절 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('거절 실패: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  void _showManagerMenu(Map<String, dynamic> manager) {
+  void _showActiveManagerMenu(Map<String, dynamic> manager) {
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -586,7 +608,21 @@ class _AdvertiserManagerScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.remove_circle_outline, color: Colors.red),
+              leading: const Icon(
+                Icons.pause_circle_outline,
+                color: Colors.orange,
+              ),
+              title: const Text('매니저 비활성화'),
+              onTap: () {
+                Navigator.pop(context);
+                _deactivateManager(manager);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.remove_circle_outline,
+                color: Colors.red,
+              ),
               title: const Text('매니저 제거'),
               onTap: () {
                 Navigator.pop(context);
@@ -604,12 +640,54 @@ class _AdvertiserManagerScreenState
     );
   }
 
-  Future<void> _removeManager(Map<String, dynamic> manager) async {
+  void _showInactiveManagerMenu(Map<String, dynamic> manager) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.play_circle_outline,
+                color: Colors.blue,
+              ),
+              title: const Text('매니저 활성화'),
+              onTap: () {
+                Navigator.pop(context);
+                _activateManager(manager);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.remove_circle_outline,
+                color: Colors.red,
+              ),
+              title: const Text('매니저 제거'),
+              onTap: () {
+                Navigator.pop(context);
+                _removeManager(manager);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel),
+              title: const Text('취소'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deactivateManager(Map<String, dynamic> manager) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('매니저 제거'),
-        content: Text('${manager['display_name'] ?? '이름 없음'} 매니저를 제거하시겠습니까?'),
+        title: const Text('매니저 비활성화'),
+        content: Text(
+          '${manager['display_name'] ?? manager['email'] ?? '이름 없음'} 매니저를 비활성화하시겠습니까?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -617,10 +695,105 @@ class _AdvertiserManagerScreenState
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              '제거',
-              style: TextStyle(color: Colors.red[600]),
-            ),
+            child: Text('비활성화', style: TextStyle(color: Colors.orange[600])),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final result = await CompanyUserService.deactivateManager(
+        companyId: manager['company_id'],
+        userId: manager['user_id'],
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? '매니저가 비활성화되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      // 목록 다시 로드
+      await _loadManagers();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('비활성화 실패: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _activateManager(Map<String, dynamic> manager) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('매니저 활성화'),
+        content: Text(
+          '${manager['display_name'] ?? manager['email'] ?? '이름 없음'} 매니저를 활성화하시겠습니까?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('활성화', style: TextStyle(color: Colors.blue[600])),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final result = await CompanyUserService.activateManager(
+        companyId: manager['company_id'],
+        userId: manager['user_id'],
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? '매니저가 활성화되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      // 목록 다시 로드
+      await _loadManagers();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('활성화 실패: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeManager(Map<String, dynamic> manager) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('매니저 제거'),
+        content: Text(
+          '${manager['display_name'] ?? manager['email'] ?? '이름 없음'} 매니저를 제거하시겠습니까?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('제거', style: TextStyle(color: Colors.red[600])),
           ),
         ],
       ),
@@ -630,12 +803,14 @@ class _AdvertiserManagerScreenState
 
     try {
       final supabase = Supabase.instance.client;
-      
-      // company_users 테이블에서 레코드 삭제
+
+      // company_users 테이블에서 레코드 삭제 (복합 키 사용)
       await supabase
           .from('company_users')
           .delete()
-          .eq('id', manager['id']);
+          .eq('company_id', manager['company_id'])
+          .eq('user_id', manager['user_id'])
+          .eq('company_role', 'manager');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -651,13 +826,9 @@ class _AdvertiserManagerScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('제거 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('제거 실패: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 }
-

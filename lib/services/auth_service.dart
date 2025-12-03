@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:postgrest/postgrest.dart';
@@ -9,6 +11,13 @@ import '../utils/error_handler.dart';
 import 'user_service.dart';
 import '../utils/date_time_utils.dart';
 
+/// 사용자 인증 상태
+enum UserState {
+  notLoggedIn,      // 세션 없음
+  loggedIn,         // 세션 있고 프로필 있음
+  tempSession,      // 세션 있지만 프로필 없음 (OAuth 회원가입 필요)
+}
+
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
@@ -18,6 +27,65 @@ class AuthService {
   final UserService _userService = UserService();
   // GoogleSignIn 인스턴스 생성 방식 변경 (v7 API)
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+
+  // 사용자 상태 확인 (중복 프로필 체크 제거)
+  Future<UserState> getUserState() async {
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      return UserState.notLoggedIn;
+    }
+
+    try {
+      // 세션 만료 확인 및 토큰 갱신
+      if (session.isExpired) {
+        try {
+          final refreshedSession = await _supabase.auth.refreshSession();
+          if (refreshedSession.session == null) {
+            return UserState.notLoggedIn;
+          }
+        } catch (refreshError) {
+          // 토큰 갱신 실패 시 로그아웃 처리
+          if (ErrorHandler.isMissingDestinationScopesError(refreshError) ||
+              ErrorHandler.isOAuthClientIdError(refreshError)) {
+            await _supabase.auth.signOut();
+            return UserState.notLoggedIn;
+          }
+          // 네트워크 에러 등은 재시도 가능하므로 현재 상태 유지
+          // 세션이 만료되었지만 갱신 실패 시에도 프로필 체크는 진행
+        }
+      }
+
+      // RPC 함수 호출로 안전한 프로필 조회
+      await _supabase.rpc(
+        'get_user_profile_safe',
+        params: {'p_user_id': session.user.id},
+      );
+
+      return UserState.loggedIn;
+    } catch (e) {
+      // 네트워크 에러 확인
+      if (e is SocketException || e is TimeoutException) {
+        // 네트워크 에러는 재시도 가능하므로 loggedIn으로 간주
+        debugPrint('네트워크 에러 발생, 재시도 필요: $e');
+        return UserState.loggedIn;
+      }
+
+      // 프로필 없음 확인
+      final isProfileNotFound =
+          e.toString().contains('User profile not found') ||
+          (e is PostgrestException &&
+              (e.code == 'PGRST116' ||
+                  e.message.contains('No rows returned')));
+
+      if (isProfileNotFound) {
+        return UserState.tempSession;
+      }
+
+      // 기타 에러는 로그인 상태로 간주 (재시도)
+      debugPrint('프로필 조회 실패: $e');
+      return UserState.loggedIn;
+    }
+  }
 
   // 현재 사용자 가져오기 (RPC 사용 - 보안 강화)
   Future<app_user.User?> get currentUser async {
@@ -37,6 +105,33 @@ class AuthService {
             }
           } catch (refreshError) {
             debugPrint('토큰 갱신 중 에러 발생: $refreshError');
+
+            // "missing destination name scopes" 에러인 경우 손상된 세션으로 간주
+            if (ErrorHandler.isMissingDestinationScopesError(refreshError)) {
+              debugPrint(
+                '손상된 세션 감지 (missing destination name scopes). 로그아웃 처리',
+              );
+              ErrorHandler.handleAuthError(
+                refreshError,
+                context: {
+                  'action': 'refreshSession',
+                  'error_type': 'missing_destination_scopes',
+                  'user_id': session.user.id,
+                  'expires_at': session.expiresAt != null
+                      ? DateTime.fromMillisecondsSinceEpoch(
+                          session.expiresAt! * 1000,
+                        ).toIso8601String()
+                      : null,
+                },
+              );
+              try {
+                await _supabase.auth.signOut();
+              } catch (_) {
+                // 로그아웃 실패는 무시
+              }
+              return null;
+            }
+
             // oauth_client_id 관련 에러인 경우 손상된 세션으로 간주
             if (ErrorHandler.isOAuthClientIdError(refreshError)) {
               debugPrint('손상된 세션 감지 (oauth_client_id 에러). 로그아웃 처리');
@@ -85,7 +180,7 @@ class AuthService {
           return null;
         }
 
-        // 프로필이 없는 경우 자동 생성 시도 (OAuth 로그인 시)
+        // 프로필이 없는 경우 null 반환 (자동 생성 제거)
         final isProfileNotFound =
             e.toString().contains('User profile not found') ||
             (e is PostgrestException &&
@@ -93,70 +188,9 @@ class AuthService {
                     e.message.contains('No rows returned')));
 
         if (isProfileNotFound) {
-          debugPrint('currentUser: 프로필이 없어서 자동 생성 시도: ${user.id}');
-
-          // OAuth 사용자인지 확인 (identities 배열에서 확인)
-          final isOAuthUser =
-              user.identities != null &&
-              user.identities!.isNotEmpty &&
-              user.identities!.any((identity) => identity.provider != 'email');
-
-          if (isOAuthUser) {
-            // OAuth 사용자의 이름 가져오기
-            String displayName = '';
-            if (user.userMetadata != null) {
-              displayName =
-                  user.userMetadata!['full_name'] ??
-                  user.userMetadata!['name'] ??
-                  user.userMetadata!['display_name'] ??
-                  '';
-            }
-
-            // 이름이 없으면 이메일의 @ 앞부분 사용
-            if (displayName.isEmpty && user.email != null) {
-              displayName = user.email!.split('@')[0];
-            }
-
-            // 이름이 여전히 없으면 기본값 사용
-            if (displayName.isEmpty) {
-              displayName = '사용자';
-            }
-
-            // OAuth 로그인 시 프로필 자동 생성
-            try {
-              await _ensureUserProfile(
-                user,
-                displayName,
-                app_user.UserType.user,
-                isSignUp: false,
-              );
-
-              // 프로필 생성 후 다시 조회
-              final profileResponse = await _supabase.rpc(
-                'get_user_profile_safe',
-                params: {'p_user_id': user.id},
-              );
-
-              final userProfile = app_user.User.fromDatabaseProfile(
-                profileResponse,
-                user,
-              );
-              final stats = await _userService.getUserStats(user.id);
-
-              return userProfile.copyWith(
-                level: stats['level'],
-                reviewCount: stats['reviewCount'],
-              );
-            } catch (createError) {
-              debugPrint('currentUser: 프로필 자동 생성 실패: $createError');
-              return null;
-            }
-          } else {
-            // 이메일 로그인은 프로필 생성하지 않음
-            debugPrint('사용자 프로필 조회 실패: $e');
-            debugPrint('프로필이 없습니다. 회원가입을 통해 프로필을 생성해주세요.');
-            return null;
-          }
+          // 프로필 없음 → null 반환 (signup으로 리다이렉트)
+          debugPrint('프로필이 없습니다. 회원가입이 필요합니다: ${user.id}');
+          return null;
         } else {
           // 다른 에러인 경우
           debugPrint('사용자 프로필 조회 실패: $e');
@@ -193,7 +227,7 @@ class AuthService {
             reviewCount: stats['reviewCount'],
           );
         } catch (e) {
-          // 프로필이 없는 경우 자동 생성 시도 (OAuth 로그인 시)
+          // 프로필이 없는 경우 null 반환 (자동 생성 제거)
           final isProfileNotFound =
               e.toString().contains('User profile not found') ||
               (e is PostgrestException &&
@@ -201,58 +235,9 @@ class AuthService {
                       e.message.contains('No rows returned')));
 
           if (isProfileNotFound) {
-            debugPrint('OAuth 로그인: 프로필이 없어서 자동 생성 시도: ${user.id}');
-
-            // OAuth 사용자의 이름 가져오기
-            String displayName = '';
-            if (user.userMetadata != null) {
-              displayName =
-                  user.userMetadata!['full_name'] ??
-                  user.userMetadata!['name'] ??
-                  user.userMetadata!['display_name'] ??
-                  '';
-            }
-
-            // 이름이 없으면 이메일의 @ 앞부분 사용
-            if (displayName.isEmpty && user.email != null) {
-              displayName = user.email!.split('@')[0];
-            }
-
-            // 이름이 여전히 없으면 기본값 사용
-            if (displayName.isEmpty) {
-              displayName = '사용자';
-            }
-
-            // OAuth 로그인 시 프로필 자동 생성 (isSignUp=false로 설정)
-            try {
-              await _ensureUserProfile(
-                user,
-                displayName,
-                app_user.UserType.user,
-                isSignUp: false, // OAuth 로그인은 회원가입이 아니지만 프로필 생성 필요
-              );
-
-              // 프로필 생성 후 다시 조회
-              final profileResponse = await _supabase.rpc(
-                'get_user_profile_safe',
-                params: {'p_user_id': user.id},
-              );
-
-              final userProfile = app_user.User.fromDatabaseProfile(
-                profileResponse,
-                user,
-              );
-              final stats = await _userService.getUserStats(user.id);
-
-              return userProfile.copyWith(
-                level: stats['level'],
-                reviewCount: stats['reviewCount'],
-              );
-            } catch (createError) {
-              debugPrint('OAuth 로그인: 프로필 자동 생성 실패: $createError');
-              // 프로필 생성 실패해도 로그인은 유지
-              return null;
-            }
+            // 프로필 없음 → null 반환 (signup으로 리다이렉트)
+            debugPrint('프로필이 없습니다. 회원가입이 필요합니다: ${user.id}');
+            return null;
           } else {
             // 다른 에러인 경우
             debugPrint('사용자 프로필 조회 실패: $e');
@@ -265,7 +250,7 @@ class AuthService {
   }
 
   // Google 로그인
-  Future<app_user.User?> signInWithGoogle() async {
+  Future<void> signInWithGoogle() async {
     try {
       // 웹 플랫폼용 Google Client ID는 Supabase 대시보드에서 설정해야 합니다.
       // initialize 호출 추가 (v7 API)
@@ -289,9 +274,8 @@ class AuthService {
         queryParams: {'access_type': 'offline', 'prompt': 'consent'},
       );
 
-      // 로그인 성공 시 프로필 관리는 authStateChanges와 currentUser에서 처리
-      // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
-      return await currentUser;
+      // 로그인 성공 시 프로필 관리는 authStateChanges에서 자동으로 처리됨
+      // currentUser 호출 제거 (타이밍 문제 해결)
     } catch (e) {
       throw Exception('Google 로그인 실패: $e');
     }
@@ -356,7 +340,7 @@ class AuthService {
   }
 
   // Kakao 로그인
-  Future<app_user.User?> signInWithKakao() async {
+  Future<void> signInWithKakao() async {
     try {
       if (kIsWeb) {
         // 웹에서는 Supabase OAuth 사용
@@ -365,9 +349,8 @@ class AuthService {
           authScreenLaunchMode: LaunchMode.inAppWebView,
         );
 
-        // 로그인 성공 시 프로필 관리는 authStateChanges와 currentUser에서 처리
-        // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
-        return await currentUser;
+        // 로그인 성공 시 프로필 관리는 authStateChanges에서 자동으로 처리됨
+        // currentUser 호출 제거 (타이밍 문제 해결)
       } else {
         // 모바일에서는 Supabase OAuth 사용 (카카오톡 앱 의존성 제거)
         final redirectTo = 'com.smart-grow.smart-review://login-callback';
@@ -378,9 +361,8 @@ class AuthService {
           redirectTo: redirectTo,
         );
 
-        // 로그인 성공 시 프로필 관리는 authStateChanges와 currentUser에서 처리
-        // 중복 호출을 방지하기 위해 여기서는 _ensureUserProfile을 호출하지 않음
-        return await currentUser;
+        // 로그인 성공 시 프로필 관리는 authStateChanges에서 자동으로 처리됨
+        // currentUser 호출 제거 (타이밍 문제 해결)
       }
     } catch (e) {
       throw Exception('Kakao 로그인 실패: $e');

@@ -64,4 +64,52 @@ class CompanyUserService {
       return null;
     }
   }
+
+  /// 매니저 비활성화
+  static Future<Map<String, dynamic>> deactivateManager({
+    required String companyId,
+    required String userId,
+  }) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final result = await supabase.rpc(
+        'deactivate_manager_role',
+        params: {
+          'p_company_id': companyId,
+          'p_user_id': userId,
+        },
+      );
+      if (result == null) {
+        throw Exception('매니저 비활성화 실패: 응답이 없습니다.');
+      }
+      return result as Map<String, dynamic>;
+    } catch (e) {
+      print('❌ 매니저 비활성화 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 매니저 활성화
+  static Future<Map<String, dynamic>> activateManager({
+    required String companyId,
+    required String userId,
+  }) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final result = await supabase.rpc(
+        'activate_manager_role',
+        params: {
+          'p_company_id': companyId,
+          'p_user_id': userId,
+        },
+      );
+      if (result == null) {
+        throw Exception('매니저 활성화 실패: 응답이 없습니다.');
+      }
+      return result as Map<String, dynamic>;
+    } catch (e) {
+      print('❌ 매니저 활성화 실패: $e');
+      rethrow;
+    }
+  }
 }

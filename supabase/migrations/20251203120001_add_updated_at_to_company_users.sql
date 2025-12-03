@@ -59,6 +59,149 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
 
 
+CREATE TYPE "public"."campaign_response" AS (
+	"campaigns" "jsonb",
+	"next_open_at" timestamp with time zone
+);
+
+
+ALTER TYPE "public"."campaign_response" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."activate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_current_user_id uuid;
+  v_result jsonb;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_current_user_id := (SELECT auth.uid());
+  
+  IF v_current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 권한 확인: 회사 소유자만 활성화 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = p_company_id
+      AND cu.user_id = v_current_user_id
+      AND cu.company_role = 'owner'
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners can activate managers';
+  END IF;
+
+  -- 비활성 매니저 존재 확인
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = p_user_id
+      AND company_role = 'manager'
+      AND status = 'inactive'
+  ) THEN
+    RAISE EXCEPTION '비활성 매니저를 찾을 수 없습니다.';
+  END IF;
+
+  -- 상태를 active로 업데이트
+  UPDATE public.company_users
+  SET status = 'active',
+      updated_at = NOW()
+  WHERE company_id = p_company_id
+    AND user_id = p_user_id
+    AND company_role = 'manager';
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'message', '매니저가 활성화되었습니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."activate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."activate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") IS '매니저 활성화';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."activate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_current_user_id uuid;
+  v_result jsonb;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_current_user_id := (SELECT auth.uid());
+  
+  IF v_current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 권한 확인: 회사 소유자만 활성화 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = p_company_id
+      AND cu.user_id = v_current_user_id
+      AND cu.company_role = 'owner'
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners can activate reviewers';
+  END IF;
+
+  -- 비활성 리뷰어 존재 확인
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = p_user_id
+      AND company_role = 'reviewer'
+      AND status = 'inactive'
+  ) THEN
+    RAISE EXCEPTION '비활성 리뷰어를 찾을 수 없습니다.';
+  END IF;
+
+  -- 상태를 active로 업데이트
+  UPDATE public.company_users
+  SET status = 'active',
+      updated_at = NOW()
+  WHERE company_id = p_company_id
+    AND user_id = p_user_id
+    AND company_role = 'reviewer';
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'message', '리뷰어가 활성화되었습니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."activate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."activate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") IS '리뷰어 활성화';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."admin_change_user_role"("p_target_user_id" "uuid", "p_new_role" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -138,8 +281,6 @@ BEGIN
             u.display_name,
             u.user_type,
             u.status,
-            u.level,
-            u.review_count,
             u.created_at,
             u.updated_at,
             au.email,
@@ -153,7 +294,7 @@ BEGIN
             jsonb_agg(
                 DISTINCT jsonb_build_object(
                     'platform', sc.platform,
-                    'connected_at', sc.connected_at
+                    'connected_at', sc.created_at
                 )
             ) FILTER (WHERE sc.id IS NOT NULL) AS sns_connections
         FROM public.users u
@@ -165,7 +306,7 @@ BEGIN
                au.email ILIKE '%' || p_search_query || '%')
         AND (p_user_type_filter IS NULL OR u.user_type = p_user_type_filter)
         AND (p_status_filter IS NULL OR u.status = p_status_filter)
-        GROUP BY u.id, u.display_name, u.user_type, u.status, u.level, u.review_count, u.created_at, u.updated_at, au.email
+        GROUP BY u.id, u.display_name, u.user_type, u.status, u.created_at, u.updated_at, au.email
         ORDER BY u.created_at DESC
         LIMIT p_limit
         OFFSET p_offset
@@ -177,8 +318,8 @@ BEGIN
             'display_name', display_name,
             'created_at', created_at,
             'updated_at', updated_at,
-            'level', level,
-            'review_count', review_count,
+            'level', NULL,  -- level은 계산 필드이므로 NULL로 반환 (클라이언트에서 계산)
+            'review_count', NULL,  -- review_count는 계산 필드이므로 NULL로 반환 (클라이언트에서 계산)
             'user_type', user_type,
             'status', status,
             'company_users', company_users,
@@ -404,6 +545,73 @@ ALTER FUNCTION "public"."approve_manager"("p_company_id" "uuid", "p_user_id" "uu
 
 
 COMMENT ON FUNCTION "public"."approve_manager"("p_company_id" "uuid", "p_user_id" "uuid") IS '매니저 승인 (복합 키 사용: company_id + user_id)';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."approve_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_current_user_id uuid;
+  v_result jsonb;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_current_user_id := (SELECT auth.uid());
+  
+  IF v_current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 권한 확인: 회사 소유자만 승인 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = p_company_id
+      AND cu.user_id = v_current_user_id
+      AND cu.company_role = 'owner'
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners can approve reviewers';
+  END IF;
+
+  -- 리뷰어 요청 존재 확인
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = p_user_id
+      AND company_role = 'reviewer'
+      AND status = 'pending'
+  ) THEN
+    RAISE EXCEPTION '승인 대기 중인 리뷰어 요청을 찾을 수 없습니다.';
+  END IF;
+
+  -- 상태를 active로 업데이트
+  UPDATE public.company_users
+  SET status = 'active',
+      updated_at = NOW()
+  WHERE company_id = p_company_id
+    AND user_id = p_user_id
+    AND company_role = 'reviewer';
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'message', '리뷰어가 승인되었습니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."approve_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."approve_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") IS '리뷰어 승인';
 
 
 
@@ -1256,6 +1464,19 @@ BEGIN
       RAISE EXCEPTION '신청 시작일시와 종료일시는 필수입니다';
     END IF;
     
+    -- 현재 시간 기준 날짜 범위 검증 (생성 시: 현재 시간 ~ +14일)
+    IF p_apply_start_date < NOW() THEN
+      RAISE EXCEPTION '신청 시작일시는 현재 시간 이후여야 합니다';
+    END IF;
+    
+    IF p_apply_start_date > NOW() + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '신청 시작일시는 현재 시간으로부터 14일 이내여야 합니다';
+    END IF;
+    
+    IF p_apply_end_date > NOW() + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '신청 종료일시는 현재 시간으로부터 14일 이내여야 합니다';
+    END IF;
+    
     IF p_apply_start_date > p_apply_end_date THEN
       RAISE EXCEPTION '신청 시작일시는 종료일시보다 이전이어야 합니다';
     END IF;
@@ -1267,16 +1488,21 @@ BEGIN
     v_review_end_date := COALESCE(p_review_end_date, v_review_start_date + INTERVAL '30 days');
     
     -- 날짜 순서 검증
-    IF p_apply_start_date > p_apply_end_date THEN
-      RAISE EXCEPTION '신청 시작일시는 종료일시보다 이전이어야 합니다';
-    END IF;
-    
     IF p_apply_end_date > v_review_start_date THEN
       RAISE EXCEPTION '신청 종료일시는 리뷰 시작일시보다 이전이어야 합니다';
     END IF;
     
     IF v_review_start_date > v_review_end_date THEN
       RAISE EXCEPTION '리뷰 시작일시는 종료일시보다 이전이어야 합니다';
+    END IF;
+    
+    -- 리뷰 일정도 14일 범위 내인지 검증
+    IF v_review_start_date > NOW() + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '리뷰 시작일시는 현재 시간으로부터 14일 이내여야 합니다';
+    END IF;
+    
+    IF v_review_end_date > NOW() + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '리뷰 종료일시는 현재 시간으로부터 14일 이내여야 합니다';
     END IF;
     
     -- 2.5. max_per_reviewer 검증 (max_participants를 넘지 않아야 함)
@@ -1301,142 +1527,125 @@ BEGIN
       AND cw.user_id IS NULL
     FOR UPDATE NOWAIT;
     
-    IF v_wallet_id IS NULL OR v_current_points IS NULL THEN
-      RAISE EXCEPTION '회사 지갑이 없습니다';
+    IF v_wallet_id IS NULL THEN
+      RAISE EXCEPTION '회사 지갑을 찾을 수 없습니다';
     END IF;
     
     -- 5. 잔액 확인
-    v_points_before_deduction := v_current_points;
-    
     IF v_current_points < v_total_cost THEN
-      -- 실패 로그 기록
-      INSERT INTO public.campaign_logs (
-        company_id, user_id,
-        log_type, action, status,
-        error_message, points_spent, points_before,
-        created_at
-      ) VALUES (
-        v_company_id, v_user_id,
-        'creation', 'create', 'failed',
-        '포인트가 부족합니다 (필요: ' || v_total_cost || ', 보유: ' || v_current_points || ')',
-        v_total_cost, v_points_before_deduction,
-        NOW()
-      );
-      
-      RAISE EXCEPTION '포인트가 부족합니다 (필요: %, 보유: %)', 
-        v_total_cost, v_current_points;
+      RAISE EXCEPTION '잔액이 부족합니다 (필요: % P, 현재: % P)', v_total_cost, v_current_points;
     END IF;
     
-    -- 6. 캠페인 생성 (start_date, end_date, expiration_date도 설정 - 하위 호환성)
-    INSERT INTO public.campaigns (
-      title, description, company_id, user_id,
-      campaign_type, platform,
-      keyword, option, quantity, seller, product_number,
-      product_image_url, product_name, product_price,
-      purchase_method,
-      review_type, review_text_length, review_image_count,
-      campaign_reward, max_participants, current_participants,
-      max_per_reviewer,
-      start_date, end_date, expiration_date,  -- ✅ 기존 컬럼도 설정 (하위 호환성)
-      apply_start_date, apply_end_date, review_start_date, review_end_date,
-      prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days,
-      payment_method, total_cost,
-      status, created_at, updated_at
-    ) VALUES (
-      p_title, p_description, v_company_id, v_user_id,
-      p_campaign_type, p_platform,
-      p_keyword, p_option, p_quantity, p_seller, p_product_number,
-      p_product_image_url, p_product_name, p_product_price,
-      p_purchase_method,
-      p_review_type, p_review_text_length, p_review_image_count,
-      p_campaign_reward, p_max_participants, 0,
-      COALESCE(p_max_per_reviewer, 1),
-      p_apply_start_date, p_apply_end_date, v_review_end_date,  -- ✅ start_date = apply_start_date, end_date = apply_end_date, expiration_date = review_end_date
-      p_apply_start_date, p_apply_end_date, v_review_start_date, v_review_end_date,
-      p_prevent_product_duplicate, p_prevent_store_duplicate, p_duplicate_prevent_days,
-      p_payment_method, v_total_cost,
-      'active', NOW(), NOW()
-    ) RETURNING id INTO v_campaign_id;
+    -- 6. 포인트 차감 전 잔액 저장
+    v_points_before_deduction := v_current_points;
     
-    -- 7. 포인트 로그 기록
-    INSERT INTO public.point_transactions (
-      wallet_id, transaction_type, amount,
-      campaign_id, description,
-      created_by_user_id, created_at
-    ) VALUES (
-      v_wallet_id, 'spend', -v_total_cost,
-      v_campaign_id, '캠페인 생성: ' || p_title,
-      v_user_id, NOW()
-    );
+    -- 7. 포인트 차감
+    UPDATE public.wallets
+    SET current_points = current_points - v_total_cost,
+        updated_at = NOW()
+    WHERE id = v_wallet_id;
     
-    -- 8. 차감 후 잔액 확인
+    -- 8. 차감 후 잔액 조회
     SELECT current_points INTO v_points_after_deduction
     FROM public.wallets
     WHERE id = v_wallet_id;
     
-    IF v_points_after_deduction != (v_points_before_deduction - v_total_cost) THEN
-      -- 실패 로그 기록
-      INSERT INTO public.campaign_logs (
-        campaign_id, company_id, user_id,
-        log_type, action, status,
-        error_message, points_spent, points_before, points_after,
-        created_at
-      ) VALUES (
-        v_campaign_id, v_company_id, v_user_id,
-        'creation', 'create', 'failed',
-        '포인트 차감이 정확하지 않습니다. (예상: ' || (v_points_before_deduction - v_total_cost) || ', 실제: ' || v_points_after_deduction || ')',
-        v_total_cost, v_points_before_deduction, v_points_after_deduction,
-        NOW()
-      );
-      
-      RAISE EXCEPTION '포인트 차감이 정확하지 않습니다. (예상: %, 실제: %)', 
-        v_points_before_deduction - v_total_cost, v_points_after_deduction;
-    END IF;
-    
-    -- 9. 캠페인 생성 성공 로그 기록
-    INSERT INTO public.campaign_logs (
-      campaign_id, company_id, user_id,
-      log_type, action, status,
-      new_data, points_spent, points_before, points_after,
-      created_at
+    -- 9. 캠페인 생성
+    INSERT INTO public.campaigns (
+      title,
+      description,
+      company_id,
+      campaign_type,
+      platform,
+      keyword,
+      "option",
+      quantity,
+      seller,
+      product_number,
+      product_image_url,
+      product_name,
+      product_price,
+      purchase_method,
+      review_type,
+      review_text_length,
+      review_image_count,
+      prevent_product_duplicate,
+      prevent_store_duplicate,
+      duplicate_prevent_days,
+      payment_method,
+      campaign_reward,
+      max_participants,
+      max_per_reviewer,
+      apply_start_date,
+      apply_end_date,
+      review_start_date,
+      review_end_date,
+      total_cost,
+      status,
+      user_id,
+      -- 하위 호환성을 위한 필드들
+      start_date,
+      end_date,
+      expiration_date
     ) VALUES (
-      v_campaign_id, v_company_id, v_user_id,
-      'creation', 'create', 'success',
-      jsonb_build_object(
-        'title', p_title,
-        'campaign_type', p_campaign_type,
-        'total_cost', v_total_cost,
-        'max_participants', p_max_participants,
-        'max_per_reviewer', COALESCE(p_max_per_reviewer, 1),
-        'campaign_reward', p_campaign_reward,
-        'platform', p_platform
-      ),
-      v_total_cost, v_points_before_deduction, v_points_after_deduction,
-      NOW()
-    );
+      p_title,
+      p_description,
+      v_company_id,
+      p_campaign_type,
+      p_platform,
+      p_keyword,
+      p_option,
+      p_quantity,
+      p_seller,
+      p_product_number,
+      p_product_image_url,
+      p_product_name,
+      p_product_price,
+      p_purchase_method,
+      p_review_type,
+      p_review_text_length,
+      p_review_image_count,
+      p_prevent_product_duplicate,
+      p_prevent_store_duplicate,
+      p_duplicate_prevent_days,
+      p_payment_method,
+      p_campaign_reward,
+      p_max_participants,
+      COALESCE(p_max_per_reviewer, 1),
+      p_apply_start_date,
+      p_apply_end_date,
+      v_review_start_date,
+      v_review_end_date,
+      v_total_cost,
+      'inactive',
+      v_user_id,
+      -- 하위 호환성
+      p_apply_start_date,
+      p_apply_end_date,
+      v_review_end_date
+    ) RETURNING id INTO v_campaign_id;
     
-    -- 10. 결과 반환
+    -- 10. 성공 응답 반환
     RETURN jsonb_build_object(
       'success', true,
       'campaign_id', v_campaign_id,
-      'points_spent', v_total_cost
+      'total_cost', v_total_cost,
+      'points_before', v_points_before_deduction,
+      'points_after', v_points_after_deduction
     );
+    
   EXCEPTION
     WHEN OTHERS THEN
-      -- 실패 로그 기록 (다른 예외들)
+      -- 에러 로깅
       BEGIN
-        INSERT INTO public.campaign_logs (
-          company_id, user_id,
-          log_type, action, status,
-          error_message, points_spent, points_before,
-          created_at
-        ) VALUES (
-          COALESCE(v_company_id, (SELECT company_id FROM public.company_users WHERE user_id = v_user_id AND status = 'active' LIMIT 1)),
-          v_user_id,
-          'creation', 'create', 'failed',
-          SQLERRM, 
-          COALESCE(v_total_cost, 0), 
-          COALESCE(v_points_before_deduction, 0),
+        INSERT INTO public.error_logs (error_message, error_context, created_at)
+        VALUES (
+          SQLERRM,
+          jsonb_build_object(
+            'function', 'create_campaign_with_points_v2',
+            'user_id', v_user_id,
+            'company_id', v_company_id
+          ),
           NOW()
         );
       EXCEPTION
@@ -1904,6 +2113,140 @@ $$;
 ALTER FUNCTION "public"."create_user_wallet_on_signup"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."deactivate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_current_user_id uuid;
+  v_result jsonb;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_current_user_id := (SELECT auth.uid());
+  
+  IF v_current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 권한 확인: 회사 소유자만 비활성화 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = p_company_id
+      AND cu.user_id = v_current_user_id
+      AND cu.company_role = 'owner'
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners can deactivate managers';
+  END IF;
+
+  -- 활성 매니저 존재 확인
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = p_user_id
+      AND company_role = 'manager'
+      AND status = 'active'
+  ) THEN
+    RAISE EXCEPTION '활성 매니저를 찾을 수 없습니다.';
+  END IF;
+
+  -- 상태를 inactive로 업데이트
+  UPDATE public.company_users
+  SET status = 'inactive',
+      updated_at = NOW()
+  WHERE company_id = p_company_id
+    AND user_id = p_user_id
+    AND company_role = 'manager';
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'message', '매니저가 비활성화되었습니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."deactivate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."deactivate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") IS '매니저 비활성화';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."deactivate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_current_user_id uuid;
+  v_result jsonb;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_current_user_id := (SELECT auth.uid());
+  
+  IF v_current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 권한 확인: 회사 소유자만 비활성화 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = p_company_id
+      AND cu.user_id = v_current_user_id
+      AND cu.company_role = 'owner'
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners can deactivate reviewers';
+  END IF;
+
+  -- 활성 리뷰어 존재 확인
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = p_user_id
+      AND company_role = 'reviewer'
+      AND status = 'active'
+  ) THEN
+    RAISE EXCEPTION '활성 리뷰어를 찾을 수 없습니다.';
+  END IF;
+
+  -- 상태를 inactive로 업데이트
+  UPDATE public.company_users
+  SET status = 'inactive',
+      updated_at = NOW()
+  WHERE company_id = p_company_id
+    AND user_id = p_user_id
+    AND company_role = 'reviewer';
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'message', '리뷰어가 비활성화되었습니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."deactivate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."deactivate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") IS '리뷰어 비활성화';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."delete_campaign"("p_campaign_id" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -2303,6 +2646,64 @@ $$;
 ALTER FUNCTION "public"."ensure_user_wallet"("p_user_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_active_campaigns_optimized"() RETURNS "public"."campaign_response"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  result campaign_response;
+  now_ts timestamptz := now();
+BEGIN
+  -- 1. 현재 모집중인 캠페인만 가져오기 (이미지, 텍스트 포함)
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'id', id,
+      'title', title,
+      'description', description,
+      'product_image_url', product_image_url,
+      'campaign_type', campaign_type,
+      'platform', platform,
+      'product_price', product_price,
+      'campaign_reward', campaign_reward,
+      'current_participants', current_participants,
+      'max_participants', max_participants,
+      'created_at', created_at,
+      'apply_start_date', apply_start_date,
+      'apply_end_date', apply_end_date,
+      'review_start_date', review_start_date,
+      'review_end_date', review_end_date,
+      'seller', seller,
+      'prevent_product_duplicate', prevent_product_duplicate,
+      'prevent_store_duplicate', prevent_store_duplicate,
+      'duplicate_prevent_days', duplicate_prevent_days,
+      'status', status,
+      'company_id', company_id
+    )
+  ) INTO result.campaigns
+  FROM campaigns
+  WHERE status = 'active'
+    AND apply_start_date <= now_ts
+    AND apply_end_date > now_ts
+    AND (max_participants IS NULL OR current_participants < max_participants);
+    -- Phase 3 진행 시: apply_start_date <= now_ts + interval '1 hour' 로 변경 필요
+
+  -- 2. 가장 가까운 "오픈 예정" 시간 계산 (데이터는 안 가져옴, 시간만!)
+  SELECT MIN(apply_start_date) INTO result.next_open_at
+  FROM campaigns
+  WHERE status = 'active'
+    AND apply_start_date > now_ts;
+
+  RETURN result;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_active_campaigns_optimized"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."get_active_campaigns_optimized"() IS '현재 활성화된 캠페인 리스트와 다음 오픈 예정 시간을 반환합니다. 이그레스 비용 최소화를 위해 미래 캠페인 데이터는 전송하지 않고 시간만 반환합니다.';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."get_campaign_applications_safe"("p_campaign_id" "uuid", "p_status" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT 20, "p_offset" integer DEFAULT 0) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -2653,6 +3054,55 @@ $$;
 
 
 ALTER FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_company_reviewers"("p_company_id" "uuid") RETURNS TABLE("company_id" "uuid", "user_id" "uuid", "status" "text", "created_at" timestamp with time zone, "email" character varying, "display_name" "text")
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+BEGIN
+  -- 권한 확인: 회사 소유자 또는 관리자만 조회 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = p_company_id
+      AND cu.user_id = (SELECT auth.uid())
+      AND cu.company_role IN ('owner', 'manager')
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners and managers can view reviewer list';
+  END IF;
+
+  -- 리뷰어 목록 조회 (auth.users의 email 포함)
+  RETURN QUERY
+  SELECT 
+    cu.company_id,
+    cu.user_id,
+    cu.status,
+    cu.created_at,
+    au.email,
+    COALESCE(u.display_name, '이름 없음')::text as display_name
+  FROM public.company_users cu
+  LEFT JOIN public.users u ON u.id = cu.user_id
+  LEFT JOIN auth.users au ON au.id = cu.user_id
+  WHERE cu.company_id = p_company_id
+    AND cu.company_role = 'reviewer'
+  ORDER BY 
+    CASE cu.status
+      WHEN 'pending' THEN 1
+      WHEN 'active' THEN 2
+      WHEN 'inactive' THEN 3
+      ELSE 4
+    END,
+    cu.created_at DESC;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_company_reviewers"("p_company_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."get_company_reviewers"("p_company_id" "uuid") IS '회사 리뷰어 목록 조회';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."get_company_wallet_by_company_id_safe"("p_company_id" "uuid") RETURNS "jsonb"
@@ -3530,6 +3980,51 @@ $$;
 ALTER FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_user_reviewer_requests"() RETURNS TABLE("company_id" "uuid", "company_name" "text", "business_number" "text", "status" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_user_id uuid;
+BEGIN
+  v_user_id := (SELECT auth.uid());
+  
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    cu.company_id,
+    c.business_name as company_name,
+    c.business_number,
+    cu.status,
+    cu.created_at,
+    cu.updated_at
+  FROM public.company_users cu
+  INNER JOIN public.companies c ON c.id = cu.company_id
+  WHERE cu.user_id = v_user_id
+    AND cu.company_role = 'reviewer'
+  ORDER BY 
+    CASE cu.status
+      WHEN 'pending' THEN 1
+      WHEN 'active' THEN 2
+      WHEN 'inactive' THEN 3
+      WHEN 'rejected' THEN 4
+      ELSE 5
+    END,
+    cu.created_at DESC;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_user_reviewer_requests"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."get_user_reviewer_requests"() IS '사용자가 신청한 리뷰어 요청 목록 조회';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."get_user_reviews_safe"("p_status" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT 20, "p_offset" integer DEFAULT 0) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -4381,6 +4876,72 @@ COMMENT ON FUNCTION "public"."reject_manager"("p_company_id" "uuid", "p_user_id"
 
 
 
+CREATE OR REPLACE FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_current_user_id uuid;
+  v_result jsonb;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_current_user_id := (SELECT auth.uid());
+  
+  IF v_current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 권한 확인: 회사 소유자만 거절 가능
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users cu
+    WHERE cu.company_id = p_company_id
+      AND cu.user_id = v_current_user_id
+      AND cu.company_role = 'owner'
+      AND cu.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Only company owners can reject reviewers';
+  END IF;
+
+  -- 리뷰어 요청 존재 확인
+  IF NOT EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = p_user_id
+      AND company_role = 'reviewer'
+      AND status = 'pending'
+  ) THEN
+    RAISE EXCEPTION '승인 대기 중인 리뷰어 요청을 찾을 수 없습니다.';
+  END IF;
+
+  -- 레코드 삭제 (또는 status를 'rejected'로 변경 가능)
+  DELETE FROM public.company_users
+  WHERE company_id = p_company_id
+    AND user_id = p_user_id
+    AND company_role = 'reviewer'
+    AND status = 'pending';
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'message', '리뷰어 요청이 거절되었습니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") IS '리뷰어 거절';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -4557,6 +5118,104 @@ $$;
 
 
 ALTER FUNCTION "public"."request_point_charge_safe"("p_user_id" "uuid", "p_amount" integer, "p_payment_method" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."request_reviewer_role"("p_company_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_user_id uuid;
+  v_result jsonb;
+BEGIN
+  -- 현재 사용자 ID 가져오기
+  v_user_id := (SELECT auth.uid());
+  
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+
+  -- 회사 존재 여부 확인
+  IF NOT EXISTS (
+    SELECT 1 FROM public.companies
+    WHERE id = p_company_id
+  ) THEN
+    RAISE EXCEPTION '회사를 찾을 수 없습니다.';
+  END IF;
+
+  -- 이미 등록된 관계가 있는지 확인
+  IF EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = v_user_id
+      AND company_role = 'reviewer'
+      AND status = 'active'
+  ) THEN
+    RAISE EXCEPTION '이미 등록된 리뷰어입니다.';
+  END IF;
+
+  -- 이미 pending 요청이 있는지 확인
+  IF EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = v_user_id
+      AND company_role = 'reviewer'
+      AND status = 'pending'
+  ) THEN
+    RAISE EXCEPTION '이미 요청한 광고사입니다. 승인 대기 중입니다.';
+  END IF;
+
+  -- 기존 요청이 있으면 status를 pending으로 업데이트
+  IF EXISTS (
+    SELECT 1 FROM public.company_users
+    WHERE company_id = p_company_id
+      AND user_id = v_user_id
+      AND company_role = 'reviewer'
+  ) THEN
+    UPDATE public.company_users
+    SET status = 'pending',
+        created_at = NOW()
+    WHERE company_id = p_company_id
+      AND user_id = v_user_id
+      AND company_role = 'reviewer';
+  ELSE
+    -- 없으면 새로 추가
+    INSERT INTO public.company_users (
+      company_id,
+      user_id,
+      company_role,
+      status,
+      created_at
+    ) VALUES (
+      p_company_id,
+      v_user_id,
+      'reviewer',
+      'pending',
+      NOW()
+    );
+  END IF;
+
+  -- 결과 반환
+  SELECT jsonb_build_object(
+    'success', true,
+    'company_id', p_company_id,
+    'message', '리뷰어 등록 요청이 완료되었습니다. 승인 대기 중입니다.'
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."request_reviewer_role"("p_company_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."request_reviewer_role"("p_company_id" "uuid") IS '리뷰어 등록 요청';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."spend_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text" DEFAULT NULL::"text", "p_related_entity_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
@@ -5037,6 +5696,7 @@ DECLARE
   v_user_id UUID;
   v_company_id UUID;
   v_campaign_company_id UUID;
+  v_created_at TIMESTAMPTZ;
   v_review_start_date TIMESTAMPTZ;
   v_review_end_date TIMESTAMPTZ;
   v_total_cost INTEGER;
@@ -5060,8 +5720,8 @@ BEGIN
       RAISE EXCEPTION '회사에 소속되지 않았습니다';
     END IF;
     
-    -- 3. 캠페인 소유권 확인
-    SELECT company_id INTO v_campaign_company_id
+    -- 3. 캠페인 소유권 확인 및 생성일자 조회
+    SELECT company_id, created_at INTO v_campaign_company_id, v_created_at
     FROM public.campaigns
     WHERE id = p_campaign_id;
     
@@ -5096,6 +5756,19 @@ BEGIN
       RAISE EXCEPTION '신청 시작일시와 종료일시는 필수입니다';
     END IF;
     
+    -- 생성일자 기준 날짜 범위 검증 (편집 시: 생성일자 ~ 생성일자 + 14일)
+    IF p_apply_start_date < v_created_at THEN
+      RAISE EXCEPTION '신청 시작일시는 캠페인 생성일자 이후여야 합니다';
+    END IF;
+    
+    IF p_apply_start_date > v_created_at + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '신청 시작일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
+    END IF;
+    
+    IF p_apply_end_date > v_created_at + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '신청 종료일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
+    END IF;
+    
     IF p_apply_start_date > p_apply_end_date THEN
       RAISE EXCEPTION '신청 시작일시는 종료일시보다 이전이어야 합니다';
     END IF;
@@ -5113,6 +5786,15 @@ BEGIN
     
     IF v_review_start_date > v_review_end_date THEN
       RAISE EXCEPTION '리뷰 시작일시는 종료일시보다 이전이어야 합니다';
+    END IF;
+    
+    -- 리뷰 일정도 생성일자 + 14일 범위 내인지 검증
+    IF v_review_start_date > v_created_at + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '리뷰 시작일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
+    END IF;
+    
+    IF v_review_end_date > v_created_at + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '리뷰 종료일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
     END IF;
     
     -- 7. max_per_reviewer 검증
@@ -5135,7 +5817,7 @@ BEGIN
       campaign_type = p_campaign_type,
       platform = p_platform,
       keyword = p_keyword,
-      option = p_option,
+      "option" = p_option,
       quantity = p_quantity,
       seller = p_seller,
       product_number = p_product_number,
@@ -5146,31 +5828,53 @@ BEGIN
       review_type = p_review_type,
       review_text_length = p_review_text_length,
       review_image_count = p_review_image_count,
-      campaign_reward = p_campaign_reward,
-      max_participants = p_max_participants,
-      max_per_reviewer = COALESCE(p_max_per_reviewer, 1),
-      start_date = p_apply_start_date,  -- 하위 호환성
-      end_date = p_apply_end_date,  -- 하위 호환성
-      expiration_date = v_review_end_date,  -- 하위 호환성
-      apply_start_date = p_apply_start_date,
-      apply_end_date = p_apply_end_date,
-      review_start_date = v_review_start_date,
-      review_end_date = v_review_end_date,
       prevent_product_duplicate = p_prevent_product_duplicate,
       prevent_store_duplicate = p_prevent_store_duplicate,
       duplicate_prevent_days = p_duplicate_prevent_days,
       payment_method = p_payment_method,
+      campaign_reward = p_campaign_reward,
+      max_participants = p_max_participants,
+      max_per_reviewer = COALESCE(p_max_per_reviewer, 1),
+      apply_start_date = p_apply_start_date,
+      apply_end_date = p_apply_end_date,
+      review_start_date = v_review_start_date,
+      review_end_date = v_review_end_date,
       total_cost = v_total_cost,
-      updated_at = NOW()
+      updated_at = NOW(),
+      -- 하위 호환성
+      start_date = p_apply_start_date,
+      end_date = p_apply_end_date,
+      expiration_date = v_review_end_date
     WHERE id = p_campaign_id;
     
-    -- 10. 결과 반환
+    -- 10. 성공 응답 반환
     RETURN jsonb_build_object(
       'success', true,
-      'campaign_id', p_campaign_id
+      'campaign_id', p_campaign_id,
+      'total_cost', v_total_cost
     );
+    
   EXCEPTION
     WHEN OTHERS THEN
+      -- 에러 로깅
+      BEGIN
+        INSERT INTO public.error_logs (error_message, error_context, created_at)
+        VALUES (
+          SQLERRM,
+          jsonb_build_object(
+            'function', 'update_campaign_v2',
+            'user_id', v_user_id,
+            'company_id', v_company_id,
+            'campaign_id', p_campaign_id
+          ),
+          NOW()
+        );
+      EXCEPTION
+        WHEN OTHERS THEN
+          -- 로그 기록 실패는 무시 (무한 루프 방지)
+          NULL;
+      END;
+      
       RETURN jsonb_build_object(
         'success', false,
         'error', SQLERRM
@@ -5219,6 +5923,19 @@ $$;
 
 
 ALTER FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_company_users_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    NEW."updated_at" = now();
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_company_users_updated_at"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_company_wallet_account"("p_wallet_id" "uuid", "p_company_id" "uuid", "p_bank_name" "text", "p_account_number" "text", "p_account_holder" "text") RETURNS "void"
@@ -5945,7 +6662,7 @@ CREATE TABLE IF NOT EXISTS "public"."campaigns" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "product_image_url" "text",
     "user_id" "uuid",
-    "campaign_type" "text" DEFAULT 'reviewer'::"text",
+    "campaign_type" "text" DEFAULT 'store'::"text",
     "completed_applicants_count" integer DEFAULT 0 NOT NULL,
     "keyword" "text",
     "option" "text",
@@ -5968,7 +6685,7 @@ CREATE TABLE IF NOT EXISTS "public"."campaigns" (
     "apply_start_date" timestamp with time zone NOT NULL,
     "apply_end_date" timestamp with time zone NOT NULL,
     "review_end_date" timestamp with time zone NOT NULL,
-    CONSTRAINT "campaigns_campaign_type_check" CHECK (("campaign_type" = ANY (ARRAY['reviewer'::"text", 'journalist'::"text", 'visit'::"text"]))),
+    CONSTRAINT "campaigns_campaign_type_check" CHECK (("campaign_type" = ANY (ARRAY['store'::"text", 'journalist'::"text", 'visit'::"text"]))),
     CONSTRAINT "campaigns_dates_check" CHECK ((("apply_start_date" <= "apply_end_date") AND ("apply_end_date" <= "review_start_date") AND ("review_start_date" <= "review_end_date"))),
     CONSTRAINT "campaigns_max_per_reviewer_check" CHECK ((("max_per_reviewer" >= 1) AND ("max_per_reviewer" <= "max_participants"))),
     CONSTRAINT "campaigns_payment_method_check" CHECK (("payment_method" = ANY (ARRAY['platform'::"text", 'direct'::"text"]))),
@@ -6227,6 +6944,7 @@ CREATE TABLE IF NOT EXISTS "public"."company_users" (
     "company_role" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "status" "text" DEFAULT 'active'::"text" NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "company_users_company_role_check" CHECK (("company_role" = ANY (ARRAY['owner'::"text", 'manager'::"text", 'reviewer'::"text"]))),
     CONSTRAINT "company_users_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'pending'::"text", 'suspended'::"text", 'rejected'::"text"])))
 );
@@ -6240,6 +6958,10 @@ COMMENT ON TABLE "public"."company_users" IS '회사-사용자 관계 테이블 
 
 
 COMMENT ON COLUMN "public"."company_users"."status" IS '회사-사용자 관계 상태: active(활성), inactive(비활성), pending(대기), suspended(정지), rejected(거절)';
+
+
+
+COMMENT ON COLUMN "public"."company_users"."updated_at" IS '레코드가 마지막으로 업데이트된 시간';
 
 
 
@@ -6864,6 +7586,10 @@ CREATE OR REPLACE TRIGGER "set_sns_connections_updated_at" BEFORE UPDATE ON "pub
 
 
 CREATE OR REPLACE TRIGGER "trigger_sync_campaign_actions" AFTER INSERT ON "public"."campaign_action_logs" FOR EACH ROW EXECUTE FUNCTION "public"."sync_campaign_actions_on_event"();
+
+
+
+CREATE OR REPLACE TRIGGER "trigger_update_company_users_updated_at" BEFORE UPDATE ON "public"."company_users" FOR EACH ROW EXECUTE FUNCTION "public"."update_company_users_updated_at"();
 
 
 
@@ -7522,6 +8248,18 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."activate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."activate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."activate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."activate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."activate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."activate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."admin_change_user_role"("p_target_user_id" "uuid", "p_new_role" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."admin_change_user_role"("p_target_user_id" "uuid", "p_new_role" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_change_user_role"("p_target_user_id" "uuid", "p_new_role" "text") TO "service_role";
@@ -7555,6 +8293,12 @@ GRANT ALL ON FUNCTION "public"."apply_to_campaign_safe"("p_campaign_id" "uuid", 
 GRANT ALL ON FUNCTION "public"."approve_manager"("p_company_id" "uuid", "p_user_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."approve_manager"("p_company_id" "uuid", "p_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."approve_manager"("p_company_id" "uuid", "p_user_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."approve_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."approve_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."approve_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "service_role";
 
 
 
@@ -7678,6 +8422,18 @@ GRANT ALL ON FUNCTION "public"."create_user_wallet_on_signup"() TO "service_role
 
 
 
+GRANT ALL ON FUNCTION "public"."deactivate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."deactivate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."deactivate_manager_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."deactivate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."deactivate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."deactivate_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."delete_campaign"("p_campaign_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_campaign"("p_campaign_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_campaign"("p_campaign_id" "uuid") TO "service_role";
@@ -7720,6 +8476,12 @@ GRANT ALL ON FUNCTION "public"."ensure_user_wallet"("p_user_id" "uuid") TO "serv
 
 
 
+GRANT ALL ON FUNCTION "public"."get_active_campaigns_optimized"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_active_campaigns_optimized"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_active_campaigns_optimized"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_campaign_applications_safe"("p_campaign_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer) TO "anon";
 GRANT ALL ON FUNCTION "public"."get_campaign_applications_safe"("p_campaign_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_campaign_applications_safe"("p_campaign_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer) TO "service_role";
@@ -7747,6 +8509,12 @@ GRANT ALL ON FUNCTION "public"."get_company_point_history"("p_company_id" "uuid"
 GRANT ALL ON FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "anon";
 GRANT ALL ON FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_company_reviewers"("p_company_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_company_reviewers"("p_company_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_company_reviewers"("p_company_id" "uuid") TO "service_role";
 
 
 
@@ -7831,6 +8599,12 @@ GRANT ALL ON FUNCTION "public"."get_user_point_logs_safe"("p_user_id" "uuid", "p
 GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_user_reviewer_requests"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_user_reviewer_requests"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_user_reviewer_requests"() TO "service_role";
 
 
 
@@ -7948,6 +8722,12 @@ GRANT ALL ON FUNCTION "public"."reject_manager"("p_company_id" "uuid", "p_user_i
 
 
 
+GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") TO "service_role";
@@ -7963,6 +8743,12 @@ GRANT ALL ON FUNCTION "public"."request_point_charge"("p_user_id" "uuid", "p_amo
 GRANT ALL ON FUNCTION "public"."request_point_charge_safe"("p_user_id" "uuid", "p_amount" integer, "p_payment_method" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."request_point_charge_safe"("p_user_id" "uuid", "p_amount" integer, "p_payment_method" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."request_point_charge_safe"("p_user_id" "uuid", "p_amount" integer, "p_payment_method" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."request_reviewer_role"("p_company_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."request_reviewer_role"("p_company_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."request_reviewer_role"("p_company_id" "uuid") TO "service_role";
 
 
 
@@ -8011,6 +8797,12 @@ GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_t
 GRANT ALL ON FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_updated_by_user_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_company_users_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_company_users_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_company_users_updated_at"() TO "service_role";
 
 
 
@@ -8264,7 +9056,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
-RESET ALL;
 
 --
 -- Dumped schema changes for auth and storage

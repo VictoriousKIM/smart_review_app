@@ -9,10 +9,12 @@ alwaysApply: true
 npx supabase db dump --local --data-only -f supabase/seed.sql
 ```
 
+<!-- 프로덕션 사용 시 (주석 처리):
 ### ❌ 잘못된 방법 (원격/프로덕션)
 ```bash
 npx supabase db dump --data-only -f supabase/seed.sql
 ```
+-->
 
 ### 마이그레이션 파일 압축
 ```bash
@@ -31,10 +33,14 @@ npx supabase db diff --local --schema public -f supabase/migrations/YYYYMMDDHHMM
 ```
 
 **중요:**
+- 로컬 Supabase를 사용하므로 항상 `--local` 플래그를 사용해야 합니다
+- `seed.sql`은 로컬 개발용 테스트 데이터입니다
+- 로컬 환경에서만 작업하므로 원격 DB와의 동기화 문제가 없습니다
+<!-- 프로덕션 사용 시 주의사항 (주석 처리):
 - `--local` 플래그가 없으면 기본적으로 원격(프로덕션) DB에서 덤프를 가져옵니다
 - 로컬 개발 환경과 프로덕션 환경은 데이터 구조가 다를 수 있습니다
-- `seed.sql`은 로컬 개발용 테스트 데이터여야 합니다
 - 원격 DB에서 덤프를 가져오면 로컬 환경과 맞지 않아 리셋이 실패할 수 있습니다
+-->
 
 ## Git 커밋 메시지 작성 규칙
 

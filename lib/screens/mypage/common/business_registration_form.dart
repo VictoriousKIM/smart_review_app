@@ -63,7 +63,7 @@ class _BusinessRegistrationFormState
 
         const SizedBox(height: 24),
 
-        // 사업자 정보 입력 폼
+        // 광고주 정보 입력 폼
         _buildBusinessInfoForm(),
 
         const SizedBox(height: 24),
@@ -132,7 +132,7 @@ class _BusinessRegistrationFormState
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '매니저 등록 신청이 진행 중인 경우 사업자 등록을 할 수 없습니다.\n매니저 등록 신청이 완료되거나 취소된 후 다시 시도해주세요.',
+                    '매니저 등록 신청이 진행 중인 경우 광고주 등록을 할 수 없습니다.\n매니저 등록 신청이 완료되거나 취소된 후 다시 시도해주세요.',
                     style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     textAlign: TextAlign.center,
                   ),
@@ -656,7 +656,7 @@ class _BusinessRegistrationFormState
                   if (_businessStatus != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      '사업자 상태: $_businessStatus',
+                      '광고주 상태: $_businessStatus',
                       style: TextStyle(
                         fontSize: 11,
                         color: _businessStatus == '계속사업자'
@@ -719,7 +719,7 @@ class _BusinessRegistrationFormState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('매니저 등록 신청 중에는 사업자 등록을 할 수 없습니다.'),
+            content: Text('매니저 등록 신청 중에는 광고주 등록을 할 수 없습니다.'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -887,7 +887,7 @@ class _BusinessRegistrationFormState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('매니저 등록 신청 중에는 사업자 등록을 할 수 없습니다.'),
+            content: Text('매니저 등록 신청 중에는 광고주 등록을 할 수 없습니다.'),
             backgroundColor: Colors.orange,
           ),
         );

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../services/sns_platform_connection_service.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../widgets/mypage_common_widgets.dart';
 
 class SNSConnectionScreen extends ConsumerStatefulWidget {
   const SNSConnectionScreen({super.key});
@@ -11,45 +13,153 @@ class SNSConnectionScreen extends ConsumerStatefulWidget {
       _SNSConnectionScreenState();
 }
 
-class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
+class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   bool _isLoading = true;
-  Map<String, dynamic> _snsConnections = {};
+  List<Map<String, dynamic>> _connections = [];
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadSNSConnections();
   }
 
-  Future<void> _loadSNSConnections() async {
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSNSConnections({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
     });
 
-    // TODO: 실제 API 호출로 교체
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final connections = await SNSPlatformConnectionService.getConnections(
+        forceRefresh: forceRefresh,
+      );
+      setState(() {
+        _connections = connections;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '연결 정보를 불러오는데 실패했습니다: ${SNSPlatformConnectionService.getErrorMessage(e)}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
-    setState(() {
-      _snsConnections = {
-        'instagram': {
-          'connected': true,
-          'username': '@hong_gildong',
-          'followers': 1250,
-        },
-        'youtube': {
-          'connected': true,
-          'username': '홍길동 리뷰',
-          'subscribers': 3200,
-        },
-        'tiktok': {'connected': false, 'username': null, 'followers': null},
-        'blog': {
-          'connected': true,
-          'username': 'honggildong.blog.me',
-          'followers': 850,
-        },
-      };
-      _isLoading = false;
-    });
+  List<Map<String, dynamic>> _getStoreConnections() {
+    return _connections.where((conn) {
+      return SNSPlatformConnectionService.isStorePlatform(
+        conn['platform'] as String,
+      );
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _getSNSConnections() {
+    return _connections.where((conn) {
+      return !SNSPlatformConnectionService.isStorePlatform(
+        conn['platform'] as String,
+      );
+    }).toList();
+  }
+
+  Future<void> _showAddDialog(String platform) async {
+    final platformName = SNSPlatformConnectionService.getPlatformDisplayName(
+      platform,
+    );
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => PlatformConnectionDialog(
+        platform: platform,
+        platformName: platformName,
+      ),
+    );
+
+    if (result == true && mounted) {
+      await _loadSNSConnections(forceRefresh: true);
+    }
+  }
+
+  Future<void> _showEditDialog(Map<String, dynamic> connection) async {
+    final platform = connection['platform'] as String;
+    final platformName = SNSPlatformConnectionService.getPlatformDisplayName(
+      platform,
+    );
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => PlatformConnectionDialog(
+        platform: platform,
+        platformName: platformName,
+        connectionId: connection['id'] as String,
+        initialData: connection,
+        isEditMode: true,
+      ),
+    );
+
+    if (result == true && mounted) {
+      await _loadSNSConnections(forceRefresh: true);
+    }
+  }
+
+  Future<void> _deleteConnection(String id, String platformName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$platformName 연결 해제'),
+        content: const Text('정말로 연결을 해제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('해제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await SNSPlatformConnectionService.deleteConnection(id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$platformName 연결이 해제되었습니다'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          await _loadSNSConnections(forceRefresh: true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '삭제 실패: ${SNSPlatformConnectionService.getErrorMessage(e)}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -62,34 +172,89 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/mypage'),
+          onPressed: () => context.go('/mypage/reviewer'),
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: '스토어 플랫폼'),
+            Tab(text: 'SNS 플랫폼'),
+          ],
+          labelColor: Colors.black,
+          unselectedLabelColor: Colors.grey,
+          indicatorColor: Colors.black,
         ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _buildSNSContent(),
+          : RefreshIndicator(
+              onRefresh: () => _loadSNSConnections(forceRefresh: true),
+              child: TabBarView(
+                controller: _tabController,
+                children: [_buildStoreTab(), _buildSNSTab()],
+              ),
+            ),
     );
   }
 
-  Widget _buildSNSContent() {
+  Widget _buildStoreTab() {
+    final storeConnections = _getStoreConnections();
+    final storePlatforms = SNSPlatformConnectionService.storePlatforms
+        .where(
+          (platform) =>
+              !['11st', 'gmarket', 'auction', 'wemakeprice'].contains(platform),
+        )
+        .toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 설명 카드
-          _buildInfoCard(),
-
+          _buildInfoCard(
+            '스토어 플랫폼 연결',
+            '쇼핑몰 계정을 연결하면 상품 리뷰 캠페인에 참여할 수 있습니다.\n배송 주소를 정확히 입력해주세요.',
+          ),
           const SizedBox(height: 24),
-
-          // SNS 연결 목록
-          _buildSNSList(),
+          ...storePlatforms.map((platform) {
+            final platformConnections = storeConnections
+                .where((conn) => conn['platform'] == platform)
+                .toList();
+            return _buildPlatformSection(platform, platformConnections);
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildInfoCard() {
+  Widget _buildSNSTab() {
+    final snsConnections = _getSNSConnections();
+    final snsPlatforms = SNSPlatformConnectionService.snsPlatforms
+        .where((platform) => !['tiktok', 'naver'].contains(platform))
+        .toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInfoCard(
+            'SNS 플랫폼 연결',
+            'SNS 계정을 연결하면 더 많은 캠페인에 참여할 수 있습니다.\n연결된 계정의 팔로워 수에 따라 다양한 혜택을 받을 수 있어요.',
+          ),
+          const SizedBox(height: 24),
+          ...snsPlatforms.map((platform) {
+            final platformConnections = snsConnections
+                .where((conn) => conn['platform'] == platform)
+                .toList();
+            return _buildPlatformSection(platform, platformConnections);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(String title, String description) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -105,7 +270,7 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
               Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
               const SizedBox(width: 8),
               Text(
-                'SNS 연결 안내',
+                title,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -116,7 +281,7 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'SNS 계정을 연결하면 더 많은 캠페인에 참여할 수 있습니다.\n연결된 계정의 팔로워 수에 따라 다양한 혜택을 받을 수 있어요.',
+            description,
             style: TextStyle(
               fontSize: 14,
               color: Colors.blue[600],
@@ -128,62 +293,20 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
     );
   }
 
-  Widget _buildSNSList() {
-    final snsList = [
-      {
-        'key': 'instagram',
-        'name': 'Instagram',
-        'icon': Icons.camera_alt,
-        'color': const Color(0xFFE4405F),
-        'description': '인스타그램 계정 연결',
-      },
-      {
-        'key': 'youtube',
-        'name': 'YouTube',
-        'icon': Icons.play_circle_filled,
-        'color': const Color(0xFFFF0000),
-        'description': '유튜브 채널 연결',
-      },
-      {
-        'key': 'tiktok',
-        'name': 'TikTok',
-        'icon': Icons.music_note,
-        'color': const Color(0xFF000000),
-        'description': '틱톡 계정 연결',
-      },
-      {
-        'key': 'blog',
-        'name': '네이버 블로그',
-        'icon': Icons.article,
-        'color': const Color(0xFF03C75A),
-        'description': '네이버 블로그 연결',
-      },
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '연결된 SNS',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF333333),
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...snsList.map((sns) => _buildSNSItem(sns)),
-      ],
+  Widget _buildPlatformSection(
+    String platform,
+    List<Map<String, dynamic>> connections,
+  ) {
+    final platformName = SNSPlatformConnectionService.getPlatformDisplayName(
+      platform,
     );
-  }
-
-  Widget _buildSNSItem(Map<String, dynamic> sns) {
-    final snsData = _snsConnections[sns['key']];
-    final isConnected = snsData['connected'] as bool;
+    final platformIcon = SNSPlatformConnectionService.getPlatformIcon(platform);
+    final platformColor = SNSPlatformConnectionService.getPlatformColor(
+      platform,
+    );
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -196,122 +319,161 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 플랫폼 헤더
           Container(
-            width: 48,
-            height: 48,
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: sns['color'].withOpacity(0.1),
-              borderRadius: BorderRadius.circular(24),
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
             ),
-            child: Icon(sns['icon'], color: sns['color'], size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  sns['name'],
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF333333),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: platformColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(platformIcon, color: platformColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        platformName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF333333),
+                        ),
+                      ),
+                      if (connections.isNotEmpty)
+                        Text(
+                          '${connections.length}개 연결됨',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                if (isConnected) ...[
-                  Text(
-                    snsData['username'],
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '팔로워 ${snsData['followers'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}명',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                  ),
-                ] else
-                  Text(
-                    sns['description'],
-                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                  ),
+                CustomButton(
+                  text: '추가',
+                  onPressed: () => _showAddDialog(platform),
+                  backgroundColor: platformColor,
+                  textColor: Colors.white,
+                ),
               ],
             ),
           ),
-          if (isConnected)
-            CustomButton(
-              text: '연결 해제',
-              onPressed: () => _disconnectSNS(sns['key']),
-              backgroundColor: Colors.red[50],
-              textColor: Colors.red[700],
-              borderColor: Colors.red[200],
-            )
-          else
-            CustomButton(
-              text: '연결하기',
-              onPressed: () => _connectSNS(sns['key']),
-              backgroundColor: sns['color'],
-              textColor: Colors.white,
+          // 연결 목록
+          if (connections.isNotEmpty)
+            ...connections.map(
+              (connection) => _buildConnectionItem(connection, platformColor),
             ),
         ],
       ),
     );
   }
 
-  void _connectSNS(String snsKey) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${_getSNSName(snsKey)} 연결'),
-        content: const Text('SNS 연결 기능은 준비 중입니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
+  Widget _buildConnectionItem(
+    Map<String, dynamic> connection,
+    Color platformColor,
+  ) {
+    final platform = connection['platform'] as String;
+    final platformName = SNSPlatformConnectionService.getPlatformDisplayName(
+      platform,
+    );
+    final accountId = connection['platform_account_id'] as String? ?? '';
+    final accountName = connection['platform_account_name'] as String? ?? '';
+    final phone = connection['phone'] as String? ?? '';
+    final address = connection['address'] as String?;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      accountName.isNotEmpty ? accountName : accountId,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF333333),
+                      ),
+                    ),
+                    if (accountId.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '계정 ID: $accountId',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    ],
+                    if (phone.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '전화번호: $phone',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    ],
+                    if (address != null && address.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '주소: $address',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Row(
+                children: [
+                  CustomButton(
+                    text: '수정',
+                    onPressed: () => _showEditDialog(connection),
+                    backgroundColor: Colors.grey[100]!,
+                    textColor: Colors.black,
+                    borderColor: Colors.grey[300]!,
+                  ),
+                  const SizedBox(width: 8),
+                  CustomButton(
+                    text: '삭제',
+                    onPressed: () => _deleteConnection(
+                      connection['id'] as String,
+                      platformName,
+                    ),
+                    backgroundColor: Colors.red[50]!,
+                    textColor: Colors.red[700]!,
+                    borderColor: Colors.red[200]!,
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
     );
-  }
-
-  void _disconnectSNS(String snsKey) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${_getSNSName(snsKey)} 연결 해제'),
-        content: const Text('정말로 연결을 해제하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${_getSNSName(snsKey)} 연결이 해제되었습니다')),
-              );
-            },
-            child: const Text('해제', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getSNSName(String key) {
-    switch (key) {
-      case 'instagram':
-        return 'Instagram';
-      case 'youtube':
-        return 'YouTube';
-      case 'tiktok':
-        return 'TikTok';
-      case 'blog':
-        return '네이버 블로그';
-      default:
-        return 'SNS';
-    }
   }
 }

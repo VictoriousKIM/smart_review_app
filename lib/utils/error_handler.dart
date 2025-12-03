@@ -180,12 +180,23 @@ class ErrorHandler {
         errorString.contains('missing destination name oauth_client_id');
   }
 
+  /// "missing destination name scopes" 에러 확인
+  /// Supabase 세션 갱신 시 세션 모델에 필요한 필드가 없을 때 발생
+  static bool isMissingDestinationScopesError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('missing destination name scopes') ||
+        (errorString.contains('unexpected_failure') &&
+            errorString.contains('session') &&
+            errorString.contains('destination'));
+  }
+
   /// 손상된 세션 에러 확인
   static bool isCorruptedSessionError(dynamic error) {
     final errorString = error.toString().toLowerCase();
     return isOAuthClientIdError(error) ||
+        isMissingDestinationScopesError(error) ||
         errorString.contains('disposed') ||
-        errorString.contains('session') && errorString.contains('invalid');
+        (errorString.contains('session') && errorString.contains('invalid'));
   }
 
   /// 데이터베이스 에러 처리

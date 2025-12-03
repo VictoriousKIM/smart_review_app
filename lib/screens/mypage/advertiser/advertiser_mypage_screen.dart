@@ -281,7 +281,7 @@ class _AdvertiserMyPageScreenState
             // 상단 파란색 카드
             MyPageCommonWidgets.buildTopCard(
               userName: user.displayName ?? '사용자',
-              userType: '사업자',
+              userType: '광고주',
               onSwitchPressed: () {
                 // 리뷰어 마이페이지로 이동
                 context.pushReplacement('/mypage/reviewer');
@@ -296,11 +296,11 @@ class _AdvertiserMyPageScreenState
                     }
                   : null,
               onProfileTap: () {
-                // 프로필 화면의 사업자 탭으로 이동
+                // 프로필 화면의 광고주 탭으로 이동
                 context.go('/mypage/profile?tab=business');
               },
               onPointsTap: () {
-                // 사업자 포인트 스크린으로 이동
+                // 광고주 포인트 스크린으로 이동
                 context.go('/mypage/advertiser/points');
               },
               currentPoints: _currentPoints,

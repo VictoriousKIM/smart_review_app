@@ -132,4 +132,16 @@ class CompanyService {
       rethrow;
     }
   }
+
+  /// 사용자가 신청한 리뷰어 요청 목록 조회
+  static Future<List<Map<String, dynamic>>> getUserReviewerRequests() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase.rpc('get_user_reviewer_requests');
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('❌ 리뷰어 요청 목록 조회 실패: $e');
+      rethrow;
+    }
+  }
 }

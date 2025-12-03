@@ -10,9 +10,12 @@
    ```
 
 2. **브라우저 탭 열기** (Playwright MCP 사용)
-   - 첫 번째 탭: Flutter 웹 앱 (http://localhost:3001/) - 개발자 계정으로 로그인
+   - 첫 번째 탭: Flutter 웹 앱 (http://localhost:3001/) - 카카오 계정으로 로그인
+   - 두 번째 탭: Supabase 로컬 Studio (http://127.0.0.1:54503)
+   - 세 번째 탭: Cloudflare r2 대시보드 (https://dash.cloudflare.com)
+   <!-- 프로덕션 대시보드 (주석 처리):
    - 두 번째 탭: Supabase 프로덕션 대시보드 (https://supabase.com/dashboard/project/ythmnhadeyfusmfhcgdr)
-   - 세 번째 탭: Cloudflare Workers 대시보드 (https://dash.cloudflare.com)
+   -->
 
 3. **접근성 활성화** (Flutter 웹 앱에서 필수!)
    ```javascript
@@ -36,6 +39,10 @@
 - 이미 로그인되어 있다면 로그인 시도를 반복할 필요 없음
 - Flutter는 별도로 `flutter run`을 실행할 필요 없음 (이미 실행 중이어야 함)
 - Playwright MCP를 사용하여 브라우저 자동화
+- 로컬 Supabase를 사용하므로 `npx supabase start`로 시작해야 함
+<!-- 프로덕션 사용 시 (주석 처리):
+- 로컬 Supabase는 프로덕션 DB를 사용하므로 별도로 시작할 필요 없음
+-->
 
 ## 📱 Flutter 웹 앱 접근성 활성화
 
@@ -62,13 +69,14 @@ await page.evaluate(() => {
 - http://localhost:3001/
 
 **Supabase 서비스:**
+- 로컬 개발 환경:
+  - API URL: http://127.0.0.1:54500
+  - Studio (대시보드): http://127.0.0.1:54503
+  - Database: postgresql://postgres:postgres@127.0.0.1:54501/postgres
+  - Mailpit (이메일 테스트): http://127.0.0.1:54504
+<!-- 프로덕션 환경 (주석 처리):
 - 프로덕션 대시보드: https://supabase.com/dashboard/project/ythmnhadeyfusmfhcgdr
 - 프로덕션 API URL: https://ythmnhadeyfusmfhcgdr.supabase.co
-<!-- 로컬 개발 환경 (주석 처리):
-- API URL: http://127.0.0.1:54500
-- Studio (대시보드): http://127.0.0.1:54503
-- Database: postgresql://postgres:postgres@127.0.0.1:54501/postgres
-- Mailpit (이메일 테스트): http://127.0.0.1:54504
 -->
 
 **Cloudflare Workers 대시보드:**
