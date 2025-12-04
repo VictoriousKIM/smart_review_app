@@ -115,6 +115,12 @@ export default {
       return handleAnalyzeCampaignImage(request, env);
     }
 
+    if (url.pathname === '/api/auth/callback/naver' && request.method === 'POST') {
+      // 네이버 로그인 콜백은 별도 파일에서 import
+      const { handleNaverLoginCallback } = await import('./functions/naver-login-callback');
+      return handleNaverLoginCallback(request, env);
+    }
+
     return new Response(
       JSON.stringify({ error: 'Not Found', path: url.pathname }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

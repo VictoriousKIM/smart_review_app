@@ -68,6 +68,16 @@ class AuthNotifier extends _$AuthNotifier {
     }
   }
 
+  Future<void> signInWithNaver() async {
+    state = const AsyncValue.loading();
+    try {
+      await _authService.signInWithNaver();
+      // 성공 시 상태는 authStateChanges에서 자동으로 업데이트됨
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
+    }
+  }
+
   Future<void> signInWithEmail(String email, String password) async {
     state = const AsyncValue.loading();
     try {

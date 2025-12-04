@@ -1,21 +1,25 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:postgrest/postgrest.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart' as kakao;
+import 'package:http/http.dart' as http;
+import 'package:universal_html/html.dart' as html;
 import '../models/user.dart' as app_user;
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
 import 'user_service.dart';
+import 'naver_auth_service.dart';
 import '../utils/date_time_utils.dart';
 
 /// 사용자 인증 상태
 enum UserState {
-  notLoggedIn,      // 세션 없음
-  loggedIn,         // 세션 있고 프로필 있음
-  tempSession,      // 세션 있지만 프로필 없음 (OAuth 회원가입 필요)
+  notLoggedIn, // 세션 없음
+  loggedIn, // 세션 있고 프로필 있음
+  tempSession, // 세션 있지만 프로필 없음 (OAuth 회원가입 필요)
 }
 
 class AuthService {
@@ -74,8 +78,7 @@ class AuthService {
       final isProfileNotFound =
           e.toString().contains('User profile not found') ||
           (e is PostgrestException &&
-              (e.code == 'PGRST116' ||
-                  e.message.contains('No rows returned')));
+              (e.code == 'PGRST116' || e.message.contains('No rows returned')));
 
       if (isProfileNotFound) {
         return UserState.tempSession;
@@ -366,6 +369,215 @@ class AuthService {
       }
     } catch (e) {
       throw Exception('Kakao 로그인 실패: $e');
+    }
+  }
+
+  // 네이버 로그인
+  Future<void> signInWithNaver() async {
+    try {
+      // 새로운 NaverAuthService 사용 (Workers 기반)
+      final naverAuthService = NaverAuthService();
+      final result = await naverAuthService.signInWithNaver();
+
+      if (result?.user == null) {
+        throw Exception('네이버 로그인 실패: 사용자 정보를 가져올 수 없습니다');
+      }
+
+      // 로그인 성공 시 프로필 관리 (authStateChanges에서 자동으로 처리됨)
+      final user = result!.user;
+      debugPrint('네이버 로그인 성공: ${user?.email ?? user?.id ?? 'unknown'}');
+    } catch (e) {
+      debugPrint('네이버 로그인 에러: $e');
+      throw Exception('Naver 로그인 실패: $e');
+    }
+  }
+
+  // 네이버 로그인 (웹)
+  Future<void> _signInWithNaverWeb() async {
+    try {
+      // 네이버 JavaScript SDK 로드
+      if (html.document.getElementById('naver-login-script') == null) {
+        final script = html.ScriptElement()
+          ..id = 'naver-login-script'
+          ..src = 'https://static.nid.naver.com/js/naveridlogin_js_sdk_2.0.2.js'
+          ..type = 'text/javascript';
+        html.document.head!.append(script);
+        await script.onLoad.first;
+      }
+
+      // 네이버 로그인 초기화 및 버튼 생성
+      final callbackUrl = html.window.location.origin + '/loading';
+
+      // JavaScript 코드 실행을 위한 스크립트 태그 생성
+      final initScript = html.ScriptElement()
+        ..text =
+            '''
+        (function() {
+          if (!window.naverLoginInstance) {
+            window.naverLoginInstance = new naver.LoginWithNaverId({
+              clientId: "Gx2IIkdRCTg32kobQj7J",
+              callbackUrl: "$callbackUrl",
+              callbackHandle: true,
+              isPopup: false,
+              loginButton: { color: "green", type: 1, height: "60" }
+            });
+            window.naverLoginInstance.init();
+          }
+          
+          // 콜백 처리
+          window.naverLoginCallback = function() {
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get("access_token");
+            if (accessToken) {
+              window.naverAccessToken = accessToken;
+              const event = new CustomEvent('naver-login-token', { detail: accessToken });
+              window.dispatchEvent(event);
+            }
+          };
+          
+          // 해시 변경 감지
+          if (window.location.hash) {
+            window.naverLoginCallback();
+          }
+          window.addEventListener('hashchange', window.naverLoginCallback);
+        })();
+        ''';
+      html.document.head!.append(initScript);
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // 네이버 로그인 버튼 클릭 트리거
+      await Future.delayed(const Duration(milliseconds: 500)); // SDK 초기화 대기
+      final clickScript = html.ScriptElement()
+        ..text =
+            '''
+        (function() {
+          const loginButton = document.getElementById("naverIdLogin_loginButton");
+          if (loginButton) {
+            loginButton.click();
+          } else {
+            // 버튼이 없으면 직접 로그인 페이지로 이동
+            const clientId = "Gx2IIkdRCTg32kobQj7J";
+            const redirectUri = encodeURIComponent("$callbackUrl");
+            const state = Math.random().toString(36).substring(2, 15);
+            const url = "https://nid.naver.com/oauth2.0/authorize?response_type=token&client_id=" + clientId + "&redirect_uri=" + redirectUri + "&state=" + state;
+            window.location.href = url;
+          }
+        })();
+        ''';
+      html.document.head!.append(clickScript);
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // 해시에서 직접 토큰 확인
+      if (html.window.location.hash.isNotEmpty) {
+        final hash = html.window.location.hash.substring(1);
+        final params = Uri.splitQueryString(hash);
+        final accessToken = params['access_token'];
+        if (accessToken != null) {
+          await _handleNaverCallback(accessToken);
+          return;
+        }
+      }
+
+      // 해시 변경 감지로 토큰 수신 대기
+      final completer = Completer<String>();
+      StreamSubscription<html.Event>? hashSubscription;
+
+      hashSubscription = html.window.onHashChange.listen((html.Event event) {
+        final hash = html.window.location.hash;
+        if (hash.isNotEmpty) {
+          final hashParams = Uri.splitQueryString(hash.substring(1));
+          final accessToken = hashParams['access_token'];
+          if (accessToken != null && !completer.isCompleted) {
+            hashSubscription?.cancel();
+            completer.complete(accessToken);
+          }
+        }
+      });
+
+      // 타임아웃 설정 (5분)
+      try {
+        final token = await completer.future.timeout(
+          const Duration(minutes: 5),
+          onTimeout: () {
+            hashSubscription?.cancel();
+            throw Exception('네이버 로그인 타임아웃');
+          },
+        );
+        await _handleNaverCallback(token);
+      } finally {
+        hashSubscription.cancel();
+      }
+    } catch (e) {
+      debugPrint('네이버 로그인 웹 에러: $e');
+      rethrow;
+    }
+  }
+
+  // 네이버 콜백 처리
+  Future<void> _handleNaverCallback(String accessToken) async {
+    try {
+      debugPrint('네이버 로그인 콜백 처리 시작: $accessToken');
+
+      // Cloudflare Workers API로 토큰 전달
+      final response = await http.post(
+        Uri.parse('${SupabaseConfig.workersApiUrl}/api/auth/callback/naver'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'accessToken': accessToken}),
+      );
+
+      debugPrint('Workers API 응답: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final email = data['email'] as String?;
+        final isNewUser = data['isNewUser'] as bool? ?? false;
+        final accessToken = data['accessToken'] as String?;
+        final refreshToken = data['refreshToken'] as String?;
+        final usePasswordLogin = data['usePasswordLogin'] as bool? ?? false;
+        final password = data['password'] as String?;
+
+        debugPrint('네이버 로그인 성공: email=$email, isNewUser=$isNewUser');
+
+        // 세션 생성
+        if (accessToken != null && refreshToken != null) {
+          // Magic Link로 생성된 토큰 사용
+          // Supabase Flutter SDK의 setSession은 refreshToken만 받음
+          final sessionResponse = await _supabase.auth.setSession(refreshToken);
+          if (sessionResponse.session != null) {
+            debugPrint('네이버 로그인 세션 생성 완료 (Magic Link)');
+          } else {
+            throw Exception('세션 생성 실패');
+          }
+        } else if (usePasswordLogin && password != null && email != null) {
+          // 비밀번호로 로그인 (임시 방법)
+          await _supabase.auth.signInWithPassword(
+            email: email,
+            password: password,
+          );
+          debugPrint('네이버 로그인 세션 생성 완료 (Password)');
+        } else {
+          throw Exception('세션 생성에 필요한 정보가 없습니다');
+        }
+
+        // 프로필 생성 확인 및 생성
+        final user = _supabase.auth.currentUser;
+        if (user != null) {
+          await _ensureUserProfile(
+            user,
+            data['name'] as String? ?? email ?? 'User',
+            app_user.UserType.user,
+            isSignUp: isNewUser,
+          );
+        }
+      } else {
+        final errorBody = response.body;
+        debugPrint('Workers API 에러: $errorBody');
+        throw Exception('네이버 로그인 콜백 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('네이버 로그인 콜백 처리 실패: $e');
+      rethrow;
     }
   }
 

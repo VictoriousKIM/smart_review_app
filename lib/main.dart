@@ -6,12 +6,18 @@ import 'config/supabase_config.dart';
 import 'config/app_router.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'services/campaign_realtime_manager.dart';
+import 'services/naver_auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
   // Supabase 초기화
   await SupabaseConfig.initialize();
+  
+  // 웹에서 네이버 로그인 해시 변경 감지 시작
+  if (kIsWeb) {
+    NaverAuthService.startListeningForHashChange();
+  }
 
   // 웹 환경에서 세션 복원 대기 (F5 새로고침 시 로그인 상태 유지)
   if (kIsWeb) {

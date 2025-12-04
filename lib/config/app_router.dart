@@ -102,23 +102,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final fullPath = state.uri.path;
       final uriString = state.uri.toString();
 
-      debugPrint('Redirect: 실행됨 - matchedLocation=$matchedLocation, fullPath=$fullPath, uri=$uriString');
+      debugPrint(
+        'Redirect: 실행됨 - matchedLocation=$matchedLocation, fullPath=$fullPath, uri=$uriString',
+      );
 
       final isLoggingIn = matchedLocation == '/login';
       final isRoot = matchedLocation == '/';
       final isMyPage = matchedLocation.startsWith('/mypage');
 
-      // Signup 관련 경로는 redirect 제외 (무한 루프 방지)
+      // Signup 및 Loading 관련 경로는 redirect 제외 (무한 루프 방지)
       // matchedLocation과 fullPath 모두 확인하여 이중 방어
-      if (matchedLocation.startsWith('/signup') || fullPath.startsWith('/signup')) {
-        debugPrint('Redirect: Signup 경로는 redirect 제외: matchedLocation=$matchedLocation, fullPath=$fullPath');
+      if (matchedLocation.startsWith('/signup') ||
+          fullPath.startsWith('/signup') ||
+          matchedLocation == '/loading' ||
+          fullPath == '/loading') {
+        debugPrint(
+          'Redirect: Signup/Loading 경로는 redirect 제외: matchedLocation=$matchedLocation, fullPath=$fullPath',
+        );
         return null;
       }
 
       // 1. 마이페이지 경로는 전역 redirect에서 특별 처리 (새로고침 시 경로 유지)
       if (isMyPage) {
         final userState = await authService.getUserState();
-        if (userState == UserState.notLoggedIn || userState == UserState.tempSession) {
+        if (userState == UserState.notLoggedIn ||
+            userState == UserState.tempSession) {
           return '/login';
         }
         return null;
@@ -163,6 +171,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginScreen(),
+      ),
+
+      // 로딩 (네이버 로그인 콜백 처리)
+      GoRoute(
+        path: '/loading',
+        name: 'loading',
+        builder: (context, state) => const LoadingScreen(),
       ),
 
       // 회원가입 (OAuth 로그인 후 프로필 없을 때)

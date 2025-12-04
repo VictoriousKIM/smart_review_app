@@ -54,6 +54,7 @@ dependencies:
   # Authentication
   google_sign_in: ^7.2.0
   kakao_flutter_sdk: ^1.9.7+3
+  flutter_naver_login: ^1.8.0  # 네이버 로그인 (모바일 전용)
   
   # Local Storage
   shared_preferences: ^2.2.3

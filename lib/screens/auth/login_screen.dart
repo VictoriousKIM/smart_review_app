@@ -15,6 +15,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isGoogleLoading = false;
   bool _isKakaoLoading = false;
+  bool _isNaverLoading = false;
   bool _showEmailForm = false;
 
   @override
@@ -24,13 +25,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _handleSocialSignIn(
     Future<void> Function() signInMethod,
-    bool isGoogle,
+    String provider, // 'google', 'kakao', 'naver'
   ) async {
     setState(() {
-      if (isGoogle) {
+      if (provider == 'google') {
         _isGoogleLoading = true;
-      } else {
+      } else if (provider == 'kakao') {
         _isKakaoLoading = true;
+      } else if (provider == 'naver') {
+        _isNaverLoading = true;
       }
     });
 
@@ -52,6 +55,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() {
           _isGoogleLoading = false;
           _isKakaoLoading = false;
+          _isNaverLoading = false;
         });
         ScaffoldMessenger.of(
           context,
@@ -64,14 +68,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     await _handleSocialSignIn(
       () => ref.read(authProvider.notifier).signInWithGoogle(),
-      true, // isGoogle = true
+      'google',
     );
   }
 
   Future<void> _signInWithKakao() async {
     await _handleSocialSignIn(
       () => ref.read(authProvider.notifier).signInWithKakao(),
-      false, // isGoogle = false
+      'kakao',
+    );
+  }
+
+  Future<void> _signInWithNaver() async {
+    await _handleSocialSignIn(
+      () => ref.read(authProvider.notifier).signInWithNaver(),
+      'naver',
     );
   }
 
@@ -86,6 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           setState(() {
             _isGoogleLoading = false;
             _isKakaoLoading = false;
+            _isNaverLoading = false;
           });
         }
       } else if (previous?.value != null && next.value == null) {
@@ -94,6 +106,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           setState(() {
             _isGoogleLoading = false;
             _isKakaoLoading = false;
+            _isNaverLoading = false;
           });
         }
       }
@@ -160,7 +173,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // Google 로그인
                 CustomButton(
                   text: 'Google로 로그인',
-                  onPressed: (_isGoogleLoading || _isKakaoLoading)
+                  onPressed:
+                      (_isGoogleLoading || _isKakaoLoading || _isNaverLoading)
                       ? null
                       : _signInWithGoogle,
                   isLoading: _isGoogleLoading,
@@ -173,13 +187,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // Kakao 로그인
                 CustomButton(
                   text: 'Kakao로 로그인',
-                  onPressed: (_isGoogleLoading || _isKakaoLoading)
+                  onPressed:
+                      (_isGoogleLoading || _isKakaoLoading || _isNaverLoading)
                       ? null
                       : _signInWithKakao,
                   isLoading: _isKakaoLoading,
                   backgroundColor: const Color(0xFFFEE500),
                   textColor: Colors.black87,
                   icon: Icons.chat,
+                ),
+                const SizedBox(height: 12),
+                // Naver 로그인
+                CustomButton(
+                  text: 'Naver로 로그인',
+                  onPressed:
+                      (_isGoogleLoading || _isKakaoLoading || _isNaverLoading)
+                      ? null
+                      : _signInWithNaver,
+                  isLoading: _isNaverLoading,
+                  backgroundColor: const Color(0xFF03C75A),
+                  textColor: Colors.white,
+                  icon: Icons.account_circle,
                 ),
                 const SizedBox(height: 16),
                 // 이메일 로그인 버튼

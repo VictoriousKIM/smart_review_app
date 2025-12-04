@@ -318,6 +318,23 @@ redirect_uri = ""
 # Overrides the default auth provider URL.
 url = ""
 
+# Naver OAuth 설정 (커스텀 OIDC)
+# 로컬 개발용: 네이버는 기본 지원 프로바이더가 아니므로 커스텀 설정 필요
+# 발급받은 Client ID: Gx2IIkdRCTg32kobQj7J
+# 발급받은 Client Secret: mlb3W9kKWE
+[auth.external.naver]
+enabled = true
+# 로컬 개발용으로 직접 입력 (프로덕션에서는 환경 변수 사용 권장)
+client_id = "Gx2IIkdRCTg32kobQj7J"
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+# 프로덕션에서는 secret = "env(SUPABASE_AUTH_EXTERNAL_NAVER_SECRET)" 사용 권장
+secret = "mlb3W9kKWE"
+# Overrides the default auth redirectUrl.
+redirect_uri = ""
+# Overrides the default auth provider URL. 네이버 OAuth 엔드포인트
+# 네이버는 OIDC를 완전히 지원하지 않으므로 OAuth 2.0 방식 사용
+url = "https://nid.naver.com"
+
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
 [auth.web3.solana]

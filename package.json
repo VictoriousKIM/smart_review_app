@@ -2,7 +2,7 @@
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.921.0",
     "@aws-sdk/s3-request-presigner": "^3.921.0",
-    "supabase": "^2.51.0",
+    "supabase": "^2.63.1",
     "wrangler": "^4.45.3"
   },
   "scripts": {
