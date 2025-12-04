@@ -6,18 +6,12 @@ import 'config/supabase_config.dart';
 import 'config/app_router.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'services/campaign_realtime_manager.dart';
-import 'services/naver_auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
   // Supabase 초기화
   await SupabaseConfig.initialize();
-  
-  // 웹에서 네이버 로그인 해시 변경 감지 시작
-  if (kIsWeb) {
-    NaverAuthService.startListeningForHashChange();
-  }
 
   // 웹 환경에서 세션 복원 대기 (F5 새로고침 시 로그인 상태 유지)
   if (kIsWeb) {
@@ -47,13 +41,17 @@ void main() async {
           try {
             final refreshedSession = await supabase.auth.refreshSession();
             if (refreshedSession.session != null) {
-              debugPrint('✅ 웹 세션 복원 및 갱신 완료: ${refreshedSession.session!.user.email ?? refreshedSession.session!.user.id}');
+              debugPrint(
+                '✅ 웹 세션 복원 및 갱신 완료: ${refreshedSession.session!.user.email ?? refreshedSession.session!.user.id}',
+              );
             } else {
               debugPrint('⚠️ 세션 갱신 실패: 세션이 null입니다');
             }
           } catch (e) {
             // "missing destination name scopes" 에러인 경우 손상된 세션으로 간주하고 삭제
-            if (e.toString().toLowerCase().contains('missing destination name scopes')) {
+            if (e.toString().toLowerCase().contains(
+              'missing destination name scopes',
+            )) {
               debugPrint('⚠️ 손상된 세션 감지. 자동 로그아웃 처리');
               try {
                 await supabase.auth.signOut();
@@ -119,20 +117,9 @@ void _processDeepLink(Uri uri) async {
     final code = uri.queryParameters['code'];
     if (code != null) {
       debugPrint('✅ OAuth 코드 수신: $code');
-      // Supabase가 자동으로 딥링크를 처리하도록 함
-      // detectSessionInUri: true 설정으로 자동 처리됨
-      // 하지만 Supabase가 localhost로 리다이렉트하므로, 여기서 직접 처리
-      try {
-        final supabase = SupabaseConfig.client;
-        final response = await supabase.auth.exchangeCodeForSession(code);
-        if (response.session != null) {
-          debugPrint('✅ 세션 복원 성공');
-        } else {
-          debugPrint('⚠️ 세션 복원 실패: 세션이 null');
-        }
-      } catch (e) {
-        debugPrint('❌ 세션 복원 오류: $e');
-      }
+      // 네이버 로그인은 Edge Function 방식으로 변경됨
+      // 딥링크 처리는 라우터에서 수행
+      debugPrint('ℹ️ 네이버 로그인 딥링크 감지 (Edge Function 방식으로 처리)');
     }
   }
 }
@@ -181,19 +168,14 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
         appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 12,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 12,

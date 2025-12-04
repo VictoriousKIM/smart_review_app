@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/user.dart' as app_user;
-import '../../config/supabase_config.dart';
+import '../../providers/auth_provider.dart';
 
 /// 회원가입 화면
 /// OAuth 로그인 후 프로필이 없을 때 표시됨
@@ -57,9 +57,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () async {
-            // 토큰 정보 삭제 (로그아웃)
+            // 토큰 정보 삭제 (로그아웃) - Custom JWT 포함
             try {
-              await SupabaseConfig.client.auth.signOut();
+              final authService = ref.read(authServiceProvider);
+              await authService.signOut();
             } catch (e) {
               debugPrint('로그아웃 중 에러 발생: $e');
             }

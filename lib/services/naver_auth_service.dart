@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:http/http.dart' as http;
-import 'dart:async';
-import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/supabase_config.dart';
 
 // 웹용
@@ -17,97 +15,26 @@ import 'package:flutter_naver_login/flutter_naver_login.dart'
         NaverAccessToken;
 
 /// 네이버 소셜 로그인 서비스
-/// Cloudflare Workers를 통해 Supabase 인증 처리
+/// Supabase Edge Function을 통해 인증 처리
 class NaverAuthService {
   final SupabaseClient _supabase = SupabaseConfig.client;
-  
-  // 전역 해시 변경 리스너 (웹에서만 사용)
-  static StreamSubscription<html.Event>? _globalHashSubscription;
-  static bool _isListening = false;
-  
-  /// 웹에서 해시 변경 감지 시작 (앱 시작 시 또는 로그인 버튼 클릭 시 호출)
-  static void startListeningForHashChange() {
-    if (!kIsWeb) return;
-    
-    // 이미 리스닝 중이면 중지 후 재시작
-    if (_isListening) {
-      stopListeningForHashChange();
+
+  // 네이버 OAuth 설정
+  static const String naverClientId = 'Gx2IIkdRCTg32kobQj7J';
+  static String get redirectUri {
+    if (kIsWeb) {
+      return '${html.window.location.origin}/loading';
     }
-    
-    _isListening = true;
-    
-    // 해시 변경 이벤트 리스너
-    _globalHashSubscription = html.window.onHashChange.listen((html.Event event) {
-      final hash = html.window.location.hash;
-      if (hash.isNotEmpty) {
-        final hashParams = Uri.splitQueryString(hash.substring(1));
-        final accessToken = hashParams['access_token'];
-        if (accessToken != null) {
-          debugPrint('전역 해시 변경 감지: 네이버 로그인 토큰 발견');
-          _processHashFromGlobalListener(accessToken);
-        }
-      }
-    });
-    
-    // 현재 해시 즉시 확인
-    _checkCurrentHash();
-    
-    // 주기적으로 해시 확인 (Flutter 앱 리로드 후 해시 복구)
-    Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!_isListening) {
-        timer.cancel();
-        return;
-      }
-      _checkCurrentHash();
-    });
-  }
-  
-  /// 현재 해시 확인
-  static void _checkCurrentHash() {
-    if (!kIsWeb) return;
-    
-    final currentHash = html.window.location.hash;
-    if (currentHash.isNotEmpty) {
-      final hashParams = Uri.splitQueryString(currentHash.substring(1));
-      final accessToken = hashParams['access_token'];
-      if (accessToken != null) {
-        debugPrint('전역 해시 확인: 네이버 로그인 토큰 발견');
-        _processHashFromGlobalListener(accessToken);
-      }
-    }
-  }
-  
-  /// 전역 리스너에서 해시 처리
-  static Future<void> _processHashFromGlobalListener(String accessToken) async {
-    try {
-      final service = NaverAuthService();
-      final authResponse = await service.handleNaverCallback(accessToken);
-      if (authResponse?.user != null) {
-        debugPrint('전역 리스너: 네이버 로그인 성공');
-        // 로그인 성공 시 세션이 설정되면 authStateChanges가 자동으로 홈으로 리다이렉트
-        // GoRouter의 redirect 로직에서 처리됨
-      }
-    } catch (e) {
-      debugPrint('전역 리스너: 네이버 로그인 처리 오류: $e');
-    }
-  }
-  
-  /// 해시 변경 감지 중지
-  static void stopListeningForHashChange() {
-    _globalHashSubscription?.cancel();
-    _globalHashSubscription = null;
-    _isListening = false;
+    return 'com.smart-grow.smart-review://login-callback';
   }
 
   /// 네이버 로그인 전체 플로우
   Future<AuthResponse?> signInWithNaver() async {
     try {
       if (kIsWeb) {
-        // 웹에서는 네이버 JavaScript SDK 사용
-        return await _signInWithNaverWeb();
+        return await signInWithNaverWeb();
       } else {
-        // 모바일에서는 네이티브 SDK 사용
-        return await _signInWithNaverMobile();
+        return await signInWithNaverNative();
       }
     } catch (e) {
       debugPrint('네이버 로그인 에러: $e');
@@ -116,73 +43,27 @@ class NaverAuthService {
   }
 
   /// 네이버 로그인 (웹)
-  Future<AuthResponse?> _signInWithNaverWeb() async {
+  /// Authorization Code Flow 사용
+  Future<AuthResponse?> signInWithNaverWeb() async {
     try {
-      // 네이버 JavaScript SDK 로드
-      if (html.document.getElementById('naver-login-script') == null) {
-        final script = html.ScriptElement()
-          ..id = 'naver-login-script'
-          ..src = 'https://static.nid.naver.com/js/naveridlogin_js_sdk_2.0.2.js'
-          ..type = 'text/javascript';
-        html.document.head!.append(script);
-        await script.onLoad.first;
-      }
-
-      // 네이버 로그인: 직접 OAuth URL로 리다이렉트
-      // SDK를 사용하지 않고 직접 OAuth 인증 페이지로 이동
-      final callbackUrl = html.window.location.origin + '/loading';
-      const clientId = 'Gx2IIkdRCTg32kobQj7J'; // TODO: 환경 변수로 관리
-      
       // 네이버 OAuth 인증 URL 생성
-      final redirectUri = Uri.encodeComponent(callbackUrl);
+      final redirectUriEncoded = Uri.encodeComponent(redirectUri);
       final state = DateTime.now().millisecondsSinceEpoch.toString();
-      final authUrl = 'https://nid.naver.com/oauth2.0/authorize?response_type=token&client_id=$clientId&redirect_uri=$redirectUri&state=$state';
-      
+      final authUrl =
+          'https://nid.naver.com/oauth2.0/authorize'
+          '?response_type=code'
+          '&client_id=$naverClientId'
+          '&redirect_uri=$redirectUriEncoded'
+          '&state=$state';
+
+      debugPrint('🌐 네이버 로그인 페이지로 이동: $authUrl');
+
       // 네이버 로그인 페이지로 리다이렉트
       html.window.location.href = authUrl;
-      
-      // 리다이렉트되므로 여기서는 대기만 함
-      await Future.delayed(const Duration(seconds: 1));
 
-      // 해시에서 직접 토큰 확인
-      if (html.window.location.hash.isNotEmpty) {
-        final hash = html.window.location.hash.substring(1);
-        final params = Uri.splitQueryString(hash);
-        final accessToken = params['access_token'];
-        if (accessToken != null) {
-          return await handleNaverCallback(accessToken);
-        }
-      }
-
-      // 해시 변경 감지로 토큰 수신 대기
-      final completer = Completer<String>();
-      StreamSubscription<html.Event>? hashSubscription;
-
-      hashSubscription = html.window.onHashChange.listen((html.Event event) {
-        final hash = html.window.location.hash;
-        if (hash.isNotEmpty) {
-          final hashParams = Uri.splitQueryString(hash.substring(1));
-          final accessToken = hashParams['access_token'];
-          if (accessToken != null && !completer.isCompleted) {
-            hashSubscription?.cancel();
-                  completer.complete(accessToken);
-                }
-              }
-            });
-
-            // 타임아웃 설정 (5분)
-            try {
-              final token = await completer.future.timeout(
-                const Duration(minutes: 5),
-                onTimeout: () {
-                  hashSubscription?.cancel();
-                  throw Exception('네이버 로그인 타임아웃');
-                },
-              );
-              return await handleNaverCallback(token);
-      } finally {
-        hashSubscription.cancel();
-      }
+      // 리다이렉트되므로 여기서는 null 반환
+      // 실제 처리는 /loading 페이지에서 handleNaverCallback으로 수행
+      return null;
     } catch (e) {
       debugPrint('네이버 로그인 웹 에러: $e');
       rethrow;
@@ -190,96 +71,288 @@ class NaverAuthService {
   }
 
   /// 네이버 로그인 (모바일)
+  /// 네이티브 SDK 사용
   @pragma('vm:entry-point')
-  Future<AuthResponse?> _signInWithNaverMobile() async {
-    // 웹에서는 호출되지 않음 (kIsWeb 체크로 보호됨)
+  Future<AuthResponse?> signInWithNaverNative() async {
     if (kIsWeb) {
       throw UnsupportedError('모바일 전용 메서드입니다');
     }
 
-    // 1. 네이버 SDK로 로그인
-    final NaverLoginResult result = await FlutterNaverLogin.logIn();
+    try {
+      // 1. 네이버 SDK로 로그인
+      final NaverLoginResult result = await FlutterNaverLogin.logIn();
 
-    if (result.status != NaverLoginStatus.loggedIn) {
-      throw Exception('네이버 로그인 실패: ${result.errorMessage}');
+      if (result.status != NaverLoginStatus.loggedIn) {
+        throw Exception('네이버 로그인 실패: ${result.errorMessage}');
+      }
+
+      // 2. Access Token 가져오기
+      final NaverAccessToken token = await FlutterNaverLogin.currentAccessToken;
+
+      if (token.accessToken.isEmpty) {
+        throw Exception('Access Token이 없습니다');
+      }
+
+      // 3. Edge Function 호출하여 Supabase 인증 처리
+      return await _exchangeNaverToken(
+        accessToken: token.accessToken,
+        platform: 'mobile',
+      );
+    } catch (e) {
+      debugPrint('네이버 로그인 모바일 에러: $e');
+      rethrow;
     }
-
-    // 2. Access Token 가져오기
-    final NaverAccessToken token = await FlutterNaverLogin.currentAccessToken;
-
-    if (token.accessToken.isEmpty) {
-      throw Exception('Access Token이 없습니다');
-    }
-
-    // 3. Workers API 호출하여 Supabase 인증 처리
-    return await handleNaverCallback(token.accessToken);
   }
 
-  /// 네이버 콜백 처리 (Workers API 호출)
-  /// 외부에서도 사용할 수 있도록 public으로 변경
-  Future<AuthResponse?> handleNaverCallback(String accessToken) async {
+  /// 웹 콜백 처리 (리다이렉트 후)
+  /// URL의 code 파라미터를 추출하여 Edge Function 호출
+  Future<AuthResponse?> handleNaverCallback(
+    String code, [
+    String? state,
+  ]) async {
     try {
-      // Cloudflare Workers API로 토큰 전달
-      final response = await http.post(
-        Uri.parse('${SupabaseConfig.workersApiUrl}/api/auth/callback/naver'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'accessToken': accessToken}),
+      debugPrint('📥 네이버 콜백 처리: code=$code');
+
+      // Edge Function 호출
+      return await _exchangeNaverToken(
+        code: code,
+        platform: 'web',
+        state: state,
+      );
+    } catch (e) {
+      debugPrint('❌ 네이버 콜백 처리 에러: $e');
+      rethrow;
+    }
+  }
+
+  /// Edge Function 호출하여 Supabase 세션 생성
+  ///
+  /// 웹: code를 전달 (Edge Function에서 토큰 교환)
+  /// 모바일: accessToken을 전달
+  Future<AuthResponse?> _exchangeNaverToken({
+    String? accessToken,
+    String? code,
+    required String platform,
+    String? state,
+  }) async {
+    try {
+      debugPrint('📤 Edge Function 호출 시작... (platform=$platform)');
+
+      // 요청 Body 구성
+      final Map<String, dynamic> body = {'platform': platform};
+
+      if (platform == 'web' && code != null) {
+        body['code'] = code;
+        if (state != null) {
+          body['state'] = state;
+        }
+      } else if (platform == 'mobile' && accessToken != null) {
+        body['accessToken'] = accessToken;
+      } else {
+        throw Exception('웹의 경우 code가, 모바일의 경우 accessToken이 필요합니다');
+      }
+
+      // Edge Function 호출
+      debugPrint('📤 Edge Function 호출: naver-auth');
+      debugPrint('   - platform: $platform');
+      debugPrint('   - body keys: ${body.keys.toList()}');
+
+      final response = await _supabase.functions
+          .invoke('naver-auth', body: body)
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Edge Function 호출 타임아웃 (30초 초과)');
+            },
+          );
+
+      debugPrint('📥 Edge Function 응답: status=${response.status}');
+      debugPrint('   - data type: ${response.data.runtimeType}');
+      debugPrint('   - data: ${response.data}');
+
+      if (response.status != 200) {
+        final errorData = response.data as Map<String, dynamic>?;
+        final errorMessage =
+            errorData?['error'] ?? errorData?['message'] ?? '인증 실패';
+        debugPrint('❌ Edge Function 에러 응답: $errorMessage');
+        throw Exception(errorMessage);
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        debugPrint('❌ Edge Function 응답 데이터가 null입니다');
+        throw Exception('Edge Function 응답 데이터가 null입니다');
+      }
+
+      if (data is! Map<String, dynamic>) {
+        debugPrint('❌ Edge Function 응답 데이터 타입이 올바르지 않습니다: ${data.runtimeType}');
+        throw Exception('Edge Function 응답 데이터 타입이 올바르지 않습니다');
+      }
+
+      if (data['error'] != null) {
+        debugPrint('❌ Edge Function 에러: ${data['error']}');
+        throw Exception(data['error']);
+      }
+
+      if (data['access_token'] == null) {
+        debugPrint('❌ Edge Function 응답에 access_token이 없습니다');
+        debugPrint('   - 응답 데이터: $data');
+        throw Exception('Edge Function 응답에 access_token이 없습니다');
+      }
+
+      if (data['user'] == null) {
+        debugPrint('❌ Edge Function 응답에 user가 없습니다');
+        debugPrint('   - 응답 데이터: $data');
+        throw Exception('Edge Function 응답에 user가 없습니다');
+      }
+
+      final String customAccessToken = data['access_token'] as String;
+      final String customRefreshToken = data['refresh_token'] as String? ?? '';
+      final userData = data['user'] as Map<String, dynamic>;
+
+      debugPrint('✅ Edge Function 응답 성공');
+      debugPrint('   - User ID: ${userData['id']}');
+      debugPrint('   - Email: ${userData['email']}');
+
+      // Supabase 세션 생성
+      // 주의: customRefreshToken은 실제 Supabase refresh token이 아니므로
+      // setSession 대신 직접 세션 객체를 생성하여 설정
+      final user = User.fromJson(userData);
+
+      if (user == null) {
+        throw Exception('사용자 정보를 파싱할 수 없습니다');
+      }
+
+      final session = Session(
+        accessToken: customAccessToken,
+        refreshToken: customRefreshToken,
+        tokenType: data['token_type'] as String? ?? 'bearer',
+        expiresIn: data['expires_in'] as int? ?? 86400,
+        user: user,
       );
 
-      if (response.statusCode != 200) {
-        final errorData = json.decode(response.body) as Map<String, dynamic>;
-        throw Exception(errorData['error'] ?? '인증 실패');
-      }
+      // 세션 설정
+      // 주의: Supabase SDK의 setSession은 refreshToken을 받지만,
+      // 우리가 만든 custom JWT는 Supabase의 표준 refresh token이 아님
+      // 따라서 accessToken을 직접 사용하여 세션을 설정
+      // 하지만 setSession은 refreshToken만 받으므로, 다른 방법 사용 필요
 
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      
-      if (data['success'] != true) {
-        throw Exception(data['error'] ?? '네이버 로그인 실패');
-      }
+      // 세션 설정 시도
+      // 주의: Supabase SDK의 setSession은 표준 refresh token을 기대함
+      // Custom JWT의 경우, accessToken을 직접 사용할 수 없음
+      // 대안: Supabase의 내부 메서드를 사용하거나, 세션을 수동으로 저장
 
-      final email = data['email'] as String?;
-      final isNewUser = data['isNewUser'] as bool? ?? false;
-      final refreshToken = data['refreshToken'] as String?;
+      // Custom JWT 세션 설정
+      // 주의: Supabase SDK의 setSession은 표준 refresh token을 기대하지만,
+      // Custom JWT의 refresh token은 표준 형식이 아님
+      // 따라서 accessToken을 직접 사용하여 세션을 설정해야 함
+      try {
+        // Supabase SDK의 내부 메서드를 사용하여 accessToken으로 세션 설정
+        // setSession은 refreshToken만 받지만, 우리는 accessToken을 사용해야 함
+        // 대안: Supabase의 내부 메서드를 사용하거나, 세션을 수동으로 저장
 
-      debugPrint('네이버 로그인 성공: email=$email, isNewUser=$isNewUser');
+        // 방법: accessToken을 사용하여 세션을 직접 설정
+        // Supabase SDK는 setSession(refreshToken)만 지원하므로,
+        // Custom JWT의 경우 세션을 수동으로 관리해야 함
 
-      // 세션 토큰으로 직접 세션 설정 (비밀번호 사용하지 않음)
-      if (refreshToken != null) {
-        // refreshToken으로 세션 설정
-        final sessionResponse = await _supabase.auth.setSession(refreshToken);
-        if (sessionResponse.session != null) {
-          debugPrint('네이버 로그인 세션 생성 완료 (토큰 방식)');
-          return sessionResponse;
+        // Custom JWT 저장 (SharedPreferences - 웹/모바일 공통)
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('custom_jwt_token', customAccessToken);
+          await prefs.setString('custom_jwt_user_id', user.id);
+          await prefs.setString('custom_jwt_user_email', user.email ?? '');
+
+          // 이름 정보도 저장 (회원가입 화면에서 사용)
+          final userMetadata =
+              userData['user_metadata'] as Map<String, dynamic>? ?? {};
+          final fullName =
+              userMetadata['full_name'] as String? ??
+              userMetadata['name'] as String? ??
+              userMetadata['display_name'] as String? ??
+              '';
+          if (fullName.isNotEmpty) {
+            await prefs.setString('custom_jwt_user_name', fullName);
+          }
+
+          debugPrint('✅ Custom JWT를 SharedPreferences에 저장했습니다');
+          debugPrint('   - Email: ${user.email}');
+          debugPrint('   - Name: $fullName');
+        } catch (e) {
+          debugPrint('⚠️ SharedPreferences 저장 실패: $e');
         }
-      }
 
-      // 폴백: 세션 토큰이 없는 경우 (이전 버전 호환성)
-      final fallback = data['fallback'] as Map<String, dynamic>?;
-      if (fallback != null && fallback['usePasswordLogin'] == true) {
-        final tempPassword = fallback['tempPassword'] as String?;
-        if (tempPassword != null && email != null) {
-          debugPrint('네이버 로그인 폴백: 비밀번호 방식 사용');
-          final authResponse = await _supabase.auth.signInWithPassword(
-            email: email,
-            password: tempPassword,
-          );
-          debugPrint('네이버 로그인 세션 생성 완료 (폴백)');
-          return authResponse;
+        // setSession 시도 (실패할 가능성 높지만 시도)
+        if (customRefreshToken.isNotEmpty) {
+          try {
+            await _supabase.auth.setSession(customRefreshToken);
+            debugPrint('✅ setSession 성공 (refreshToken 사용)');
+          } catch (setSessionError) {
+            debugPrint('⚠️ setSession 실패 (예상됨): $setSessionError');
+            // Custom JWT의 경우 setSession이 실패하는 것이 정상
+            // localStorage에 저장한 토큰을 사용하여 세션으로 인식
+          }
         }
+      } catch (e) {
+        debugPrint('⚠️ 세션 설정 중 에러: $e');
+        // 에러가 발생해도 세션 객체는 반환
       }
 
-      throw Exception('세션 생성에 필요한 정보가 없습니다');
+      return AuthResponse(session: session, user: user);
     } catch (e) {
-      debugPrint('네이버 콜백 처리 에러: $e');
+      debugPrint('❌ 토큰 교환 에러: $e');
       rethrow;
     }
   }
 
   /// 네이버 로그아웃
   Future<void> signOut() async {
-    if (!kIsWeb) {
-      await FlutterNaverLogin.logOut();
+    try {
+      // 네이버 로그아웃 (모바일만)
+      if (!kIsWeb) {
+        try {
+          await FlutterNaverLogin.logOut();
+        } catch (e) {
+          debugPrint('네이버 SDK 로그아웃 실패 (무시): $e');
+        }
+      }
+
+      // Supabase 로그아웃
+      await _supabase.auth.signOut();
+    } catch (e) {
+      debugPrint('로그아웃 에러: $e');
+      rethrow;
     }
-    await _supabase.auth.signOut();
+  }
+
+  /// 네이버 로그인 상태 확인 (모바일만)
+  /// 앱 재시작 시 자동 로그인에 사용
+  Future<bool> isNaverLoggedIn() async {
+    if (kIsWeb) {
+      return false; // 웹에서는 사용하지 않음
+    }
+
+    try {
+      return await FlutterNaverLogin.isLoggedIn;
+    } catch (e) {
+      debugPrint('네이버 로그인 상태 확인 실패: $e');
+      return false;
+    }
+  }
+
+  /// 네이버 Access Token 가져오기 (모바일만)
+  /// 앱 재시작 시 세션 복원에 사용
+  Future<String?> getNaverAccessToken() async {
+    if (kIsWeb) {
+      return null; // 웹에서는 사용하지 않음
+    }
+
+    try {
+      final token = await FlutterNaverLogin.currentAccessToken;
+      return token.accessToken.isNotEmpty ? token.accessToken : null;
+    } catch (e) {
+      debugPrint('네이버 토큰 가져오기 실패: $e');
+      return null;
+    }
   }
 }

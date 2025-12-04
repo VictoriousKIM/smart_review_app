@@ -7,7 +7,7 @@ import 'package:postgrest/postgrest.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart' as kakao;
 import 'package:http/http.dart' as http;
-import 'package:universal_html/html.dart' as html;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart' as app_user;
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
@@ -92,6 +92,37 @@ class AuthService {
 
   // 현재 사용자 가져오기 (RPC 사용 - 보안 강화)
   Future<app_user.User?> get currentUser async {
+    // Custom JWT 세션 확인 (SharedPreferences에 저장된 경우)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final customJwtToken = prefs.getString('custom_jwt_token');
+      final customJwtUserId = prefs.getString('custom_jwt_user_id');
+      if (customJwtToken != null &&
+          customJwtToken.isNotEmpty &&
+          customJwtUserId != null &&
+          customJwtUserId.isNotEmpty) {
+        debugPrint('✅ Custom JWT 세션에서 사용자 정보 조회: $customJwtUserId');
+        // Custom JWT가 있으면 사용자 ID로 프로필 조회
+        try {
+          final userProfile = await getUserProfile(
+            customJwtUserId,
+            customJwtToken: customJwtToken,
+          );
+          if (userProfile != null) {
+            debugPrint('✅ Custom JWT로 사용자 프로필 조회 성공');
+            return userProfile;
+          } else {
+            debugPrint('⚠️ Custom JWT로 사용자 프로필 조회 결과: null');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Custom JWT 사용자 프로필 조회 실패: $e');
+          // 프로필이 없을 수 있으므로 계속 진행
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Custom JWT 세션 확인 중 에러: $e');
+    }
+
     final session = _supabase.auth.currentSession;
     final user = session?.user;
     if (user != null) {
@@ -375,7 +406,7 @@ class AuthService {
   // 네이버 로그인
   Future<void> signInWithNaver() async {
     try {
-      // 새로운 NaverAuthService 사용 (Workers 기반)
+      // NaverAuthService 사용 (Edge Function 기반)
       final naverAuthService = NaverAuthService();
       final result = await naverAuthService.signInWithNaver();
 
@@ -392,198 +423,21 @@ class AuthService {
     }
   }
 
-  // 네이버 로그인 (웹)
-  Future<void> _signInWithNaverWeb() async {
-    try {
-      // 네이버 JavaScript SDK 로드
-      if (html.document.getElementById('naver-login-script') == null) {
-        final script = html.ScriptElement()
-          ..id = 'naver-login-script'
-          ..src = 'https://static.nid.naver.com/js/naveridlogin_js_sdk_2.0.2.js'
-          ..type = 'text/javascript';
-        html.document.head!.append(script);
-        await script.onLoad.first;
-      }
-
-      // 네이버 로그인 초기화 및 버튼 생성
-      final callbackUrl = html.window.location.origin + '/loading';
-
-      // JavaScript 코드 실행을 위한 스크립트 태그 생성
-      final initScript = html.ScriptElement()
-        ..text =
-            '''
-        (function() {
-          if (!window.naverLoginInstance) {
-            window.naverLoginInstance = new naver.LoginWithNaverId({
-              clientId: "Gx2IIkdRCTg32kobQj7J",
-              callbackUrl: "$callbackUrl",
-              callbackHandle: true,
-              isPopup: false,
-              loginButton: { color: "green", type: 1, height: "60" }
-            });
-            window.naverLoginInstance.init();
-          }
-          
-          // 콜백 처리
-          window.naverLoginCallback = function() {
-            const hash = window.location.hash.substring(1);
-            const params = new URLSearchParams(hash);
-            const accessToken = params.get("access_token");
-            if (accessToken) {
-              window.naverAccessToken = accessToken;
-              const event = new CustomEvent('naver-login-token', { detail: accessToken });
-              window.dispatchEvent(event);
-            }
-          };
-          
-          // 해시 변경 감지
-          if (window.location.hash) {
-            window.naverLoginCallback();
-          }
-          window.addEventListener('hashchange', window.naverLoginCallback);
-        })();
-        ''';
-      html.document.head!.append(initScript);
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // 네이버 로그인 버튼 클릭 트리거
-      await Future.delayed(const Duration(milliseconds: 500)); // SDK 초기화 대기
-      final clickScript = html.ScriptElement()
-        ..text =
-            '''
-        (function() {
-          const loginButton = document.getElementById("naverIdLogin_loginButton");
-          if (loginButton) {
-            loginButton.click();
-          } else {
-            // 버튼이 없으면 직접 로그인 페이지로 이동
-            const clientId = "Gx2IIkdRCTg32kobQj7J";
-            const redirectUri = encodeURIComponent("$callbackUrl");
-            const state = Math.random().toString(36).substring(2, 15);
-            const url = "https://nid.naver.com/oauth2.0/authorize?response_type=token&client_id=" + clientId + "&redirect_uri=" + redirectUri + "&state=" + state;
-            window.location.href = url;
-          }
-        })();
-        ''';
-      html.document.head!.append(clickScript);
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // 해시에서 직접 토큰 확인
-      if (html.window.location.hash.isNotEmpty) {
-        final hash = html.window.location.hash.substring(1);
-        final params = Uri.splitQueryString(hash);
-        final accessToken = params['access_token'];
-        if (accessToken != null) {
-          await _handleNaverCallback(accessToken);
-          return;
-        }
-      }
-
-      // 해시 변경 감지로 토큰 수신 대기
-      final completer = Completer<String>();
-      StreamSubscription<html.Event>? hashSubscription;
-
-      hashSubscription = html.window.onHashChange.listen((html.Event event) {
-        final hash = html.window.location.hash;
-        if (hash.isNotEmpty) {
-          final hashParams = Uri.splitQueryString(hash.substring(1));
-          final accessToken = hashParams['access_token'];
-          if (accessToken != null && !completer.isCompleted) {
-            hashSubscription?.cancel();
-            completer.complete(accessToken);
-          }
-        }
-      });
-
-      // 타임아웃 설정 (5분)
-      try {
-        final token = await completer.future.timeout(
-          const Duration(minutes: 5),
-          onTimeout: () {
-            hashSubscription?.cancel();
-            throw Exception('네이버 로그인 타임아웃');
-          },
-        );
-        await _handleNaverCallback(token);
-      } finally {
-        hashSubscription.cancel();
-      }
-    } catch (e) {
-      debugPrint('네이버 로그인 웹 에러: $e');
-      rethrow;
-    }
-  }
-
-  // 네이버 콜백 처리
-  Future<void> _handleNaverCallback(String accessToken) async {
-    try {
-      debugPrint('네이버 로그인 콜백 처리 시작: $accessToken');
-
-      // Cloudflare Workers API로 토큰 전달
-      final response = await http.post(
-        Uri.parse('${SupabaseConfig.workersApiUrl}/api/auth/callback/naver'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'accessToken': accessToken}),
-      );
-
-      debugPrint('Workers API 응답: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        final email = data['email'] as String?;
-        final isNewUser = data['isNewUser'] as bool? ?? false;
-        final accessToken = data['accessToken'] as String?;
-        final refreshToken = data['refreshToken'] as String?;
-        final usePasswordLogin = data['usePasswordLogin'] as bool? ?? false;
-        final password = data['password'] as String?;
-
-        debugPrint('네이버 로그인 성공: email=$email, isNewUser=$isNewUser');
-
-        // 세션 생성
-        if (accessToken != null && refreshToken != null) {
-          // Magic Link로 생성된 토큰 사용
-          // Supabase Flutter SDK의 setSession은 refreshToken만 받음
-          final sessionResponse = await _supabase.auth.setSession(refreshToken);
-          if (sessionResponse.session != null) {
-            debugPrint('네이버 로그인 세션 생성 완료 (Magic Link)');
-          } else {
-            throw Exception('세션 생성 실패');
-          }
-        } else if (usePasswordLogin && password != null && email != null) {
-          // 비밀번호로 로그인 (임시 방법)
-          await _supabase.auth.signInWithPassword(
-            email: email,
-            password: password,
-          );
-          debugPrint('네이버 로그인 세션 생성 완료 (Password)');
-        } else {
-          throw Exception('세션 생성에 필요한 정보가 없습니다');
-        }
-
-        // 프로필 생성 확인 및 생성
-        final user = _supabase.auth.currentUser;
-        if (user != null) {
-          await _ensureUserProfile(
-            user,
-            data['name'] as String? ?? email ?? 'User',
-            app_user.UserType.user,
-            isSignUp: isNewUser,
-          );
-        }
-      } else {
-        final errorBody = response.body;
-        debugPrint('Workers API 에러: $errorBody');
-        throw Exception('네이버 로그인 콜백 실패: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('네이버 로그인 콜백 처리 실패: $e');
-      rethrow;
-    }
-  }
-
   // 로그아웃
   Future<void> signOut() async {
     try {
+      // Custom JWT 세션 제거 (SharedPreferences - 웹/모바일 공통)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('custom_jwt_token');
+        await prefs.remove('custom_jwt_user_id');
+        await prefs.remove('custom_jwt_user_email');
+        await prefs.remove('custom_jwt_user_name');
+        debugPrint('✅ Custom JWT 세션 제거 완료');
+      } catch (e) {
+        debugPrint('⚠️ Custom JWT 세션 제거 실패: $e');
+      }
+
       // Google 로그아웃
       try {
         await _googleSignIn.signOut();
@@ -602,6 +456,7 @@ class AuthService {
 
       // Supabase 로그아웃
       await _supabase.auth.signOut();
+      debugPrint('로그아웃 완료');
     } catch (e) {
       throw Exception('로그아웃 실패: $e');
     }
@@ -806,9 +661,49 @@ class AuthService {
   }
 
   // 사용자 프로필 가져오기 (RPC 사용 - 보안 강화)
-  Future<app_user.User?> getUserProfile(String userId) async {
+  Future<app_user.User?> getUserProfile(
+    String userId, {
+    String? customJwtToken,
+  }) async {
     try {
-      // RPC 함수 호출로 안전한 프로필 조회
+      // Custom JWT가 제공된 경우, 커스텀 헤더로 RPC 호출 (웹/모바일 공통)
+      if (customJwtToken != null) {
+        try {
+          // Custom JWT를 사용하여 직접 HTTP 요청
+          final supabaseUrl = SupabaseConfig.supabaseUrl;
+          final url = Uri.parse(
+            '$supabaseUrl/rest/v1/rpc/get_user_profile_safe',
+          );
+
+          final response = await http.post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $customJwtToken',
+              'apikey': SupabaseConfig.supabaseAnonKey,
+              'Prefer': 'return=representation',
+            },
+            body: jsonEncode({'p_user_id': userId}),
+          );
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data != null && data is Map<String, dynamic>) {
+              debugPrint('✅ Custom JWT로 프로필 조회 성공');
+              return app_user.User.fromJson(data);
+            }
+          } else {
+            debugPrint(
+              '⚠️ Custom JWT로 프로필 조회 실패: ${response.statusCode} - ${response.body}',
+            );
+          }
+        } catch (e) {
+          debugPrint('⚠️ Custom JWT로 프로필 조회 실패: $e');
+          // 실패 시 일반 방법으로 재시도
+        }
+      }
+
+      // 일반 RPC 함수 호출로 안전한 프로필 조회
       final response = await _supabase.rpc(
         'get_user_profile_safe',
         params: {'p_user_id': userId},

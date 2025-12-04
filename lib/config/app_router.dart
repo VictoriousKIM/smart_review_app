@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Providers & Services
 import '../providers/auth_provider.dart';
 import '../models/user.dart' as app_user;
 import '../config/supabase_config.dart';
 import '../services/auth_service.dart';
+import '../services/naver_auth_service.dart';
 
 // Widgets & Shells
 import '../widgets/main_shell.dart';
@@ -109,20 +112,57 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoggingIn = matchedLocation == '/login';
       final isRoot = matchedLocation == '/';
       final isMyPage = matchedLocation.startsWith('/mypage');
+      final isLoading = matchedLocation == '/loading' || fullPath == '/loading';
 
-      // Signup 및 Loading 관련 경로는 redirect 제외 (무한 루프 방지)
-      // matchedLocation과 fullPath 모두 확인하여 이중 방어
-      if (matchedLocation.startsWith('/signup') ||
-          fullPath.startsWith('/signup') ||
-          matchedLocation == '/loading' ||
-          fullPath == '/loading') {
+      // Loading 경로는 redirect 제외 (GoRoute의 redirect에서 처리)
+      // 네이버 로그인 콜백 처리 중이므로 전역 redirect 건너뛰기
+      if (isLoading) {
         debugPrint(
-          'Redirect: Signup/Loading 경로는 redirect 제외: matchedLocation=$matchedLocation, fullPath=$fullPath',
+          'Redirect: /loading 경로는 전역 redirect 제외 (GoRoute redirect에서 처리)',
+        );
+        return null; // GoRoute의 redirect가 실행되도록 null 반환
+      }
+
+      // Signup 관련 경로는 redirect 제외 (무한 루프 방지)
+      if (matchedLocation.startsWith('/signup') ||
+          fullPath.startsWith('/signup')) {
+        debugPrint(
+          'Redirect: Signup 경로는 redirect 제외: matchedLocation=$matchedLocation, fullPath=$fullPath',
         );
         return null;
       }
 
-      // 1. 마이페이지 경로는 전역 redirect에서 특별 처리 (새로고침 시 경로 유지)
+      // 1. Custom JWT 세션 확인 (SharedPreferences에 저장된 경우)
+      // Custom JWT가 있으면 프로필 확인 후 처리
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final customJwtToken = prefs.getString('custom_jwt_token');
+        if (customJwtToken != null && customJwtToken.isNotEmpty) {
+          debugPrint('✅ Custom JWT 세션 감지: SharedPreferences에 토큰이 있습니다');
+
+          // 프로필 확인 (프로필이 없으면 회원가입으로 리다이렉트)
+          final user = await authService.currentUser;
+          if (user == null) {
+            // 프로필이 없으면 회원가입으로 리다이렉트 (카카오와 동일)
+            debugPrint('⚠️ Custom JWT 세션은 있지만 프로필이 없습니다. 회원가입으로 리다이렉트');
+            return '/signup?type=oauth&provider=naver';
+          }
+
+          // 프로필이 있으면 로그인 상태로 간주
+          if (isLoggingIn || isRoot) {
+            return '/home';
+          }
+          // 마이페이지 경로는 Custom JWT가 있으면 허용
+          if (isMyPage) {
+            return null; // 현재 경로 유지
+          }
+          return null; // 현재 경로 유지
+        }
+      } catch (e) {
+        debugPrint('⚠️ Custom JWT 세션 확인 중 에러: $e');
+      }
+
+      // 2. 마이페이지 경로는 전역 redirect에서 특별 처리 (새로고침 시 경로 유지)
       if (isMyPage) {
         final userState = await authService.getUserState();
         if (userState == UserState.notLoggedIn ||
@@ -132,7 +172,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // 2. 사용자 상태 확인 (중복 프로필 체크 제거)
+      // 3. 사용자 상태 확인 (중복 프로필 체크 제거)
       final userState = await authService.getUserState();
 
       // 3. 임시 세션 (프로필 없음) → signup으로 리다이렉트
@@ -177,6 +217,97 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/loading',
         name: 'loading',
+        redirect: (context, state) async {
+          // 네이버 로그인 콜백 처리
+          final code = state.uri.queryParameters['code'];
+          final stateParam = state.uri.queryParameters['state'];
+
+          debugPrint(
+            '📥 [GoRoute] /loading 경로 redirect 실행: code=${code != null ? "있음" : "없음"}',
+          );
+          debugPrint('📥 [GoRoute] URI: ${state.uri}');
+          debugPrint('📥 [GoRoute] kIsWeb: $kIsWeb');
+
+          // 웹 환경에서 code가 있는 경우에만 처리
+          if (code != null && kIsWeb) {
+            debugPrint('📥 [GoRoute] 네이버 로그인 콜백 감지: code=$code');
+
+            try {
+              debugPrint('🔄 Edge Function 호출 시작...');
+
+              final naverAuthService = NaverAuthService();
+              final authResponse = await naverAuthService
+                  .handleNaverCallback(code, stateParam)
+                  .timeout(
+                    const Duration(seconds: 30),
+                    onTimeout: () {
+                      throw Exception('네이버 로그인 타임아웃 (30초 초과)');
+                    },
+                  );
+
+              debugPrint(
+                '📥 handleNaverCallback 응답: ${authResponse != null ? "성공" : "null"}',
+              );
+              if (authResponse != null) {
+                debugPrint(
+                  '   - user: ${authResponse.user != null ? "있음" : "null"}',
+                );
+                debugPrint(
+                  '   - session: ${authResponse.session != null ? "있음" : "null"}',
+                );
+              }
+
+              if (authResponse?.user != null && authResponse?.session != null) {
+                debugPrint('✅ 네이버 로그인 성공');
+                final user = authResponse!.user;
+                debugPrint('   - User ID: ${user?.id}');
+                debugPrint('   - Email: ${user?.email}');
+
+                // 세션이 설정되었는지 확인
+                final supabase = SupabaseConfig.client;
+                final currentSession = supabase.auth.currentSession;
+
+                if (currentSession != null) {
+                  debugPrint('✅ Supabase 세션이 설정되었습니다');
+                } else {
+                  debugPrint('⚠️ Supabase 세션이 설정되지 않았습니다 (setSession 실패 가능)');
+                }
+
+                // 홈으로 이동 (전역 redirect가 다시 실행되지만, 로그인 상태이므로 문제없음)
+                debugPrint('🔄 /home으로 리다이렉트');
+                return '/home';
+              } else {
+                debugPrint('❌ 로그인 실패: 사용자 정보 또는 세션이 null입니다');
+                debugPrint('   - authResponse: $authResponse');
+                debugPrint('   - user: ${authResponse?.user}');
+                debugPrint('   - session: ${authResponse?.session}');
+                throw Exception('로그인 실패: 사용자 정보를 가져올 수 없습니다');
+              }
+            } catch (e, stackTrace) {
+              debugPrint('❌ 네이버 로그인 콜백 처리 오류: $e');
+              debugPrint('스택 트레이스: $stackTrace');
+              // 에러 발생 시 로그인 화면으로
+              debugPrint('🔄 /login으로 리다이렉트');
+              return '/login';
+            }
+          }
+
+          // code가 없거나 웹이 아닌 경우 로그인 화면으로
+          if (code == null) {
+            debugPrint('⚠️ 네이버 로그인 콜백: code 파라미터가 없습니다');
+            return '/login';
+          }
+
+          // 웹이 아닌 경우 (모바일) 로그인 화면으로
+          if (!kIsWeb) {
+            debugPrint('⚠️ 웹 환경이 아닙니다');
+            return '/login';
+          }
+
+          // 로딩 화면 표시 (null 반환 = 현재 경로 유지)
+          debugPrint('ℹ️ 로딩 화면 표시 (null 반환)');
+          return null;
+        },
         builder: (context, state) => const LoadingScreen(),
       ),
 

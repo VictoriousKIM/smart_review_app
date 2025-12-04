@@ -43,6 +43,7 @@ class ReviewerSignupProfileForm extends StatefulWidget {
 class _ReviewerSignupProfileFormState
     extends State<ReviewerSignupProfileForm> {
   final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
   final _displayNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
@@ -54,31 +55,74 @@ class _ReviewerSignupProfileFormState
   @override
   void initState() {
     super.initState();
-    if (widget.initialDisplayName != null) {
+    _updateControllers();
+  }
+
+  @override
+  void didUpdateWidget(ReviewerSignupProfileForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // initialEmail이나 initialDisplayName이 변경되면 컨트롤러 업데이트
+    if (widget.initialEmail != oldWidget.initialEmail ||
+        widget.initialDisplayName != oldWidget.initialDisplayName ||
+        widget.initialPhone != oldWidget.initialPhone ||
+        widget.initialBaseAddress != oldWidget.initialBaseAddress ||
+        widget.initialDetailAddress != oldWidget.initialDetailAddress ||
+        widget.initialBankName != oldWidget.initialBankName ||
+        widget.initialAccountNumber != oldWidget.initialAccountNumber ||
+        widget.initialAccountHolder != oldWidget.initialAccountHolder) {
+      _updateControllers();
+    }
+  }
+
+  void _updateControllers() {
+    bool needsUpdate = false;
+    
+    // 이메일 업데이트
+    if (widget.initialEmail != null &&
+        _emailController.text != widget.initialEmail) {
+      _emailController.text = widget.initialEmail!;
+      needsUpdate = true;
+    }
+    
+    // 이름 업데이트
+    if (widget.initialDisplayName != null &&
+        _displayNameController.text != widget.initialDisplayName) {
       _displayNameController.text = widget.initialDisplayName!;
     }
-    if (widget.initialPhone != null) {
+    if (widget.initialPhone != null &&
+        _phoneController.text != widget.initialPhone) {
       _phoneController.text = widget.initialPhone!;
     }
-    if (widget.initialBaseAddress != null) {
+    if (widget.initialBaseAddress != null &&
+        _addressController.text != widget.initialBaseAddress) {
       _addressController.text = widget.initialBaseAddress!;
     }
-    if (widget.initialDetailAddress != null) {
+    if (widget.initialDetailAddress != null &&
+        _detailAddressController.text != widget.initialDetailAddress) {
       _detailAddressController.text = widget.initialDetailAddress!;
     }
-    if (widget.initialBankName != null) {
+    if (widget.initialBankName != null &&
+        _bankNameController.text != widget.initialBankName) {
       _bankNameController.text = widget.initialBankName!;
     }
-    if (widget.initialAccountNumber != null) {
+    if (widget.initialAccountNumber != null &&
+        _accountNumberController.text != widget.initialAccountNumber) {
       _accountNumberController.text = widget.initialAccountNumber!;
     }
-    if (widget.initialAccountHolder != null) {
+    if (widget.initialAccountHolder != null &&
+        _accountHolderController.text != widget.initialAccountHolder) {
       _accountHolderController.text = widget.initialAccountHolder!;
+    }
+    
+    // 이메일이 업데이트되면 UI 재빌드 필요
+    if (needsUpdate && mounted) {
+      setState(() {});
     }
   }
 
   @override
   void dispose() {
+    _emailController.dispose();
     _displayNameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
@@ -153,9 +197,9 @@ class _ReviewerSignupProfileFormState
             ),
             const SizedBox(height: 64),
             // 이메일 표시 (읽기 전용)
-            if (widget.initialEmail != null)
+            if (widget.initialEmail != null || _emailController.text.isNotEmpty)
               TextFormField(
-                initialValue: widget.initialEmail,
+                controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: '이메일',
                   border: OutlineInputBorder(),
@@ -163,7 +207,8 @@ class _ReviewerSignupProfileFormState
                 readOnly: true,
                 enabled: false,
               ),
-            if (widget.initialEmail != null) const SizedBox(height: 16),
+            if (widget.initialEmail != null || _emailController.text.isNotEmpty)
+              const SizedBox(height: 16),
             // 이름 입력
             TextFormField(
               controller: _displayNameController,

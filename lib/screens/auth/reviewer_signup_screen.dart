@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../config/supabase_config.dart';
 import '../../services/wallet_service.dart';
 import 'reviewer_signup_profile_form.dart';
@@ -41,15 +42,23 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
   @override
   void initState() {
     super.initState();
-    _loadOAuthUserData();
-    _loadSavedData();
+    // OAuth 데이터를 먼저 로드한 후 저장된 데이터 로드
+    _loadOAuthUserData().then((_) => _loadSavedData());
   }
 
   /// 저장된 회원가입 데이터 로드
   Future<void> _loadSavedData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userId = SupabaseConfig.client.auth.currentUser?.id;
+
+      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 userId 가져오기
+      String? userId;
+      if (widget.provider == 'naver') {
+        userId = prefs.getString('custom_jwt_user_id');
+      } else {
+        userId = SupabaseConfig.client.auth.currentUser?.id;
+      }
+
       if (userId == null) return;
 
       final savedData = prefs.getString('reviewer_signup_data_$userId');
@@ -57,14 +66,17 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
         final data = jsonDecode(savedData) as Map<String, dynamic>;
         setState(() {
           _displayName = data['displayName'] as String?;
-          _email = data['email'] as String? ?? _email; // 저장된 이메일이 없으면 OAuth에서 가져온 값 유지
+          _email =
+              data['email'] as String? ??
+              _email; // 저장된 이메일이 없으면 OAuth에서 가져온 값 유지
           _phone = data['phone'] as String? ?? '';
           _baseAddress = data['baseAddress'] as String?;
           _detailAddress = data['detailAddress'] as String?;
           _bankName = data['bankName'] as String?;
           _accountNumber = data['accountNumber'] as String?;
           _accountHolder = data['accountHolder'] as String?;
-          _snsConnections = (data['snsConnections'] as List<dynamic>?)
+          _snsConnections =
+              (data['snsConnections'] as List<dynamic>?)
                   ?.map((e) => e as Map<String, dynamic>)
                   .toList() ??
               [];
@@ -82,7 +94,15 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
   Future<void> _saveData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userId = SupabaseConfig.client.auth.currentUser?.id;
+
+      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 userId 가져오기
+      String? userId;
+      if (widget.provider == 'naver') {
+        userId = prefs.getString('custom_jwt_user_id');
+      } else {
+        userId = SupabaseConfig.client.auth.currentUser?.id;
+      }
+
       if (userId == null) return;
 
       final data = {
@@ -109,7 +129,15 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
   Future<void> _clearSavedData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userId = SupabaseConfig.client.auth.currentUser?.id;
+
+      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 userId 가져오기
+      String? userId;
+      if (widget.provider == 'naver') {
+        userId = prefs.getString('custom_jwt_user_id');
+      } else {
+        userId = SupabaseConfig.client.auth.currentUser?.id;
+      }
+
       if (userId == null) return;
 
       await prefs.remove('reviewer_signup_data_$userId');
@@ -122,6 +150,33 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
   /// OAuth에서 가져온 사용자 정보 로드
   Future<void> _loadOAuthUserData() async {
     try {
+      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 정보 가져오기
+      if (widget.provider == 'naver') {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final customJwtEmail = prefs.getString('custom_jwt_user_email');
+          final customJwtName = prefs.getString('custom_jwt_user_name');
+
+          if (customJwtEmail != null && customJwtEmail.isNotEmpty) {
+            setState(() {
+              _email = customJwtEmail;
+              if (_displayName == null &&
+                  customJwtName != null &&
+                  customJwtName.isNotEmpty) {
+                _displayName = customJwtName;
+              }
+            });
+            debugPrint(
+              '✅ 네이버 로그인 정보 로드: email=$customJwtEmail, name=$customJwtName',
+            );
+            return;
+          }
+        } catch (e) {
+          debugPrint('⚠️ 네이버 로그인 정보 로드 실패: $e');
+        }
+      }
+
+      // 일반 OAuth 로그인 (Google, Kakao 등)
       final session = SupabaseConfig.client.auth.currentSession;
       if (session?.user != null) {
         final user = session!.user;
@@ -131,15 +186,15 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
           // OAuth에서 가져온 이메일 설정
           _email = user.email;
 
-        // OAuth에서 가져온 이름 설정
-        if (_displayName == null) {
+          // OAuth에서 가져온 이름 설정
+          if (_displayName == null) {
             _displayName =
                 metadata['full_name'] ??
                 metadata['name'] ??
                 metadata['display_name'] ??
                 (user.email != null ? user.email!.split('@')[0] : null);
           }
-          });
+        });
       }
     } catch (e) {
       debugPrint('OAuth 사용자 정보 로드 실패: $e');
@@ -211,12 +266,34 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
     });
 
     try {
-      final session = SupabaseConfig.client.auth.currentSession;
-      if (session?.user == null) {
-        throw Exception('세션이 없습니다. 다시 로그인해주세요.');
-      }
+      String userId;
+      String? customJwtToken;
 
-      final userId = session!.user.id;
+      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 정보 가져오기
+      if (widget.provider == 'naver') {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final customJwtUserId = prefs.getString('custom_jwt_user_id');
+          customJwtToken = prefs.getString('custom_jwt_token');
+
+          if (customJwtUserId == null || customJwtUserId.isEmpty) {
+            throw Exception('세션이 없습니다. 다시 로그인해주세요.');
+          }
+
+          userId = customJwtUserId;
+          debugPrint('✅ 네이버 로그인: Custom JWT로 회원가입 진행 (userId: $userId)');
+        } catch (e) {
+          debugPrint('⚠️ 네이버 로그인 정보 로드 실패: $e');
+          throw Exception('세션이 없습니다. 다시 로그인해주세요.');
+        }
+      } else {
+        // 일반 OAuth 로그인 (Google, Kakao 등)
+        final session = SupabaseConfig.client.auth.currentSession;
+        if (session?.user == null) {
+          throw Exception('세션이 없습니다. 다시 로그인해주세요.');
+        }
+        userId = session!.user.id;
+      }
 
       // 주소 합치기 (기본 주소 + 상세주소)
       String? fullAddress;
@@ -240,41 +317,88 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
       }
 
       // RPC 함수 호출
-      final result = await SupabaseConfig.client.rpc(
-        'create_reviewer_profile_with_company',
-        params: {
-          'p_user_id': userId,
-          'p_display_name': _displayName!,
-          'p_phone': _phone ?? '',
-          'p_address': fullAddress,
-          'p_company_id': _selectedCompanyId,
-          'p_sns_connections': _snsConnections.isNotEmpty
-              ? _snsConnections
-              : null,
-        },
-      );
-      
+      Map<String, dynamic>? result;
+
+      if (customJwtToken != null) {
+        // Custom JWT를 사용하여 직접 HTTP 요청 (웹/모바일 공통)
+        final supabaseUrl = SupabaseConfig.supabaseUrl;
+        final url = Uri.parse(
+          '$supabaseUrl/rest/v1/rpc/create_reviewer_profile_with_company',
+        );
+
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $customJwtToken',
+            'apikey': SupabaseConfig.supabaseAnonKey,
+            'Prefer': 'return=representation',
+          },
+          body: jsonEncode({
+            'p_user_id': userId,
+            'p_display_name': _displayName!,
+            'p_phone': _phone ?? '',
+            'p_address': fullAddress,
+            'p_company_id': _selectedCompanyId,
+            'p_sns_connections': _snsConnections.isNotEmpty
+                ? _snsConnections
+                : null,
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data != null && data is Map<String, dynamic>) {
+            result = data;
+            debugPrint('✅ Custom JWT로 회원가입 RPC 호출 성공');
+          } else {
+            throw Exception('회원가입 응답 형식이 올바르지 않습니다');
+          }
+        } else {
+          throw Exception('회원가입 실패: ${response.statusCode} - ${response.body}');
+        }
+      } else {
+        // 일반 RPC 함수 호출
+        result = await SupabaseConfig.client.rpc(
+          'create_reviewer_profile_with_company',
+          params: {
+            'p_user_id': userId,
+            'p_display_name': _displayName!,
+            'p_phone': _phone ?? '',
+            'p_address': fullAddress,
+            'p_company_id': _selectedCompanyId,
+            'p_sns_connections': _snsConnections.isNotEmpty
+                ? _snsConnections
+                : null,
+          },
+        );
+      }
+
       debugPrint('✅ 회원가입 RPC 결과: $result');
-      
+
       // SNS 연결 결과 확인
       if (result != null && result['sns_connections'] != null) {
         final snsResult = result['sns_connections'] as Map<String, dynamic>;
         final success = snsResult['success'] as int? ?? 0;
         final failed = snsResult['failed'] as int? ?? 0;
         final errors = snsResult['errors'] as List<dynamic>? ?? [];
-        
+
         if (failed > 0) {
           debugPrint('⚠️ SNS 연결 일부 실패: 성공 $success개, 실패 $failed개');
           for (var error in errors) {
             final errorMap = error as Map<String, dynamic>;
-            debugPrint('  - 플랫폼: ${errorMap['platform']}, 계정: ${errorMap['account_id']}');
+            debugPrint(
+              '  - 플랫폼: ${errorMap['platform']}, 계정: ${errorMap['account_id']}',
+            );
             debugPrint('    에러: ${errorMap['error']}');
           }
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('SNS 연결 일부 실패: $failed개 연결이 등록되지 않았습니다. 마이페이지에서 다시 등록해주세요.'),
+                content: Text(
+                  'SNS 연결 일부 실패: $failed개 연결이 등록되지 않았습니다. 마이페이지에서 다시 등록해주세요.',
+                ),
                 backgroundColor: Colors.orange,
                 duration: const Duration(seconds: 5),
               ),
@@ -288,7 +412,9 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
         }
       } else if (_snsConnections.isNotEmpty) {
         // SNS 연결을 입력했는데 결과가 없는 경우
-        debugPrint('⚠️ SNS 연결 결과가 반환되지 않았습니다. 입력한 연결 수: ${_snsConnections.length}');
+        debugPrint(
+          '⚠️ SNS 연결 결과가 반환되지 않았습니다. 입력한 연결 수: ${_snsConnections.length}',
+        );
       }
 
       // 계좌정보가 있으면 지갑에 업데이트
@@ -379,8 +505,8 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
 
     final stepLabels = [
       '프로필 입력', // _currentStep = 0 (전체 2단계)
-      'SNS 연결',   // _currentStep = 1 (전체 3단계)
-      '회사 선택',   // _currentStep = 2 (전체 4단계)
+      'SNS 연결', // _currentStep = 1 (전체 3단계)
+      '회사 선택', // _currentStep = 2 (전체 4단계)
     ];
 
     return Container(
@@ -406,15 +532,17 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
               final isCurrent = stepNumber == currentStep;
 
               return Expanded(
-                      child: Container(
-                        height: 4,
-                  margin: EdgeInsets.only(right: index < totalSteps - 1 ? 4 : 0),
-                        decoration: BoxDecoration(
-                          color: isActive || isCurrent
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+                child: Container(
+                  height: 4,
+                  margin: EdgeInsets.only(
+                    right: index < totalSteps - 1 ? 4 : 0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isActive || isCurrent
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               );
             }),
@@ -439,6 +567,9 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
     switch (_currentStep) {
       case 0:
         formWidget = ReviewerSignupProfileForm(
+          key: ValueKey(
+            'profile_${_email}_${_displayName}',
+          ), // email이나 displayName이 변경되면 위젯 재생성
           initialDisplayName: _displayName,
           initialEmail: _email,
           initialPhone: _phone?.isNotEmpty == true ? _phone : null,
@@ -458,7 +589,7 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
               ? '$_baseAddress $_detailAddress'
               : _baseAddress;
         }
-        
+
         formWidget = ReviewerSignupSNSForm(
           initialSnsConnections: _snsConnections,
           profileName: _displayName,
