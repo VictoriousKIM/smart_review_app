@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
 import 'campaign_log_service.dart';
+import 'auth_service.dart';
 
 class CampaignApplicationService {
   static final CampaignApplicationService _instance =
@@ -20,8 +21,8 @@ class CampaignApplicationService {
     String? applicationMessage,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -55,8 +56,8 @@ class CampaignApplicationService {
     int limit = 20,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<List<Map<String, dynamic>>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -100,8 +101,8 @@ class CampaignApplicationService {
     int limit = 20,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<List<Map<String, dynamic>>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -145,8 +146,8 @@ class CampaignApplicationService {
     String? rejectionReason,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -177,8 +178,8 @@ class CampaignApplicationService {
   // 신청 취소 (사용자용, RPC 사용)
   Future<ApiResponse<void>> cancelApplication(String applicationId) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -197,8 +198,8 @@ class CampaignApplicationService {
   // 사용자의 신청 통계 조회
   Future<ApiResponse<Map<String, int>>> getUserApplicationStats() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Map<String, int>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -206,7 +207,7 @@ class CampaignApplicationService {
       }
 
       // CampaignLogService를 사용하여 통계 조회
-      final result = await _campaignLogService.getStatusStats(userId: user.id);
+      final result = await _campaignLogService.getStatusStats(userId: userId);
 
       if (!result.success) {
         return ApiResponse<Map<String, int>>(

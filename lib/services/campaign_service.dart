@@ -8,6 +8,7 @@ import '../utils/error_handler.dart';
 import '../utils/date_time_utils.dart';
 import 'campaign_duplicate_check_service.dart';
 import 'cloudflare_workers_service.dart';
+import 'auth_service.dart';
 
 class CampaignService {
   static final CampaignService _instance = CampaignService._internal();
@@ -235,7 +236,8 @@ class CampaignService {
 
   /// 최적화된 활성 캠페인 조회 (다음 오픈 시간 포함)
   /// 이그레스 비용 최소화: 미래 캠페인 데이터를 전송하지 않고, 다음 오픈 시간만 반환
-  Future<ApiResponse<Map<String, dynamic>>> getActiveCampaignsOptimized() async {
+  Future<ApiResponse<Map<String, dynamic>>>
+  getActiveCampaignsOptimized() async {
     try {
       final response = await _supabase.rpc('get_active_campaigns_optimized');
 
@@ -244,8 +246,8 @@ class CampaignService {
 
       final campaigns = campaignsJson != null
           ? (campaignsJson as List)
-              .map((json) => Campaign.fromJson(json))
-              .toList()
+                .map((json) => Campaign.fromJson(json))
+                .toList()
           : <Campaign>[];
 
       DateTime? nextOpenAt;
@@ -257,10 +259,7 @@ class CampaignService {
 
       return ApiResponse<Map<String, dynamic>>(
         success: true,
-        data: {
-          'campaigns': campaigns,
-          'nextOpenAt': nextOpenAt,
-        },
+        data: {'campaigns': campaigns, 'nextOpenAt': nextOpenAt},
       );
     } catch (e) {
       debugPrint('❌ getActiveCampaignsOptimized 실패: $e');
@@ -276,8 +275,8 @@ class CampaignService {
     List<Campaign> campaigns,
   ) async {
     // 로그인한 사용자인 경우 중복 체크
-    final user = _supabase.auth.currentUser;
-    if (user == null) {
+    final userId = await AuthService.getCurrentUserId();
+    if (userId == null) {
       // 비로그인 사용자는 모든 캠페인 반환
       return campaigns;
     }
@@ -288,7 +287,7 @@ class CampaignService {
       // 중복 체크
       final duplicateCheck = await _duplicateCheckService
           .checkCampaignDuplicate(
-            userId: user.id,
+            userId: userId,
             campaign: {
               'id': campaign.id,
               'title': campaign.title,
@@ -314,8 +313,8 @@ class CampaignService {
     String? applicationMessage,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -349,8 +348,8 @@ class CampaignService {
     String campaignId,
   ) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -382,8 +381,8 @@ class CampaignService {
     int limit = 10,
     String? status,
   }) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) {
+    final userId = await AuthService.getCurrentUserId();
+    if (userId == null) {
       return ApiResponse<Map<String, dynamic>>(
         success: false,
         error: '로그인이 필요합니다.',
@@ -396,7 +395,7 @@ class CampaignService {
       final statusParam = status ?? 'all';
 
       debugPrint('📞 get_user_campaigns_safe 호출:');
-      debugPrint('   p_user_id: ${user.id}');
+      debugPrint('   p_user_id: $userId');
       debugPrint('   p_status: $statusParam');
       debugPrint('   p_offset: $offset');
       debugPrint('   p_limit: $limit');
@@ -404,7 +403,7 @@ class CampaignService {
       final response = await _supabase.rpc(
         'get_user_campaigns_safe',
         params: {
-          'p_user_id': user.id,
+          'p_user_id': userId,
           'p_status': statusParam,
           'p_offset': offset,
           'p_limit': limit,
@@ -421,7 +420,7 @@ class CampaignService {
     } catch (e) {
       debugPrint('❌ get_user_campaigns_safe 실패: $e');
       debugPrint(
-        '   파라미터: p_user_id=${user.id}, p_status=${status ?? 'all'}, p_offset=${(page - 1) * limit}, p_limit=$limit',
+        '   파라미터: p_user_id=$userId, p_status=${status ?? 'all'}, p_offset=${(page - 1) * limit}, p_limit=$limit',
       );
       return ApiResponse<Map<String, dynamic>>(
         success: false,
@@ -437,8 +436,8 @@ class CampaignService {
     String? status,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Map<String, dynamic>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -449,7 +448,7 @@ class CampaignService {
       final response = await _supabase.rpc(
         'get_user_participated_campaigns_safe',
         params: {
-          'p_user_id': user.id,
+          'p_user_id': userId,
           'p_status': status,
           'p_page': page,
           'p_limit': limit,
@@ -732,7 +731,7 @@ class CampaignService {
     required String platform,
     required int campaignReward,
     required int maxParticipants,
-    int maxPerReviewer = 1,  // 리뷰어당 신청 가능 개수 (기본값: 1)
+    int maxPerReviewer = 1, // 리뷰어당 신청 가능 개수 (기본값: 1)
     required DateTime applyStartDate,
     required DateTime applyEndDate,
     required DateTime reviewStartDate,
@@ -773,14 +772,14 @@ class CampaignService {
           error: '신청 시작일시는 종료일시보다 빠를 수 없습니다.',
         );
       }
-      
+
       if (applyEndDate.isAfter(reviewStartDate)) {
         return ApiResponse<Campaign>(
           success: false,
           error: '신청 종료일시는 리뷰 시작일시보다 빠를 수 없습니다.',
         );
       }
-      
+
       if (reviewStartDate.isAfter(reviewEndDate)) {
         return ApiResponse<Campaign>(
           success: false,
@@ -805,9 +804,13 @@ class CampaignService {
           'p_campaign_reward': campaignReward,
           'p_max_participants': maxParticipants,
           'p_max_per_reviewer': maxPerReviewer,
-          'p_apply_start_date': DateTimeUtils.toIso8601StringKST(applyStartDate),
+          'p_apply_start_date': DateTimeUtils.toIso8601StringKST(
+            applyStartDate,
+          ),
           'p_apply_end_date': DateTimeUtils.toIso8601StringKST(applyEndDate),
-          'p_review_start_date': DateTimeUtils.toIso8601StringKST(reviewStartDate),
+          'p_review_start_date': DateTimeUtils.toIso8601StringKST(
+            reviewStartDate,
+          ),
           'p_review_end_date': DateTimeUtils.toIso8601StringKST(reviewEndDate),
           'p_platform': platform,
           'p_keyword': keyword,
@@ -917,10 +920,7 @@ class CampaignService {
     try {
       final user = SupabaseConfig.client.auth.currentUser;
       if (user == null) {
-        return ApiResponse<Campaign>(
-          success: false,
-          error: '로그인이 필요합니다.',
-        );
+        return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
       }
 
       // RPC 함수 호출 (update_campaign_v2)
@@ -934,9 +934,13 @@ class CampaignService {
           'p_campaign_reward': campaignReward,
           'p_max_participants': maxParticipants,
           'p_max_per_reviewer': maxPerReviewer,
-          'p_apply_start_date': DateTimeUtils.toIso8601StringKST(applyStartDate),
+          'p_apply_start_date': DateTimeUtils.toIso8601StringKST(
+            applyStartDate,
+          ),
           'p_apply_end_date': DateTimeUtils.toIso8601StringKST(applyEndDate),
-          'p_review_start_date': DateTimeUtils.toIso8601StringKST(reviewStartDate),
+          'p_review_start_date': DateTimeUtils.toIso8601StringKST(
+            reviewStartDate,
+          ),
           'p_review_end_date': DateTimeUtils.toIso8601StringKST(reviewEndDate),
           'p_platform': platform,
           'p_keyword': keyword,

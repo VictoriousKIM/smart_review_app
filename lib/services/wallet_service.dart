@@ -1,7 +1,7 @@
 import '../models/wallet_models.dart';
 import '../models/point_transfer.dart';
 import '../config/supabase_config.dart';
-import '../utils/date_time_utils.dart';
+import 'auth_service.dart';
 
 /// 지갑 및 포인트 관리 서비스 (완전 분리 버전)
 class WalletService {
@@ -12,7 +12,8 @@ class WalletService {
   /// 개인 지갑 조회 (RPC 사용)
   static Future<UserWallet?> getUserWallet() async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
         print('❌ 로그인되지 않음');
         return null;
@@ -50,7 +51,8 @@ class WalletService {
   /// 회사 지갑 목록 조회 (RPC 사용)
   static Future<List<CompanyWallet>> getCompanyWallets() async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
         print('❌ 로그인되지 않음');
         return [];
@@ -110,7 +112,8 @@ class WalletService {
     int offset = 0,
   }) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
         print('❌ 로그인되지 않음');
         return [];
@@ -143,7 +146,8 @@ class WalletService {
     int offset = 0,
   }) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
         print('❌ 로그인되지 않음');
         return [];
@@ -370,7 +374,8 @@ class WalletService {
     required String accountHolder,
   }) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
         throw Exception('로그인이 필요합니다');
       }
@@ -406,7 +411,8 @@ class WalletService {
     required String accountHolder,
   }) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
         throw Exception('로그인이 필요합니다');
       }
@@ -471,7 +477,8 @@ class WalletService {
     int offset = 0,
   }) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
         print('❌ 로그인되지 않음');
         return [];

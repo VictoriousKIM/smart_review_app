@@ -1,11 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import * as jose from 'https://deno.land/x/jose@v4.14.4/index.ts'
+import { createClient } from '@supabase/supabase-js';
+import * as jose from 'jose';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 interface RequestBody {
   platform: 'web' | 'mobile';
@@ -31,7 +30,17 @@ interface NaverTokenResponse {
   error_description?: string;
 }
 
+interface Env {
+  NAVER_CLIENT_ID: string;
+  NAVER_CLIENT_SECRET: string;
+  NAVER_REDIRECT_URI: string;
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
+  JWT_SECRET: string;
+}
+
 // 웹용: 네이버 code → access_token 교환
+// Edge Function과 동일한 구현
 async function exchangeCodeForToken(
   code: string,
   clientId: string,
@@ -54,12 +63,20 @@ async function exchangeCodeForToken(
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error('네이버 API 응답 실패:');
+    console.error('  - Status:', response.status);
+    console.error('  - Status Text:', response.statusText);
+    console.error('  - Response Body:', errorText);
     throw new Error(`네이버 토큰 교환 실패: ${response.status} - ${errorText}`);
   }
 
   const data: NaverTokenResponse = await response.json();
 
   if (data.error) {
+    console.error('네이버 API 에러 응답:');
+    console.error('  - Error:', data.error);
+    console.error('  - Error Description:', data.error_description);
+    console.error('  - Full Response:', JSON.stringify(data, null, 2));
     throw new Error(`네이버 토큰 교환 오류: ${data.error} - ${data.error_description}`);
   }
 
@@ -99,10 +116,7 @@ async function getNaverUserInfo(accessToken: string): Promise<NaverUserInfo> {
 }
 
 // Supabase JWT 생성
-async function createSupabaseJWT(userId: string, email: string): Promise<string> {
-  // SUPABASE_로 시작하는 환경 변수는 사용할 수 없으므로 JWT_SECRET 사용
-  const jwtSecret = Deno.env.get('JWT_SECRET');
-  
+async function createSupabaseJWT(userId: string, email: string, jwtSecret: string): Promise<string> {
   if (!jwtSecret) {
     throw new Error('JWT_SECRET이 설정되지 않았습니다');
   }
@@ -129,22 +143,22 @@ async function createSupabaseJWT(userId: string, email: string): Promise<string>
   return token;
 }
 
-serve(async (req) => {
+export default async function handleNaverAuth(request: Request, env: Env): Promise<Response> {
   // CORS preflight
-  if (req.method === 'OPTIONS') {
+  if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // 환경 변수 확인 (디버깅용)
-    // 주의: SUPABASE_로 시작하는 환경 변수는 Edge Function에서 사용할 수 없음
+    // 환경 변수 확인 (디버깅용 - 실제 값 일부 표시)
     console.log('Environment variables check:');
-    console.log('JWT_SECRET:', Deno.env.get('JWT_SECRET') ? 'SET' : 'NOT SET');
-    console.log('NAVER_CLIENT_ID:', Deno.env.get('NAVER_CLIENT_ID') ? 'SET' : 'NOT SET');
-    console.log('NAVER_CLIENT_SECRET:', Deno.env.get('NAVER_CLIENT_SECRET') ? 'SET' : 'NOT SET');
-    console.log('NAVER_REDIRECT_URI:', Deno.env.get('NAVER_REDIRECT_URI') || 'http://localhost:3001/loading');
+    console.log('JWT_SECRET:', env.JWT_SECRET ? 'SET' : 'NOT SET');
+    console.log('NAVER_CLIENT_ID:', env.NAVER_CLIENT_ID || 'NOT SET');
+    console.log('NAVER_CLIENT_SECRET:', env.NAVER_CLIENT_SECRET ? `${env.NAVER_CLIENT_SECRET.substring(0, 3)}...` : 'NOT SET');
+    console.log('NAVER_REDIRECT_URI:', env.NAVER_REDIRECT_URI || 'http://localhost:3001/loading');
+    console.log('SUPABASE_URL:', env.SUPABASE_URL ? 'SET' : 'NOT SET');
 
-    const body: RequestBody = await req.json();
+    const body: RequestBody = await request.json();
     const { platform, accessToken, code, state } = body;
     
     console.log('Request body:', { platform, hasCode: !!code, hasAccessToken: !!accessToken });
@@ -157,15 +171,41 @@ serve(async (req) => {
 
     // 플랫폼별 토큰 처리
     if (platform === 'web' && code) {
-      // 웹: Edge Function 내부에서 code → access_token 교환
-      const clientId = Deno.env.get('NAVER_CLIENT_ID');
-      const clientSecret = Deno.env.get('NAVER_CLIENT_SECRET');
-      const redirectUri = Deno.env.get('NAVER_REDIRECT_URI') || 'http://localhost:3001/loading';
+      // 웹: Workers 내부에서 code → access_token 교환
+      // Edge Function과 동일하게 기본값 사용
+      // BOM 제거 (UTF-8 BOM: \uFEFF 또는 %EF%BB%BF)
+      const removeBOM = (str: string | undefined): string => {
+        if (!str) return '';
+        // UTF-8 BOM 제거
+        return str.replace(/^\uFEFF/, '').trim();
+      };
+      
+      const clientId = removeBOM(env.NAVER_CLIENT_ID);
+      const clientSecret = removeBOM(env.NAVER_CLIENT_SECRET);
+      const redirectUri = removeBOM(env.NAVER_REDIRECT_URI) || 'http://localhost:3001/loading';
 
       if (!clientId || !clientSecret) {
         throw new Error('NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET이 설정되지 않았습니다');
       }
 
+      // Edge Function과 동일하게 토큰 교환
+      console.log('네이버 토큰 교환 시도:');
+      console.log('  - Client ID:', clientId);
+      console.log('  - Client Secret:', clientSecret ? `${clientSecret.substring(0, 3)}...` : 'NOT SET');
+      console.log('  - Client Secret Length:', clientSecret?.length || 0);
+      console.log('  - Redirect URI:', redirectUri);
+      console.log('  - Code:', code);
+      
+      // 실제 전송되는 요청 본문 확인
+      const requestBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: code,
+        redirect_uri: redirectUri,
+      });
+      console.log('  - Request Body (URLSearchParams):', requestBody.toString());
+      
       finalAccessToken = await exchangeCodeForToken(code, clientId, clientSecret, redirectUri);
     } else if (platform === 'mobile' && accessToken) {
       // 모바일: 이미 받은 accessToken 사용
@@ -178,30 +218,70 @@ serve(async (req) => {
     const naverUser = await getNaverUserInfo(finalAccessToken);
 
     // 2. Supabase Admin 클라이언트 생성
-    // 주의: SUPABASE_로 시작하는 환경 변수는 Edge Function에서 사용할 수 없음
-    // 로컬 개발 환경: Docker 컨테이너 내부에서 호스트에 접근하려면 host.docker.internal 사용
-    // Windows에서는 host.docker.internal이 작동하지 않을 수 있으므로, 
-    // Supabase Edge Function은 내부 네트워크를 통해 자동으로 연결됨
-    // 로컬 개발 환경에서는 gateway를 통해 접근: http://kong:8000
-    const supabaseUrl = 'http://kong:8000'; // 로컬 개발: Supabase 내부 게이트웨이
-    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'; // 로컬 개발용 Service Role Key
+    // BOM 제거
+    const removeBOM = (str: string | undefined): string => {
+      if (!str) return '';
+      return str.replace(/^\uFEFF/, '').trim();
+    };
+    
+    const supabaseUrl = removeBOM(env.SUPABASE_URL);
+    const supabaseServiceKey = removeBOM(env.SUPABASE_SERVICE_ROLE_KEY);
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다');
+    }
 
     console.log('Supabase Admin Client 생성:');
     console.log('  - URL:', supabaseUrl);
-
-    const supabaseAdmin = createClient(
-      supabaseUrl,
-      supabaseServiceKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
+    console.log('  - Service Key (first 20 chars):', supabaseServiceKey ? `${supabaseServiceKey.substring(0, 20)}...` : 'NOT SET');
+    console.log('  - Service Key length:', supabaseServiceKey?.length || 0);
+    console.log('  - Service Key (last 20 chars):', supabaseServiceKey ? `...${supabaseServiceKey.substring(supabaseServiceKey.length - 20)}` : 'NOT SET');
+    
+    // Service Role Key 검증: JWT를 디코딩해서 role이 "service_role"인지 확인
+    try {
+      const jwtParts = supabaseServiceKey.split('.');
+      if (jwtParts.length === 3) {
+        const payload = JSON.parse(atob(jwtParts[1]));
+        console.log('  - JWT role:', payload.role || 'NOT FOUND');
+        if (payload.role !== 'service_role') {
+          console.error('  ⚠️ WARNING: Key role is not "service_role"! Current role:', payload.role);
+          console.error('  ⚠️ Admin API (listUsers, createUser) requires service_role key, not anon key!');
+        } else {
+          console.log('  ✅ Key role is "service_role" (correct)');
+        }
       }
-    );
+    } catch (e) {
+      console.warn('  ⚠️ Could not decode JWT to verify role:', e);
+    }
+
+    // Supabase Admin 클라이언트 생성
+    // Service Role Key를 apikey로도 사용 (Admin API 호출 시 필요)
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        // Admin API 호출을 위해 apikey 헤더 명시
+        detectSessionInUrl: false,
+      },
+      global: {
+        fetch: globalThis.fetch,
+        headers: {
+          'apikey': supabaseServiceKey,
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+      },
+    });
 
     // 3. 기존 사용자 조회 (이메일로)
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    console.log('기존 사용자 조회 시작...');
+    const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (listError) {
+      console.error('사용자 목록 조회 에러:', listError);
+      throw new Error(`사용자 목록 조회 실패: ${listError.message}`);
+    }
+    
+    console.log('사용자 목록 조회 성공, 총 사용자 수:', existingUsers?.users?.length || 0);
     const existingUser = existingUsers?.users.find(u => u.email === naverUser.email);
 
     let userId: string;
@@ -275,7 +355,7 @@ serve(async (req) => {
     // (카카오 로그인과 동일한 동작)
 
     // 6. Supabase JWT 생성
-    const customJWT = await createSupabaseJWT(userId, naverUser.email);
+    const customJWT = await createSupabaseJWT(userId, naverUser.email, env.JWT_SECRET);
 
     // 7. Refresh Token 생성 (선택사항 - UUID 기반)
     const refreshToken = crypto.randomUUID();
@@ -302,17 +382,17 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Edge Function 오류:', error);
+    console.error('Workers 오류:', error);
     console.error('Error type:', typeof error);
-    console.error('Error name:', error?.name);
-    console.error('Error message:', error?.message);
-    console.error('Error stack:', error?.stack);
+    console.error('Error name:', (error as any)?.name);
+    console.error('Error message:', (error as any)?.message);
+    console.error('Error stack:', (error as any)?.stack);
     
     return new Response(
       JSON.stringify({ 
         error: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다',
         details: error instanceof Error ? error.stack : String(error),
-        type: error?.constructor?.name || typeof error,
+        type: (error as any)?.constructor?.name || typeof error,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -320,5 +400,5 @@ serve(async (req) => {
       }
     );
   }
-});
+}
 

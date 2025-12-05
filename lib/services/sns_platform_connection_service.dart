@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'auth_service.dart';
 
 /// SNS 플랫폼 연결 서비스
 class SNSPlatformConnectionService {
@@ -49,8 +50,9 @@ class SNSPlatformConnectionService {
     String? returnAddress,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('로그인이 필요합니다');
       }
 
@@ -90,7 +92,7 @@ class SNSPlatformConnectionService {
       final result = await _supabase.rpc(
         'create_sns_connection',
         params: {
-          'p_user_id': user.id,
+          'p_user_id': userId,
           'p_platform': platform.toLowerCase(),
           'p_platform_account_id': platformAccountId,
           'p_platform_account_name': platformAccountName,
@@ -101,7 +103,7 @@ class SNSPlatformConnectionService {
       );
 
       // 캐시 무효화
-      await _invalidateCache(user.id);
+      await _invalidateCache(userId);
 
       return result as Map<String, dynamic>;
     } catch (e) {
@@ -119,8 +121,9 @@ class SNSPlatformConnectionService {
     String? returnAddress,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('로그인이 필요합니다');
       }
 
@@ -160,7 +163,7 @@ class SNSPlatformConnectionService {
         'update_sns_connection',
         params: {
           'p_id': id,
-          'p_user_id': user.id,
+          'p_user_id': userId,
           'p_platform_account_name': platformAccountName,
           'p_phone': phone,
           'p_address': address,
@@ -169,7 +172,7 @@ class SNSPlatformConnectionService {
       );
 
       // 캐시 무효화
-      await _invalidateCache(user.id);
+      await _invalidateCache(userId);
 
       return result as Map<String, dynamic>;
     } catch (e) {
@@ -181,19 +184,20 @@ class SNSPlatformConnectionService {
   /// SNS 플랫폼 연결 삭제
   static Future<void> deleteConnection(String id) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('로그인이 필요합니다');
       }
 
       // RPC 함수 호출 (트랜잭션 포함)
       await _supabase.rpc(
         'delete_sns_connection',
-        params: {'p_id': id, 'p_user_id': user.id},
+        params: {'p_id': id, 'p_user_id': userId},
       );
 
       // 캐시 무효화
-      await _invalidateCache(user.id);
+      await _invalidateCache(userId);
     } catch (e) {
       print('❌ SNS 연결 삭제 실패: $e');
       rethrow;
@@ -205,14 +209,15 @@ class SNSPlatformConnectionService {
     bool forceRefresh = false,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('로그인이 필요합니다');
       }
 
       // 캐시 확인 (강제 새로고침이 아닌 경우)
       if (!forceRefresh) {
-        final cachedData = await _getCachedConnections(user.id);
+        final cachedData = await _getCachedConnections(userId);
         if (cachedData != null) {
           print('✅ 캐시에서 SNS 연결 정보 로드');
           return cachedData;
@@ -224,13 +229,13 @@ class SNSPlatformConnectionService {
       final response = await _supabase
           .from('sns_connections')
           .select()
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .order('created_at', ascending: false);
 
       final connections = List<Map<String, dynamic>>.from(response);
 
       // 캐시에 저장
-      await _saveCachedConnections(user.id, connections);
+      await _saveCachedConnections(userId, connections);
 
       return connections;
     } catch (e) {
@@ -238,9 +243,9 @@ class SNSPlatformConnectionService {
 
       // 에러 발생 시 캐시에서 가져오기 시도
       try {
-        final user = _supabase.auth.currentUser;
-        if (user != null) {
-          final cachedData = await _getCachedConnections(user.id);
+        final userId = await AuthService.getCurrentUserId();
+        if (userId != null) {
+          final cachedData = await _getCachedConnections(userId);
           if (cachedData != null) {
             print('⚠️ 에러 발생으로 캐시 데이터 사용');
             return cachedData;
@@ -259,15 +264,16 @@ class SNSPlatformConnectionService {
     String platform,
   ) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('로그인이 필요합니다');
       }
 
       final response = await _supabase
           .from('sns_connections')
           .select()
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('platform', platform.toLowerCase())
           .order('created_at', ascending: false);
 

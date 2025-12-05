@@ -406,7 +406,7 @@ class AuthService {
   // 네이버 로그인
   Future<void> signInWithNaver() async {
     try {
-      // NaverAuthService 사용 (Edge Function 기반)
+      // NaverAuthService 사용 (Cloudflare Workers 기반)
       final naverAuthService = NaverAuthService();
       final result = await naverAuthService.signInWithNaver();
 
@@ -509,7 +509,7 @@ class AuthService {
 
       // 중요: 클라이언트에서는 auth.admin.deleteUser를 호출할 수 없음 (관리자 권한 필요)
       // 회원가입 실패 시에도 orphaned user를 생성하지 않도록 에러만 throw
-      // 실제 롤백은 서버 사이드(Edge Function)에서 처리하거나,
+      // 실제 롤백은 서버 사이드(Workers)에서 처리하거나,
       // 데이터베이스 트랜잭션으로 처리해야 함
 
       if (isSignUp) {
@@ -744,5 +744,28 @@ class AuthService {
       debugPrint('사용자 존재 확인 실패: $e');
       return false;
     }
+  }
+
+  // Custom JWT 세션에서 사용자 ID 가져오기 (정적 메서드)
+  // 다른 서비스에서 Custom JWT 세션을 체크할 때 사용
+  static Future<String?> getCurrentUserId() async {
+    try {
+      // Custom JWT 세션 확인 (SharedPreferences에 저장된 경우)
+      final prefs = await SharedPreferences.getInstance();
+      final customJwtToken = prefs.getString('custom_jwt_token');
+      final customJwtUserId = prefs.getString('custom_jwt_user_id');
+      if (customJwtToken != null &&
+          customJwtToken.isNotEmpty &&
+          customJwtUserId != null &&
+          customJwtUserId.isNotEmpty) {
+        return customJwtUserId;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Custom JWT 세션 확인 중 에러: $e');
+    }
+
+    // Supabase 세션 확인
+    final session = SupabaseConfig.client.auth.currentSession;
+    return session?.user.id;
   }
 }

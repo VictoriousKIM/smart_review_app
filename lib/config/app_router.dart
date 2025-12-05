@@ -233,7 +233,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             debugPrint('📥 [GoRoute] 네이버 로그인 콜백 감지: code=$code');
 
             try {
-              debugPrint('🔄 Edge Function 호출 시작...');
+              debugPrint('🔄 Workers API 호출 시작...');
 
               final naverAuthService = NaverAuthService();
               final authResponse = await naverAuthService

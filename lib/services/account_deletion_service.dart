@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'auth_service.dart';
 
 class AccountDeletionService {
   static final SupabaseClient _supabase = Supabase.instance.client;
@@ -10,14 +11,14 @@ class AccountDeletionService {
   /// 계정 삭제 요청 (사용자)
   static Future<void> requestAccountDeletion({required String reason}) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('사용자가 로그인되지 않았습니다.');
       }
 
       await _supabase.rpc(
         'request_account_deletion',
-        params: {'p_user_id': user.id, 'p_reason': reason},
+        params: {'p_user_id': userId, 'p_reason': reason},
       );
     } catch (e) {
       print('Error requesting account deletion: $e');
@@ -32,8 +33,8 @@ class AccountDeletionService {
   /// 계정 삭제 가능 여부 확인 (RPC 사용)
   static Future<Map<String, dynamic>> checkDeletionEligibility() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('사용자가 로그인되지 않았습니다.');
       }
 
@@ -59,8 +60,8 @@ class AccountDeletionService {
   /// 계정 삭제 전 사용자 데이터 백업 (RPC 사용)
   static Future<Map<String, dynamic>> backupUserData() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('사용자가 로그인되지 않았습니다.');
       }
 
@@ -82,8 +83,8 @@ class AccountDeletionService {
   /// 계정 삭제 상태 확인 (RPC 사용)
   static Future<bool> isAccountDeleted() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return false;
       }
 
@@ -100,8 +101,8 @@ class AccountDeletionService {
   /// 삭제 요청 상태 확인 (RPC 사용)
   static Future<bool> hasDeletionRequest() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return false;
       }
 
@@ -122,8 +123,8 @@ class AccountDeletionService {
   /// 계정 삭제 요청 취소 (RPC 사용)
   static Future<void> cancelDeletionRequest() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('사용자가 로그인되지 않았습니다.');
       }
 

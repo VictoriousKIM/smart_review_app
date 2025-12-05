@@ -211,3 +211,108 @@ Text(DateTimeUtils.formatKST(dateTime)) // "2025-11-25 14:30"
 - ❌ `DateTime.now()` 직접 사용 금지 → `DateTimeUtils.nowKST()` 사용
 - ❌ `.toLocal()` 사용 금지 → `DateTimeUtils.parseKST()` 사용
 - ❌ `.toIso8601String()` 직접 사용 금지 → `DateTimeUtils.toIso8601StringKST()` 사용
+
+## 🔐 Custom JWT 세션 지원 (네이버 로그인)
+
+**핵심 원칙:**
+- 네이버 로그인은 Custom JWT 세션을 사용하므로, `supabase.auth.currentUser`가 `null`일 수 있음
+- 모든 서비스 메서드에서 사용자 ID를 가져올 때는 **반드시 Custom JWT 세션도 체크**해야 함
+- Custom JWT 세션과 Supabase 세션을 모두 지원하도록 개발해야 함
+
+### ✅ 올바른 방법 (사용자 ID 가져오기)
+
+**1. 서비스 메서드에서 사용자 ID 가져오기**
+```dart
+import 'auth_service.dart';
+
+// ❌ 잘못된 방법
+final user = _supabase.auth.currentUser;
+if (user == null) {
+  throw Exception('로그인이 필요합니다');
+}
+final userId = user.id;
+
+// ✅ 올바른 방법
+final userId = await AuthService.getCurrentUserId();
+if (userId == null) {
+  throw Exception('로그인이 필요합니다');
+}
+```
+
+**2. RPC 함수 호출 시 사용자 ID 사용**
+```dart
+// ✅ 올바른 방법
+final userId = await AuthService.getCurrentUserId();
+if (userId == null) {
+  return ApiResponse(success: false, error: '로그인이 필요합니다.');
+}
+
+final response = await _supabase.rpc(
+  'some_rpc_function',
+  params: {'p_user_id': userId, ...},
+);
+```
+
+**3. 직접 쿼리 시 사용자 ID 사용**
+```dart
+// ✅ 올바른 방법
+final userId = await AuthService.getCurrentUserId();
+if (userId == null) {
+  return ApiResponse(success: false, error: '로그인이 필요합니다.');
+}
+
+final response = await _supabase
+    .from('some_table')
+    .select()
+    .eq('user_id', userId);
+```
+
+### ❌ 잘못된 방법
+
+```dart
+// ❌ 잘못된 방법 1: currentUser 직접 사용
+final user = _supabase.auth.currentUser;
+if (user == null) {
+  throw Exception('로그인이 필요합니다');
+}
+// Custom JWT 세션에서는 currentUser가 null이므로 실패함
+
+// ❌ 잘못된 방법 2: currentUser?.id 사용
+final userId = _supabase.auth.currentUser?.id;
+if (userId == null) {
+  throw Exception('로그인이 필요합니다');
+}
+// Custom JWT 세션에서는 null이 반환되어 실패함
+
+// ❌ 잘못된 방법 3: currentSession 사용
+final session = _supabase.auth.currentSession;
+final userId = session?.user.id;
+// Custom JWT 세션에서는 session이 null이므로 실패함
+```
+
+### 📋 체크리스트
+
+새로운 서비스 메서드를 작성할 때 다음을 확인하세요:
+
+1. ✅ `AuthService.getCurrentUserId()`를 사용하여 사용자 ID를 가져오는가?
+2. ✅ Custom JWT 세션과 Supabase 세션을 모두 지원하는가?
+3. ✅ 사용자 ID가 `null`인 경우 적절한 에러 처리를 하는가?
+4. ✅ RPC 함수 호출 시 `p_user_id` 파라미터에 올바른 `userId`를 전달하는가?
+5. ✅ 직접 쿼리 시 `.eq('user_id', userId)` 형태로 올바르게 사용하는가?
+
+### 🔍 영향받는 서비스
+
+다음 서비스들은 이미 Custom JWT 세션을 지원하도록 수정되었습니다:
+- ✅ `AuthService` - `getCurrentUserId()` 정적 메서드 제공
+- ✅ `SNSPlatformConnectionService` - 모든 메서드
+- ✅ `WalletService` - 모든 메서드
+- ✅ `CampaignService` - 사용자 관련 메서드
+- ✅ `CampaignApplicationService` - 모든 메서드
+- ✅ `ReviewService` - 모든 메서드
+- ✅ `NotificationService` - 모든 메서드
+- ✅ `AccountDeletionService` - 모든 메서드
+
+**중요:**
+- 새로운 서비스 메서드를 추가할 때는 **반드시** `AuthService.getCurrentUserId()`를 사용해야 합니다
+- 기존 코드를 수정할 때도 `_supabase.auth.currentUser`를 사용하는 부분이 있다면 수정해야 합니다
+- Custom JWT 세션은 네이버 로그인에서만 사용되며, 다른 OAuth 제공자(Google, Kakao)는 Supabase 세션을 사용합니다

@@ -2,48 +2,36 @@ import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseConfig {
-  // 로컬 Supabase 사용 (기본값)
-  // 프로덕션 사용이 필요한 경우 환경 변수로 제어 가능
-  static String get supabaseUrl {
-    // 환경 변수로 프로덕션 모드 제어 (기본값: 로컬)
-    const useProduction = String.fromEnvironment(
-      'USE_PRODUCTION_SUPABASE',
-      defaultValue: 'false',
-    );
-    if (useProduction == 'true') {
-      // 프로덕션 Supabase 사용 (환경 변수로 명시적으로 설정한 경우만)
-      return 'https://ythmnhadeyfusmfhcgdr.supabase.co';
-    } else {
-      // 로컬 Supabase 사용 (기본값)
-      return 'http://127.0.0.1:54500';
-    }
-  }
+  // ============================================
+  // 로컬 개발 모드 (현재 활성화)
+  // ============================================
+  
+  // 로컬 Supabase URL
+  static const String supabaseUrl = 'http://127.0.0.1:54500';
+  
+  // 로컬 Supabase Anon Key
+  static const String supabaseAnonKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
-  static String get supabaseAnonKey {
-    // 환경 변수로 프로덕션 모드 제어 (기본값: 로컬)
-    const useProduction = String.fromEnvironment(
-      'USE_PRODUCTION_SUPABASE',
-      defaultValue: 'false',
-    );
-    if (useProduction == 'true') {
-      // 프로덕션 키 사용 (환경 변수로 명시적으로 설정한 경우만)
-      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0aG1uaGFkZXlmdXNtZmhjZ2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMDU4MDQsImV4cCI6MjA3MzU4MTgwNH0.BzTELGjnSewXprm_3mjJnOXusvp5Sw5jagpmKUYEM50';
-    } else {
-      // 로컬 개발 키 사용 (기본값)
-      // npx supabase status --output json에서 확인한 실제 JWT 키
-      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
-    }
-  }
+  // ============================================
+  // 프로덕션 모드 (주석 처리됨)
+  // ============================================
+  // static const String supabaseUrl = 'https://ythmnhadeyfusmfhcgdr.supabase.co';
+  // static const String supabaseAnonKey =
+  //     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0aG1uaGFkZXlmdXNtZmhjZ2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMDU4MDQsImV4cCI6MjA3MzU4MTgwNH0.BzTELGjnSewXprm_3mjJnOXusvp5Sw5jagpmKUYEM50';
 
+  // ============================================
   // Cloudflare Workers API URL
-  // 로컬 개발도 프로덕션 Workers 사용 (필요시 환경 변수로 제어 가능)
-  static const String workersApiUrl =
-      'https://smart-review-api.nightkille.workers.dev';
-  // 프로덕션 사용 시 (주석 처리):
-  // static const String workersApiUrl =
-  //     'https://smart-review-api.nightkille.workers.dev';
+  // ============================================
+  // 파일 업로드, 사업자등록증 검증, 네이버 로그인 등에 사용
+  // 
+  // 로컬 개발: 로컬 Workers 서버 사용 (로컬 Supabase 연결 가능)
+  // 프로덕션: 프로덕션 Workers 사용
+  static const String workersApiUrl = kIsWeb
+      ? 'http://localhost:8787'  // 로컬 개발: 로컬 Workers 서버
+      : 'https://smart-review-api.nightkille.workers.dev';  // 프로덕션: 프로덕션 Workers
 
-  // R2 Public URL
+  // R2 Public URL (파일 업로드용)
   static const String r2PublicUrl =
       'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files';
 

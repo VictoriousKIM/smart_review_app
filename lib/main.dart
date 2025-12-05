@@ -117,9 +117,9 @@ void _processDeepLink(Uri uri) async {
     final code = uri.queryParameters['code'];
     if (code != null) {
       debugPrint('✅ OAuth 코드 수신: $code');
-      // 네이버 로그인은 Edge Function 방식으로 변경됨
+      // 네이버 로그인은 Cloudflare Workers 방식으로 변경됨
       // 딥링크 처리는 라우터에서 수행
-      debugPrint('ℹ️ 네이버 로그인 딥링크 감지 (Edge Function 방식으로 처리)');
+      debugPrint('ℹ️ 네이버 로그인 딥링크 감지 (Workers API 방식으로 처리)');
     }
   }
 }

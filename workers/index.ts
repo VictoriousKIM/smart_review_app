@@ -1,3 +1,6 @@
+// 네이버 로그인 함수 import
+import handleNaverAuth from './functions/naver-auth';
+
 // Cloudflare Workers 타입 정의
 interface R2Bucket {
   put(key: string, value: ReadableStream | ArrayBuffer | ArrayBufferView | string | null | Blob, options?: R2PutOptions): Promise<R2Object>;
@@ -55,6 +58,10 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY: string;
   GEMINI_API_KEY: string;
   NTS_API_KEY: string;
+  NAVER_CLIENT_ID: string;
+  NAVER_CLIENT_SECRET: string;
+  NAVER_REDIRECT_URI: string;
+  JWT_SECRET: string;
 }
 
 const corsHeaders = {
@@ -115,6 +122,9 @@ export default {
       return handleAnalyzeCampaignImage(request, env);
     }
 
+    if (url.pathname === '/api/naver-auth' && request.method === 'POST') {
+      return handleNaverAuth(request, env);
+    }
 
     return new Response(
       JSON.stringify({ error: 'Not Found', path: url.pathname }),

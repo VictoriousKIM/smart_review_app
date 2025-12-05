@@ -9,7 +9,16 @@
    npx supabase start
    ```
 
-2. **브라우저 탭 열기** (Playwright MCP 사용)
+2. **로컬 Workers 서버 시작** (네이버 로그인 등에 사용)
+   ```bash
+   cd workers
+   npx wrangler dev
+   ```
+   - 포트: `8787` (기본값)
+   - Health Check: `http://localhost:8787/health`
+   - 로컬 Supabase와 연결되어 네이버 로그인, 파일 업로드 등을 처리
+
+3. **브라우저 탭 열기** (Playwright MCP 사용)
    - 첫 번째 탭: Flutter 웹 앱 (http://localhost:3001/) - 카카오 계정으로 로그인
    - 두 번째 탭: Supabase 로컬 Studio (http://127.0.0.1:54503)
    - 세 번째 탭: Cloudflare r2 대시보드 (https://dash.cloudflare.com)
@@ -40,6 +49,7 @@
 - Flutter는 별도로 `flutter run`을 실행할 필요 없음 (이미 실행 중이어야 함)
 - Playwright MCP를 사용하여 브라우저 자동화
 - 로컬 Supabase를 사용하므로 `npx supabase start`로 시작해야 함
+- 로컬 Workers 서버는 네이버 로그인, 파일 업로드 등에 필요하므로 별도 터미널에서 실행해야 함
 <!-- 프로덕션 사용 시 (주석 처리):
 - 로컬 Supabase는 프로덕션 DB를 사용하므로 별도로 시작할 필요 없음
 -->
@@ -79,8 +89,10 @@ await page.evaluate(() => {
 - 프로덕션 API URL: https://ythmnhadeyfusmfhcgdr.supabase.co
 -->
 
-**Cloudflare Workers 대시보드:**
-- https://dash.cloudflare.com
+**Cloudflare Workers:**
+- 로컬 개발 서버: http://localhost:8787
+- Health Check: http://localhost:8787/health
+- 프로덕션 대시보드: https://dash.cloudflare.com
 
 **참고:** Windows에서 포트 54276-54475 범위가 WSL2/Docker Desktop에 의해 예약되어 있어, Supabase 포트를 54500 이상으로 변경했습니다.
 
@@ -102,6 +114,55 @@ await page.evaluate(() => {
 # 로컬 Supabase 환경 시작
 npx supabase start
 ```
+
+## ⚙️ 로컬 Workers 서버 시작
+
+```bash
+# workers 디렉토리로 이동
+cd workers
+
+# 로컬 Workers 서버 시작
+npx wrangler dev
+```
+
+### 환경 변수 설정
+
+로컬 Workers 서버는 `workers/.dev.vars` 파일에서 환경 변수를 읽습니다:
+
+```bash
+# .dev.vars 파일 예시
+SUPABASE_URL=http://127.0.0.1:54500
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+NAVER_CLIENT_ID=your_naver_client_id
+NAVER_CLIENT_SECRET=your_naver_client_secret
+```
+
+### Workers 서버 확인
+
+서버가 정상적으로 시작되면 다음 URL로 Health Check를 확인할 수 있습니다:
+
+```bash
+# Health Check
+curl http://localhost:8787/health
+
+# 또는 PowerShell
+Invoke-WebRequest -Uri http://localhost:8787/health -Method GET
+```
+
+**응답 예시:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-12-05T06:35:17.644Z",
+  "service": "smart-review-api"
+}
+```
+
+### 주요 엔드포인트
+
+- `/health`: 서버 상태 확인
+- `/api/naver-auth`: 네이버 로그인 처리
+- `/api/analyze-campaign-image`: 캠페인 이미지 분석
 
 ### 환경 확인
 

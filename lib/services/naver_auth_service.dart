@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../config/supabase_config.dart';
 
 // 웹용
@@ -15,7 +17,7 @@ import 'package:flutter_naver_login/flutter_naver_login.dart'
         NaverAccessToken;
 
 /// 네이버 소셜 로그인 서비스
-/// Supabase Edge Function을 통해 인증 처리
+/// Cloudflare Workers를 통해 인증 처리
 class NaverAuthService {
   final SupabaseClient _supabase = SupabaseConfig.client;
 
@@ -93,7 +95,7 @@ class NaverAuthService {
         throw Exception('Access Token이 없습니다');
       }
 
-      // 3. Edge Function 호출하여 Supabase 인증 처리
+      // 3. Workers API 호출하여 Supabase 인증 처리
       return await _exchangeNaverToken(
         accessToken: token.accessToken,
         platform: 'mobile',
@@ -105,7 +107,7 @@ class NaverAuthService {
   }
 
   /// 웹 콜백 처리 (리다이렉트 후)
-  /// URL의 code 파라미터를 추출하여 Edge Function 호출
+  /// URL의 code 파라미터를 추출하여 Workers API 호출
   Future<AuthResponse?> handleNaverCallback(
     String code, [
     String? state,
@@ -113,7 +115,7 @@ class NaverAuthService {
     try {
       debugPrint('📥 네이버 콜백 처리: code=$code');
 
-      // Edge Function 호출
+      // Workers API 호출
       return await _exchangeNaverToken(
         code: code,
         platform: 'web',
@@ -125,10 +127,12 @@ class NaverAuthService {
     }
   }
 
-  /// Edge Function 호출하여 Supabase 세션 생성
+  /// Cloudflare Workers 호출하여 Supabase 세션 생성
   ///
-  /// 웹: code를 전달 (Edge Function에서 토큰 교환)
+  /// 웹: code를 전달 (Workers에서 토큰 교환)
   /// 모바일: accessToken을 전달
+  /// 
+  /// 로컬/프로덕션: Cloudflare Workers 사용
   Future<AuthResponse?> _exchangeNaverToken({
     String? accessToken,
     String? code,
@@ -136,7 +140,7 @@ class NaverAuthService {
     String? state,
   }) async {
     try {
-      debugPrint('📤 Edge Function 호출 시작... (platform=$platform)');
+      debugPrint('📤 네이버 토큰 교환 시작... (platform=$platform)');
 
       // 요청 Body 구성
       final Map<String, dynamic> body = {'platform': platform};
@@ -152,66 +156,75 @@ class NaverAuthService {
         throw Exception('웹의 경우 code가, 모바일의 경우 accessToken이 필요합니다');
       }
 
-      // Edge Function 호출
-      debugPrint('📤 Edge Function 호출: naver-auth');
+      // ============================================
+      // Cloudflare Workers 사용 (로컬/프로덕션 모두 프로덕션 Workers 사용)
+      // ============================================
+      final workersUrl = SupabaseConfig.workersApiUrl;
+      debugPrint('📤 Workers API 호출: $workersUrl/api/naver-auth');
       debugPrint('   - platform: $platform');
       debugPrint('   - body keys: ${body.keys.toList()}');
 
-      final response = await _supabase.functions
-          .invoke('naver-auth', body: body)
+      final httpResponse = await http
+          .post(
+            Uri.parse('$workersUrl/api/naver-auth'),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
           .timeout(
             const Duration(seconds: 30),
             onTimeout: () {
-              throw Exception('Edge Function 호출 타임아웃 (30초 초과)');
+              throw Exception('Workers API 호출 타임아웃 (30초 초과)');
             },
           );
 
-      debugPrint('📥 Edge Function 응답: status=${response.status}');
-      debugPrint('   - data type: ${response.data.runtimeType}');
-      debugPrint('   - data: ${response.data}');
+      // ============================================
+      // Edge Function 사용 (삭제됨 - Workers로 전환 완료)
+      // ============================================
+      // 이전에는 Supabase Edge Function을 사용했으나,
+      // Cloudflare Workers로 완전 전환하여 제거됨
 
-      if (response.status != 200) {
-        final errorData = response.data as Map<String, dynamic>?;
+      debugPrint('📥 API 응답: status=${httpResponse.statusCode}');
+      debugPrint('   - body: ${httpResponse.body}');
+
+      if (httpResponse.statusCode != 200) {
+        Map<String, dynamic>? errorData;
+        try {
+          errorData = jsonDecode(httpResponse.body) as Map<String, dynamic>?;
+        } catch (e) {
+          debugPrint('⚠️ 에러 응답 JSON 파싱 실패: $e');
+        }
         final errorMessage =
             errorData?['error'] ?? errorData?['message'] ?? '인증 실패';
-        debugPrint('❌ Edge Function 에러 응답: $errorMessage');
+        debugPrint('❌ API 에러 응답: $errorMessage');
         throw Exception(errorMessage);
       }
 
-      final data = response.data;
-
-      if (data == null) {
-        debugPrint('❌ Edge Function 응답 데이터가 null입니다');
-        throw Exception('Edge Function 응답 데이터가 null입니다');
-      }
-
-      if (data is! Map<String, dynamic>) {
-        debugPrint('❌ Edge Function 응답 데이터 타입이 올바르지 않습니다: ${data.runtimeType}');
-        throw Exception('Edge Function 응답 데이터 타입이 올바르지 않습니다');
-      }
+      final data = jsonDecode(httpResponse.body) as Map<String, dynamic>;
 
       if (data['error'] != null) {
-        debugPrint('❌ Edge Function 에러: ${data['error']}');
+        debugPrint('❌ Workers API 에러: ${data['error']}');
         throw Exception(data['error']);
       }
 
       if (data['access_token'] == null) {
-        debugPrint('❌ Edge Function 응답에 access_token이 없습니다');
+        debugPrint('❌ Workers API 응답에 access_token이 없습니다');
         debugPrint('   - 응답 데이터: $data');
-        throw Exception('Edge Function 응답에 access_token이 없습니다');
+        throw Exception('Workers API 응답에 access_token이 없습니다');
       }
 
       if (data['user'] == null) {
-        debugPrint('❌ Edge Function 응답에 user가 없습니다');
+        debugPrint('❌ Workers API 응답에 user가 없습니다');
         debugPrint('   - 응답 데이터: $data');
-        throw Exception('Edge Function 응답에 user가 없습니다');
+        throw Exception('Workers API 응답에 user가 없습니다');
       }
 
       final String customAccessToken = data['access_token'] as String;
       final String customRefreshToken = data['refresh_token'] as String? ?? '';
       final userData = data['user'] as Map<String, dynamic>;
 
-      debugPrint('✅ Edge Function 응답 성공');
+      debugPrint('✅ Workers API 응답 성공');
       debugPrint('   - User ID: ${userData['id']}');
       debugPrint('   - Email: ${userData['email']}');
 

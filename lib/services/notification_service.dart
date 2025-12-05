@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/api_response.dart';
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
+import 'auth_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -17,8 +18,8 @@ class NotificationService {
     int limit = 20,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<List<Map<String, dynamic>>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -43,7 +44,7 @@ class NotificationService {
               product_image_url
             )
           ''')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .order('created_at', ascending: false);
 
       if (isRead != null) {
@@ -78,8 +79,8 @@ class NotificationService {
   // 알림 읽음 처리
   Future<ApiResponse<void>> markAsRead(String notificationId) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -90,7 +91,7 @@ class NotificationService {
             'read_at': DateTime.now().toIso8601String(),
           })
           .eq('id', notificationId)
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
 
       return ApiResponse<void>(success: true);
     } catch (e) {
@@ -101,8 +102,8 @@ class NotificationService {
   // 모든 알림 읽음 처리
   Future<ApiResponse<void>> markAllAsRead() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -112,7 +113,7 @@ class NotificationService {
             'is_read': true,
             'read_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('is_read', false);
 
       return ApiResponse<void>(success: true);
@@ -124,8 +125,8 @@ class NotificationService {
   // 읽지 않은 알림 개수 조회 (RLS + 직접 쿼리 - 최적화)
   Future<ApiResponse<int>> getUnreadCount() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<int>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -133,7 +134,7 @@ class NotificationService {
       final response = await _supabase
           .from('notifications')
           .select('id')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('is_read', false);
 
       return ApiResponse<int>(success: true, data: response.length);
@@ -145,8 +146,8 @@ class NotificationService {
   // 알림 삭제
   Future<ApiResponse<void>> deleteNotification(String notificationId) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -154,7 +155,7 @@ class NotificationService {
           .from('notifications')
           .delete()
           .eq('id', notificationId)
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
 
       return ApiResponse<void>(success: true);
     } catch (e) {
