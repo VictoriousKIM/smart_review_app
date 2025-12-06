@@ -232,6 +232,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           if (code != null && kIsWeb) {
             debugPrint('📥 [GoRoute] 네이버 로그인 콜백 감지: code=$code');
 
+            // 중복 요청 방지: 이미 처리된 code인지 확인
+            final prefs = await SharedPreferences.getInstance();
+            final processedCodeKey = 'naver_oauth_processed_code_$code';
+            final isProcessed = prefs.getBool(processedCodeKey) ?? false;
+
+            if (isProcessed) {
+              debugPrint('⚠️ 이미 처리된 OAuth code입니다. 중복 요청을 무시합니다.');
+              // 이미 처리된 경우 홈으로 리다이렉트
+              return '/home';
+            }
+
+            // code 처리 시작 표시
+            await prefs.setBool(processedCodeKey, true);
+
             try {
               debugPrint('🔄 Workers API 호출 시작...');
 
@@ -241,6 +255,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   .timeout(
                     const Duration(seconds: 30),
                     onTimeout: () {
+                      // 타임아웃 시 처리 표시 제거 (재시도 가능하도록)
+                      prefs.remove(processedCodeKey);
                       throw Exception('네이버 로그인 타임아웃 (30초 초과)');
                     },
                   );
@@ -286,6 +302,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             } catch (e, stackTrace) {
               debugPrint('❌ 네이버 로그인 콜백 처리 오류: $e');
               debugPrint('스택 트레이스: $stackTrace');
+
+              // "no valid data in session" 에러는 이미 사용된 code이므로 처리 표시 유지
+              // 다른 에러는 재시도 가능하도록 처리 표시 제거
+              if (!e.toString().contains('no valid data in session') &&
+                  !e.toString().contains('invalid_request')) {
+                await prefs.remove(processedCodeKey);
+                debugPrint('⚠️ 재시도 가능한 에러입니다. 처리 표시를 제거했습니다.');
+              }
+
               // 에러 발생 시 로그인 화면으로
               debugPrint('🔄 /login으로 리다이렉트');
               return '/login';

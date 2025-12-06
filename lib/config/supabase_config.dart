@@ -54,11 +54,12 @@ class SupabaseConfig {
         url: supabaseUrl,
         anonKey: supabaseAnonKey,
         // 모바일에서 딥링크 처리를 위한 설정
-        authOptions: const FlutterAuthClientOptions(
+        authOptions: FlutterAuthClientOptions(
           // 딥링크 처리를 활성화
           authFlowType: AuthFlowType.pkce,
-          // 모바일에서 딥링크로 리다이렉트될 때 앱이 열리도록 설정
-          detectSessionInUri: true,
+          // 웹에서는 네이버 로그인을 직접 처리하므로 Supabase의 자동 deep link 처리 비활성화
+          // 모바일에서는 딥링크로 리다이렉트될 때 앱이 열리도록 설정
+          detectSessionInUri: !kIsWeb, // 웹에서는 false, 모바일에서는 true
         ),
       );
       debugPrint('Supabase 초기화 완료');

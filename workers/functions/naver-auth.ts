@@ -150,6 +150,12 @@ export default async function handleNaverAuth(request: Request, env: Env): Promi
   }
 
   try {
+    // 요청 정보 로깅
+    console.log('=== Workers API 요청 수신 ===');
+    console.log('Method:', request.method);
+    console.log('URL:', request.url);
+    console.log('Headers:', Object.fromEntries(request.headers.entries()));
+
     // 환경 변수 확인 (디버깅용 - 실제 값 일부 표시)
     console.log('Environment variables check:');
     console.log('JWT_SECRET:', env.JWT_SECRET ? 'SET' : 'NOT SET');
@@ -158,10 +164,19 @@ export default async function handleNaverAuth(request: Request, env: Env): Promi
     console.log('NAVER_REDIRECT_URI:', env.NAVER_REDIRECT_URI || 'http://localhost:3001/loading');
     console.log('SUPABASE_URL:', env.SUPABASE_URL ? 'SET' : 'NOT SET');
 
-    const body: RequestBody = await request.json();
-    const { platform, accessToken, code, state } = body;
+    // 요청 본문 파싱
+    let body: RequestBody;
+    try {
+      const bodyText = await request.text();
+      console.log('Request body (raw):', bodyText);
+      body = JSON.parse(bodyText) as RequestBody;
+    } catch (parseError) {
+      console.error('JSON 파싱 실패:', parseError);
+      throw new Error(`요청 본문 파싱 실패: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+    }
     
-    console.log('Request body:', { platform, hasCode: !!code, hasAccessToken: !!accessToken });
+    const { platform, accessToken, code, state } = body;
+    console.log('Request body (parsed):', { platform, hasCode: !!code, hasAccessToken: !!accessToken, state });
 
     if (!platform) {
       throw new Error('platform 파라미터가 필요합니다 (web 또는 mobile)');
