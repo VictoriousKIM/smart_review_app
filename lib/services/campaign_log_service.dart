@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/campaign_log.dart';
 import '../models/api_response.dart';
@@ -201,41 +202,49 @@ class CampaignLogService {
     // 필요시 이 메서드를 활성화하여 사용 가능
   }
 
-  // 사용자 캠페인 로그 조회
+  // 사용자 캠페인 로그 조회 (RPC 함수 사용, Custom JWT 세션 지원)
   Future<ApiResponse<List<CampaignLog>>> getUserCampaignLogs({
     required String userId,
     String? status,
   }) async {
+    // RPC 함수 호출 (Custom JWT 세션 지원)
+    // null 값은 파라미터에서 제외 (함수의 DEFAULT 값 사용)
+    final params = <String, dynamic>{
+      'p_user_id': userId,
+      'p_limit': 100,
+      'p_offset': 0,
+    };
+    
+    // status가 null이 아닐 때만 파라미터에 추가
+    if (status != null) {
+      params['p_status'] = status;
+    }
+    
     try {
-      var queryBuilder = _supabase
-          .from('campaign_action_logs')
-          .select('''
-            *,
-            campaigns!inner(
-              id,
-              title,
-              campaign_type,
-              product_image_url,
-              platform,
-              companies!inner(
-                id,
-                name,
-                logo_url
-              )
-            )
-          ''')
-          .eq('user_id', userId);
+      final response = await _supabase.rpc(
+            'get_user_campaign_logs_safe',
+            params: params,
+          ) as List;
 
-      if (status != null) {
-        queryBuilder = queryBuilder.eq('status', status);
-      }
-
-      final response = await queryBuilder.order('updated_at', ascending: false);
       return ApiResponse<List<CampaignLog>>(
         success: true,
-        data: response.map((e) => CampaignLog.fromJson(e)).toList(),
+        data: response.map((e) => CampaignLog.fromJson(e as Map<String, dynamic>)).toList(),
       );
     } catch (e) {
+      // 에러 상세 정보 로깅
+      debugPrint('❌ get_user_campaign_logs_safe 에러: $e');
+      debugPrint('   userId: $userId');
+      debugPrint('   status: $status');
+      debugPrint('   params: $params');
+      
+      // PostgrestException인 경우 상세 정보 출력
+      if (e is PostgrestException) {
+        debugPrint('   PostgrestException code: ${e.code}');
+        debugPrint('   PostgrestException message: ${e.message}');
+        debugPrint('   PostgrestException details: ${e.details}');
+        debugPrint('   PostgrestException hint: ${e.hint}');
+      }
+      
       return ApiResponse<List<CampaignLog>>(
         success: false,
         error: '캠페인 로그 조회 실패: $e',
@@ -296,8 +305,7 @@ class CampaignLogService {
               platform,
               companies!inner(
                 id,
-                name,
-                logo_url
+                business_name
               )
             )
           ''')
