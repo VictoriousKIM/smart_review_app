@@ -6,6 +6,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../services/admin_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../utils/error_message_utils.dart';
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -65,7 +66,11 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('사용자 목록을 불러오는데 실패했습니다: $e')),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -100,7 +105,11 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('권한 변경 실패: $e')),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -118,7 +127,11 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('상태 변경 실패: $e')),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }

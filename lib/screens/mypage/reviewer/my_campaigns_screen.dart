@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/campaign_log.dart';
 import '../../../services/campaign_log_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../widgets/custom_button.dart';
 
@@ -77,8 +78,9 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
     });
 
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         setState(() {
           _isLoading = false;
         });
@@ -87,21 +89,21 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
 
       // 신청 탭: status = 'applied'
       final appliedResult = await _campaignLogService.getUserCampaignLogs(
-        userId: user.id,
+        userId: userId,
         status: 'applied',
       );
       _appliedCampaigns = appliedResult.data ?? [];
 
       // 선정 탭: status = 'approved'
       final approvedResult = await _campaignLogService.getUserCampaignLogs(
-        userId: user.id,
+        userId: userId,
         status: 'approved',
       );
       _approvedCampaigns = approvedResult.data ?? [];
 
       // 등록 탭: status가 'purchased', 'review_submitted', 'visit_completed', 'article_submitted' 등
       final registeredResult = await _campaignLogService.getUserCampaignLogs(
-        userId: user.id,
+        userId: userId,
       );
       final allLogs = registeredResult.data ?? [];
       _registeredCampaigns = allLogs.where((log) {
@@ -112,7 +114,7 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
 
       // 완료 탭: status = 'payment_completed'
       final completedResult = await _campaignLogService.getUserCampaignLogs(
-        userId: user.id,
+        userId: userId,
         status: 'payment_completed',
       );
       _completedCampaigns = completedResult.data ?? [];

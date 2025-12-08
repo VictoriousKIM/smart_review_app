@@ -6,6 +6,7 @@ import '../../../widgets/custom_button.dart';
 import '../../../services/company_user_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../utils/date_time_utils.dart';
+import '../../../utils/error_message_utils.dart';
 
 class AdvertiserManagerScreen extends ConsumerStatefulWidget {
   const AdvertiserManagerScreen({super.key});
@@ -43,23 +44,26 @@ class _AdvertiserManagerScreenState
     });
 
     try {
-      final user = await AuthService().currentUser;
-      if (user == null) {
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         throw Exception('로그인이 필요합니다.');
       }
 
       // 현재 사용자의 company_id 조회 (owner인 경우)
-      final companyId = await CompanyUserService.getUserCompanyId(user.uid);
+      final companyId = await CompanyUserService.getUserCompanyId(userId);
       if (companyId == null) {
         throw Exception('회사 정보를 찾을 수 없습니다.');
       }
 
       final supabase = Supabase.instance.client;
 
-      // RPC 함수로 매니저 목록 조회 (이메일 포함)
+      // RPC 함수로 매니저 목록 조회 (이메일 포함, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final managerListResponse = await supabase.rpc(
         'get_company_managers',
-        params: {'p_company_id': companyId},
+        params: {
+          'p_company_id': companyId,
+          'p_user_id': userId,
+        },
       );
 
       final managerList = (managerListResponse as List).map((item) {
@@ -518,12 +522,14 @@ class _AdvertiserManagerScreenState
     try {
       final supabase = Supabase.instance.client;
 
-      // RPC 함수로 매니저 승인 (복합 키 사용)
+      // RPC 함수로 매니저 승인 (복합 키 사용, Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달)
+      final userId = await AuthService.getCurrentUserId();
       await supabase.rpc(
         'approve_manager',
         params: {
           'p_company_id': manager['company_id'],
           'p_user_id': manager['user_id'],
+          'p_current_user_id': userId,
         },
       );
 
@@ -541,7 +547,11 @@ class _AdvertiserManagerScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('승인 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -571,12 +581,14 @@ class _AdvertiserManagerScreenState
     try {
       final supabase = Supabase.instance.client;
 
-      // RPC 함수로 매니저 거절 (복합 키 사용)
+      // RPC 함수로 매니저 거절 (복합 키 사용, Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달)
+      final userId = await AuthService.getCurrentUserId();
       await supabase.rpc(
         'reject_manager',
         params: {
           'p_company_id': manager['company_id'],
           'p_user_id': manager['user_id'],
+          'p_current_user_id': userId,
         },
       );
 
@@ -594,7 +606,11 @@ class _AdvertiserManagerScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('거절 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -723,7 +739,11 @@ class _AdvertiserManagerScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('비활성화 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -772,7 +792,11 @@ class _AdvertiserManagerScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('활성화 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -826,7 +850,11 @@ class _AdvertiserManagerScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('제거 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }

@@ -224,13 +224,14 @@ class SNSPlatformConnectionService {
         }
       }
 
-      // 서버에서 데이터 조회
+      // 서버에서 데이터 조회 (RPC 함수 사용, Custom JWT 세션 지원)
       print('🔄 서버에서 SNS 연결 정보 조회');
-      final response = await _supabase
-          .from('sns_connections')
-          .select()
-          .eq('user_id', userId)
-          .order('created_at', ascending: false);
+      final response = await _supabase.rpc(
+        'get_user_sns_connections_safe',
+        params: {
+          'p_user_id': userId,
+        },
+      ) as List;
 
       final connections = List<Map<String, dynamic>>.from(response);
 
@@ -270,12 +271,14 @@ class SNSPlatformConnectionService {
         throw Exception('로그인이 필요합니다');
       }
 
-      final response = await _supabase
-          .from('sns_connections')
-          .select()
-          .eq('user_id', userId)
-          .eq('platform', platform.toLowerCase())
-          .order('created_at', ascending: false);
+      // RPC 함수 호출 (Custom JWT 세션 지원)
+      final response = await _supabase.rpc(
+        'get_user_sns_connections_safe',
+        params: {
+          'p_user_id': userId,
+          'p_platform': platform.toLowerCase(),
+        },
+      ) as List;
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {

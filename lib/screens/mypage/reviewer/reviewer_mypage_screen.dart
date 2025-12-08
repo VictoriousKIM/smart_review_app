@@ -9,6 +9,7 @@ import '../../../widgets/drawer/reviewer_drawer.dart';
 import '../../../services/company_user_service.dart';
 import '../../../services/campaign_log_service.dart';
 import '../../../services/wallet_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../config/supabase_config.dart';
 
 class ReviewerMyPageScreen extends ConsumerStatefulWidget {
@@ -79,10 +80,26 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
     }
   }
 
+  /// 광고주 전환 가능 여부 확인 (Custom JWT 세션 지원)
+  Future<bool> _checkCanConvertToAdvertiser() async {
+    try {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        return false;
+      }
+      return await CompanyUserService.canConvertToAdvertiser(userId);
+    } catch (e) {
+      print('❌ 광고주 전환 가능 여부 확인 실패: $e');
+      return false;
+    }
+  }
+
   Future<void> _loadCampaignStats() async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         if (mounted) {
           setState(() {
             _isLoadingStats = false;
@@ -93,7 +110,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
 
       // 모든 로그 가져오기
       final result = await _campaignLogService.getUserCampaignLogs(
-        userId: user.id,
+        userId: userId,
       );
 
       if (!mounted) return;
@@ -174,7 +191,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
         ],
       ),
       body: FutureBuilder<bool>(
-        future: CompanyUserService.canConvertToAdvertiser(user.uid),
+        future: _checkCanConvertToAdvertiser(),
         builder: (context, snapshot) {
           final canConvert = snapshot.data ?? false;
 

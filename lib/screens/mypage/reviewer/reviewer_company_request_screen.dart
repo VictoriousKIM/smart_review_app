@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../../../config/supabase_config.dart';
 import '../../../services/company_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../utils/date_time_utils.dart';
 
 class ReviewerCompanyRequestScreen extends ConsumerStatefulWidget {
@@ -287,21 +290,57 @@ class _ReviewerCompanyRequestScreenState
 
     try {
       final supabase = SupabaseConfig.client;
-      final user = supabase.auth.currentUser;
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
       
-      if (user == null) {
+      if (userId == null) {
         throw Exception('로그인이 필요합니다.');
       }
 
       final companyId = company['id'] as String;
 
+      // Custom JWT 세션 확인
+      final prefs = await SharedPreferences.getInstance();
+      final customJwtToken = prefs.getString('custom_jwt_token');
+
       // RPC 함수 호출 (리뷰어 요청)
-      await supabase.rpc(
-        'request_reviewer_role',
-        params: {
-          'p_company_id': companyId,
-        },
-      );
+      if (customJwtToken != null) {
+        // Custom JWT를 사용하여 직접 HTTP 요청
+        final supabaseUrl = SupabaseConfig.supabaseUrl;
+        final url = Uri.parse(
+          '$supabaseUrl/rest/v1/rpc/request_reviewer_role',
+        );
+
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $customJwtToken',
+            'apikey': SupabaseConfig.supabaseAnonKey,
+            'Prefer': 'return=representation',
+          },
+          body: jsonEncode({
+            'p_company_id': companyId,
+            'p_user_id': userId,
+          }),
+        );
+
+        if (response.statusCode != 200) {
+          final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+          final errorMessage = errorData?['message'] ?? '요청 실패: ${response.statusCode}';
+          throw Exception(errorMessage);
+        }
+        debugPrint('✅ Custom JWT로 리뷰어 요청 RPC 호출 성공');
+      } else {
+        // 일반 RPC 함수 호출
+        await supabase.rpc(
+          'request_reviewer_role',
+          params: {
+            'p_company_id': companyId,
+            'p_user_id': userId,
+          },
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

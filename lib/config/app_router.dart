@@ -114,6 +114,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isMyPage = matchedLocation.startsWith('/mypage');
       final isLoading = matchedLocation == '/loading' || fullPath == '/loading';
 
+      // 루트 경로에서 OAuth 콜백 (code 파라미터) 처리 중이면 전역 redirect 건너뛰기
+      final hasOAuthCode = state.uri.queryParameters.containsKey('code');
+      if (isRoot && hasOAuthCode && kIsWeb) {
+        debugPrint('Redirect: 루트 경로에서 OAuth 콜백 감지 (GoRoute redirect에서 처리)');
+        return null; // GoRoute의 redirect가 실행되도록 null 반환
+      }
+
       // Loading 경로는 redirect 제외 (GoRoute의 redirect에서 처리)
       // 네이버 로그인 콜백 처리 중이므로 전역 redirect 건너뛰기
       if (isLoading) {
@@ -132,77 +139,89 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // 1. Custom JWT 세션 확인 (SharedPreferences에 저장된 경우)
-      // Custom JWT가 있으면 프로필 확인 후 처리
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final customJwtToken = prefs.getString('custom_jwt_token');
-        if (customJwtToken != null && customJwtToken.isNotEmpty) {
-          debugPrint('✅ Custom JWT 세션 감지: SharedPreferences에 토큰이 있습니다');
-
-          // 프로필 확인 (프로필이 없으면 회원가입으로 리다이렉트)
-          final user = await authService.currentUser;
-          if (user == null) {
-            // 프로필이 없으면 회원가입으로 리다이렉트 (카카오와 동일)
-            debugPrint('⚠️ Custom JWT 세션은 있지만 프로필이 없습니다. 회원가입으로 리다이렉트');
-            return '/signup?type=oauth&provider=naver';
-          }
-
-          // 프로필이 있으면 로그인 상태로 간주
-          if (isLoggingIn || isRoot) {
-            return '/home';
-          }
-          // 마이페이지 경로는 Custom JWT가 있으면 허용
-          if (isMyPage) {
-            return null; // 현재 경로 유지
-          }
-          return null; // 현재 경로 유지
-        }
-      } catch (e) {
-        debugPrint('⚠️ Custom JWT 세션 확인 중 에러: $e');
-      }
-
-      // 2. 마이페이지 경로는 전역 redirect에서 특별 처리 (새로고침 시 경로 유지)
-      if (isMyPage) {
-        final userState = await authService.getUserState();
-        if (userState == UserState.notLoggedIn ||
-            userState == UserState.tempSession) {
-          return '/login';
-        }
-        return null;
-      }
-
-      // 3. 사용자 상태 확인 (중복 프로필 체크 제거)
+      // 1. 사용자 상태 확인 (통합 세션 관리자 사용)
+      // 모든 세션 타입(Supabase, Custom JWT)을 통합적으로 처리
       final userState = await authService.getUserState();
 
-      // 3. 임시 세션 (프로필 없음) → signup으로 리다이렉트
+      // 2. 임시 세션 (프로필 없음) → signup으로 리다이렉트
       if (userState == UserState.tempSession) {
-        final session = SupabaseConfig.client.auth.currentSession;
-        if (session != null) {
-          final provider = _extractProvider(session.user);
+        // 활성 세션에서 provider 정보 가져오기
+        final provider = await authService.getActiveProvider();
+        if (provider != null) {
+          debugPrint('🔄 임시 세션: 프로필 없음 → 회원가입으로 리다이렉트 (provider: $provider)');
           return '/signup?type=oauth&provider=$provider';
         }
+        // provider 정보가 없으면 기본값 사용
+        return '/signup?type=oauth&provider=unknown';
       }
 
-      // 4. 비로그인 상태
+      // 3. 비로그인 상태
       if (userState == UserState.notLoggedIn) {
         if (isLoggingIn) return null;
         return '/login';
       }
 
-      // 5. 로그인 상태
+      // 4. 로그인 상태
       if (userState == UserState.loggedIn) {
         if (isLoggingIn || isRoot) return '/home';
+        // 마이페이지 경로는 로그인 상태이면 허용
+        if (isMyPage) return null;
+        // 기타 경로도 허용
+        return null;
       }
 
       return null;
     },
 
     routes: [
-      // 루트
+      // 루트 (Supabase OAuth 콜백 처리: 카카오, 구글 등)
       GoRoute(
         path: '/',
         name: 'root',
+        redirect: (context, state) async {
+          // Supabase OAuth 콜백 처리 (카카오, 구글 등)
+          final code = state.uri.queryParameters['code'];
+
+          if (code != null && kIsWeb) {
+            debugPrint('📥 [GoRoute] 루트 경로에서 OAuth 콜백 감지: code=$code');
+            debugPrint('📥 [GoRoute] URI: ${state.uri}');
+
+            try {
+              // detectSessionInUri가 false이므로 수동으로 세션 교환
+              final supabase = SupabaseConfig.client;
+
+              debugPrint('🔄 OAuth code를 세션으로 교환 중...');
+              final response = await supabase.auth.exchangeCodeForSession(code);
+
+              debugPrint('✅ Supabase OAuth 세션 교환 성공');
+              debugPrint('   - User ID: ${response.session.user.id}');
+              debugPrint('   - Email: ${response.session.user.email}');
+
+              // 프로필 확인 후 적절한 경로로 리다이렉트
+              final userState = await authService.getUserState();
+              if (userState == UserState.tempSession) {
+                // 프로필이 없으면 회원가입으로
+                final provider = _extractProvider(response.session.user);
+                debugPrint('🔄 프로필이 없습니다. 회원가입으로 리다이렉트: provider=$provider');
+                return '/signup?type=oauth&provider=$provider';
+              } else if (userState == UserState.loggedIn) {
+                // 프로필이 있으면 홈으로
+                debugPrint('🔄 프로필이 있습니다. 홈으로 리다이렉트');
+                return '/home';
+              }
+
+              // 기본적으로 홈으로 리다이렉트
+              return '/home';
+            } catch (e, stackTrace) {
+              debugPrint('❌ Supabase OAuth 콜백 처리 오류: $e');
+              debugPrint('스택 트레이스: $stackTrace');
+              return '/login';
+            }
+          }
+
+          // code가 없으면 전역 redirect가 처리
+          return null;
+        },
         builder: (context, state) => const SizedBox.shrink(),
       ),
 
@@ -279,19 +298,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 debugPrint('   - User ID: ${user?.id}');
                 debugPrint('   - Email: ${user?.email}');
 
-                // 세션이 설정되었는지 확인
-                final supabase = SupabaseConfig.client;
-                final currentSession = supabase.auth.currentSession;
+                // 프로필 확인 후 적절한 경로로 리다이렉트
 
-                if (currentSession != null) {
-                  debugPrint('✅ Supabase 세션이 설정되었습니다');
+                final userState = await authService.getUserState();
+                if (userState == UserState.tempSession) {
+                  // 프로필이 없으면 회원가입으로
+                  debugPrint('🔄 프로필이 없습니다. 회원가입으로 리다이렉트');
+                  return '/signup?type=oauth&provider=naver';
+                } else if (userState == UserState.loggedIn) {
+                  // 프로필이 있으면 홈으로
+                  debugPrint('🔄 프로필이 있습니다. 홈으로 리다이렉트');
+                  return '/home';
                 } else {
-                  debugPrint('⚠️ Supabase 세션이 설정되지 않았습니다 (setSession 실패 가능)');
+                  // 로그인 상태가 아니면 홈으로 (전역 redirect가 처리)
+                  debugPrint('🔄 홈으로 리다이렉트 (전역 redirect가 처리)');
+                  return '/home';
                 }
-
-                // 홈으로 이동 (전역 redirect가 다시 실행되지만, 로그인 상태이므로 문제없음)
-                debugPrint('🔄 /home으로 리다이렉트');
-                return '/home';
               } else {
                 debugPrint('❌ 로그인 실패: 사용자 정보 또는 세션이 null입니다');
                 debugPrint('   - authResponse: $authResponse');
@@ -369,9 +391,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'advertiser',
             name: 'advertiser-signup',
             builder: (context, state) {
-              final extra = state.extra as Map<String, dynamic>?;
+              // 쿼리 파라미터에서 provider 가져오기 (extra보다 우선)
+              final provider = state.uri.queryParameters['provider'] ?? 
+                  (state.extra as Map<String, dynamic>?)?['provider'] as String?;
               return AdvertiserSignupScreen(
-                provider: extra?['provider'] as String?,
+                provider: provider,
               );
             },
           ),

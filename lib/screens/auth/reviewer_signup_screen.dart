@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../config/supabase_config.dart';
 import '../../services/wallet_service.dart';
+import '../../services/auth_service.dart';
+import '../../utils/error_message_utils.dart';
 import 'reviewer_signup_profile_form.dart';
 import 'reviewer_signup_sns_form.dart';
 import 'reviewer_signup_company_form.dart';
@@ -51,13 +53,8 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 userId 가져오기
-      String? userId;
-      if (widget.provider == 'naver') {
-        userId = prefs.getString('custom_jwt_user_id');
-      } else {
-        userId = SupabaseConfig.client.auth.currentUser?.id;
-      }
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
 
       if (userId == null) return;
 
@@ -95,13 +92,8 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 userId 가져오기
-      String? userId;
-      if (widget.provider == 'naver') {
-        userId = prefs.getString('custom_jwt_user_id');
-      } else {
-        userId = SupabaseConfig.client.auth.currentUser?.id;
-      }
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
 
       if (userId == null) return;
 
@@ -130,13 +122,8 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 userId 가져오기
-      String? userId;
-      if (widget.provider == 'naver') {
-        userId = prefs.getString('custom_jwt_user_id');
-      } else {
-        userId = SupabaseConfig.client.auth.currentUser?.id;
-      }
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
 
       if (userId == null) return;
 
@@ -400,7 +387,7 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
                   'SNS 연결 일부 실패: $failed개 연결이 등록되지 않았습니다. 마이페이지에서 다시 등록해주세요.',
                 ),
                 backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 5),
+                duration: const Duration(seconds: 2),
               ),
             );
           }
@@ -454,7 +441,11 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
       debugPrint('❌ 회원가입 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('회원가입 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } finally {
@@ -566,6 +557,8 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
     Widget formWidget;
     switch (_currentStep) {
       case 0:
+        // ReviewerSignupProfileForm이 회원가입 모드일 때는 자체적으로 하단 버튼을 포함하므로
+        // SingleChildScrollView로 감싸지 않음
         formWidget = ReviewerSignupProfileForm(
           key: ValueKey(
             'profile_${_email}_${_displayName}',
@@ -590,6 +583,8 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
               : _baseAddress;
         }
 
+        // ReviewerSignupSNSForm이 회원가입 모드일 때는 자체적으로 하단 버튼을 포함하므로
+        // SingleChildScrollView로 감싸지 않음
         formWidget = ReviewerSignupSNSForm(
           initialSnsConnections: _snsConnections,
           profileName: _displayName,
@@ -599,6 +594,8 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
         );
         break;
       case 2:
+        // ReviewerSignupCompanyForm이 회원가입 모드일 때는 자체적으로 하단 버튼을 포함하므로
+        // SingleChildScrollView로 감싸지 않음
         formWidget = ReviewerSignupCompanyForm(
           initialCompanyId: widget.companyId ?? _selectedCompanyId,
           onComplete: _onCompanyComplete,
@@ -608,11 +605,6 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
         return const Center(child: Text('알 수 없는 단계입니다'));
     }
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: formWidget,
-      ),
-    );
+    return formWidget;
   }
 }

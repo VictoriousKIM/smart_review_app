@@ -30,11 +30,12 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
   int _remainingSeconds = 0;
 
   // 검색 실패 횟수 관련 상수
-  static const String _searchFailureCountKey = 'signup_company_search_failure_count';
-  static const String _searchFailureTimestampKey = 'signup_company_search_failure_timestamp';
+  static const String _searchFailureCountKey =
+      'signup_company_search_failure_count';
+  static const String _searchFailureTimestampKey =
+      'signup_company_search_failure_timestamp';
   static const int _maxFailureCount = 5;
   static const Duration _blockDuration = Duration(minutes: 5);
-
 
   @override
   void initState() {
@@ -176,7 +177,9 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
     try {
       final response = await SupabaseConfig.client
           .from('companies')
-          .select('id, business_name, business_number, representative_name, address')
+          .select(
+            'id, business_name, business_number, representative_name, address',
+          )
           .eq('id', companyId)
           .maybeSingle();
 
@@ -210,7 +213,8 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
       final seconds = _remainingSeconds % 60;
       setState(() {
         _isSearching = false;
-        _errorMessage = '너무 많은 검색 실패로 인해 검색이 일시적으로 차단되었습니다. ${minutes}분 ${seconds}초 후에 다시 시도해주세요.';
+        _errorMessage =
+            '너무 많은 검색 실패로 인해 검색이 일시적으로 차단되었습니다. ${minutes}분 ${seconds}초 후에 다시 시도해주세요.';
       });
       return;
     }
@@ -224,7 +228,9 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
     try {
       final response = await SupabaseConfig.client
           .from('companies')
-          .select('id, business_name, business_number, representative_name, address')
+          .select(
+            'id, business_name, business_number, representative_name, address',
+          )
           .eq('business_name', businessName);
 
       if (mounted) {
@@ -245,7 +251,8 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
           final currentCount = prefs.getInt(_searchFailureCountKey) ?? 0;
 
           setState(() {
-            _errorMessage = '등록된 광고사를 찾을 수 없습니다. 사업자명을 정확히 입력해주세요. ($currentCount/$_maxFailureCount)';
+            _errorMessage =
+                '등록된 광고사를 찾을 수 없습니다. 사업자명을 정확히 입력해주세요. ($currentCount/$_maxFailureCount)';
             _foundCompanies = [];
             _isSearching = false;
           });
@@ -262,7 +269,8 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
 
       if (mounted) {
         setState(() {
-          _errorMessage = '검색 중 오류가 발생했습니다: $e ($currentCount/$_maxFailureCount)';
+          _errorMessage =
+              '검색 중 오류가 발생했습니다: $e ($currentCount/$_maxFailureCount)';
           _foundCompanies = [];
           _isSearching = false;
         });
@@ -282,101 +290,132 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
     widget.onComplete(_selectedCompanyId);
   }
 
+  /// 콘텐츠 위젯 빌드
+  Widget _buildContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 32),
+        const Text(
+          '회사 선택',
+          style: TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -1.0,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
+        Text(
+          '소속된 광고사를 선택해주세요 (선택)',
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey[600],
+            height: 1.4,
+            letterSpacing: -0.3,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 64),
+        // 초기 회사 정보 표시
+        if (_initialCompany != null) ...[
+          _buildCompanyCard(_initialCompany!),
+          const SizedBox(height: 24),
+        ],
+        // 검색 입력
+        TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            labelText: '사업자명 검색',
+            hintText: '사업자명을 입력해주세요',
+            border: const OutlineInputBorder(),
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            suffixIcon: IconButton(
+              icon: _isSearching
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.search),
+              onPressed: _isSearching ? null : _searchCompany,
+            ),
+          ),
+          onSubmitted: (_) => _searchCompany(),
+        ),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+        ],
+        const SizedBox(height: 16),
+        // 검색 결과
+        if (_foundCompanies.isNotEmpty) ...[
+          const Text(
+            '검색 결과',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          ..._foundCompanies.map((company) => _buildCompanyCard(company)),
+        ],
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 32),
-          const Text(
-            '회사 선택',
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -1.0,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: _buildContent(),
             ),
-            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
-          Text(
-            '소속된 광고사를 선택해주세요 (선택)',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-              height: 1.4,
-              letterSpacing: -0.3,
-            ),
-            textAlign: TextAlign.center,
+        ),
+        // 완료 버튼 (하단 고정, 전체 너비)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
-          const SizedBox(height: 64),
-          // 초기 회사 정보 표시
-          if (_initialCompany != null) ...[
-            _buildCompanyCard(_initialCompany!),
-            const SizedBox(height: 24),
-          ],
-          // 검색 입력
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              labelText: '사업자명 검색',
-              hintText: '사업자명을 입력해주세요',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: _isSearching
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.search),
-                onPressed: _isSearching ? null : _searchCompany,
-              ),
-            ),
-            onSubmitted: (_) => _searchCompany(),
-          ),
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage!,
-              style: const TextStyle(color: Colors.red),
-            ),
-          ],
-          const SizedBox(height: 16),
-          // 검색 결과
-          if (_foundCompanies.isNotEmpty) ...[
-            const Text(
-              '검색 결과',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ..._foundCompanies.map((company) => _buildCompanyCard(company)),
-          ],
-          const SizedBox(height: 32),
-          // 완료 버튼
-          ElevatedButton(
-            onPressed: _handleComplete,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              '회원가입 완료',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _handleComplete,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    '회원가입 완료',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -394,8 +433,7 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
               Text('사업자번호: ${company['business_number']}'),
             if (company['representative_name'] != null)
               Text('대표자: ${company['representative_name']}'),
-            if (company['address'] != null)
-              Text('주소: ${company['address']}'),
+            if (company['address'] != null) Text('주소: ${company['address']}'),
           ],
         ),
         trailing: isSelected
@@ -406,4 +444,3 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
     );
   }
 }
-

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'auth_service.dart';
 
 /// 회사 정보 관리 서비스
 class CompanyService {
@@ -137,7 +138,16 @@ class CompanyService {
   static Future<List<Map<String, dynamic>>> getUserReviewerRequests() async {
     try {
       final supabase = Supabase.instance.client;
-      final response = await supabase.rpc('get_user_reviewer_requests');
+      // Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
+      }
+      
+      final response = await supabase.rpc(
+            'get_user_reviewer_requests',
+            params: {'p_user_id': userId},
+          );
       return (response as List).cast<Map<String, dynamic>>();
     } catch (e) {
       print('❌ 리뷰어 요청 목록 조회 실패: $e');

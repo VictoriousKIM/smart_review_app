@@ -321,12 +321,13 @@ class CampaignService {
         );
       }
 
-      // RPC 함수 호출로 안전한 캠페인 참여
+      // RPC 함수 호출로 안전한 캠페인 참여 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response = await _supabase.rpc(
         'join_campaign_safe',
         params: {
           'p_campaign_id': campaignId,
           'p_application_message': applicationMessage,
+          'p_user_id': userId,
         },
       );
 
@@ -356,10 +357,13 @@ class CampaignService {
         );
       }
 
-      // RPC 함수 호출로 안전한 캠페인 참여 취소
+      // RPC 함수 호출로 안전한 캠페인 참여 취소 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response = await _supabase.rpc(
         'leave_campaign_safe',
-        params: {'p_campaign_id': campaignId},
+        params: {
+          'p_campaign_id': campaignId,
+          'p_user_id': userId,
+        },
       );
 
       return ApiResponse<Map<String, dynamic>>(
@@ -469,8 +473,9 @@ class CampaignService {
     int limit = 10,
   }) async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<List<Campaign>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -480,7 +485,7 @@ class CampaignService {
       final response = await _supabase
           .from('campaigns')
           .select()
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .order('created_at', ascending: false)
           .order('created_at', ascending: false)
           .limit(limit);
@@ -507,8 +512,9 @@ class CampaignService {
     required int maxParticipants,
   }) async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -547,7 +553,7 @@ class CampaignService {
         'max_participants': maxParticipants,
         'current_participants': 0,
         'status': 'active',
-        'user_id': user.id,
+        'user_id': userId,
         'is_template': false,
         'template_name': null,
       };
@@ -586,8 +592,9 @@ class CampaignService {
     String? productImageUrl,
   }) async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -690,8 +697,9 @@ class CampaignService {
     int limit = 5,
   }) async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<List<Campaign>>(
           success: false,
           error: '로그인이 필요합니다.',
@@ -705,7 +713,7 @@ class CampaignService {
       final response = await _supabase
           .from('campaigns')
           .select()
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .ilike('title', '%${query.trim()}%')
           .order('created_at', ascending: false)
           .limit(limit);
@@ -755,8 +763,9 @@ class CampaignService {
     String? reviewKeywords, // 리뷰 키워드
   }) async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -918,8 +927,9 @@ class CampaignService {
     String? reviewKeywords, // 리뷰 키워드
   }) async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -989,8 +999,9 @@ class CampaignService {
     required CampaignStatus status,
   }) async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<Campaign>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -1020,8 +1031,9 @@ class CampaignService {
   /// 캠페인 삭제 (하드 삭제)
   Future<ApiResponse<void>> deleteCampaign(String campaignId) async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
@@ -1039,7 +1051,10 @@ class CampaignService {
 
       final response = await _supabase.rpc(
         'delete_campaign',
-        params: {'p_campaign_id': campaignId},
+        params: {
+          'p_campaign_id': campaignId,
+          'p_user_id': userId,
+        },
       );
 
       // response가 Map인지 확인

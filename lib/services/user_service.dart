@@ -36,28 +36,18 @@ class UserService {
   
   Future<Map<String, int>> _calculateUserStats(String userId) async {
     try {
-      // 완료된 캠페인 수
-      final completedResponse = await _supabase
-          .from('campaign_action_logs')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('status', 'payment_completed');
-      
-      final completedCount = completedResponse.length;
-      
-      // 리뷰 수
-      final reviewResponse = await _supabase
-          .from('campaign_action_logs')
-          .select('id')
-          .eq('user_id', userId)
-          .inFilter('status', ['review_submitted', 'review_approved']);
-      
-      final reviewCount = reviewResponse.length;
+      // RPC 함수 호출 (Custom JWT 세션 지원)
+      final response = await _supabase.rpc(
+        'get_user_stats_safe',
+        params: {
+          'p_user_id': userId,
+        },
+      ) as Map<String, dynamic>;
       
       return {
-        'level': (completedCount / 10).floor() + 1,
-        'reviewCount': reviewCount,
-        'completedCampaigns': completedCount,
+        'level': (response['level'] as num).toInt(),
+        'reviewCount': (response['reviewCount'] as num).toInt(),
+        'completedCampaigns': (response['completedCampaigns'] as num).toInt(),
       };
     } catch (e) {
       print('사용자 통계 계산 실패: $e');

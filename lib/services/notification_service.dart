@@ -11,7 +11,7 @@ class NotificationService {
 
   final SupabaseClient _supabase = SupabaseConfig.client;
 
-  // 사용자의 알림 목록 조회 (RLS + 직접 쿼리 - 최적화)
+  // 사용자의 알림 목록 조회 (RPC 함수 사용, Custom JWT 세션 지원)
   Future<ApiResponse<List<Map<String, dynamic>>>> getUserNotifications({
     bool? isRead,
     int page = 1,
@@ -26,36 +26,19 @@ class NotificationService {
         );
       }
 
-      // 필요한 필드만 선택하여 성능 최적화
-      dynamic query = _supabase
-          .from('notifications')
-          .select('''
-            id,
-            type,
-            title,
-            message,
-            is_read,
-            read_at,
-            created_at,
-            related_campaign_id,
-            campaigns!related_campaign_id (
-              id,
-              title,
-              product_image_url
-            )
-          ''')
-          .eq('user_id', userId)
-          .order('created_at', ascending: false);
-
-      if (isRead != null) {
-        query = query.eq('is_read', isRead);
-      }
-
       // 페이지네이션
       final offset = (page - 1) * limit;
-      query = query.range(offset, offset + limit - 1);
 
-      final response = await query.timeout(const Duration(seconds: 10));
+      // RPC 함수 호출 (Custom JWT 세션 지원)
+      final response = await _supabase.rpc(
+        'get_user_notifications_safe',
+        params: {
+          'p_user_id': userId,
+          'p_is_read': isRead,
+          'p_limit': limit,
+          'p_offset': offset,
+        },
+      ) as List;
 
       return ApiResponse<List<Map<String, dynamic>>>(
         success: true,
@@ -76,7 +59,7 @@ class NotificationService {
     }
   }
 
-  // 알림 읽음 처리
+  // 알림 읽음 처리 (RPC 함수 사용, Custom JWT 세션 지원)
   Future<ApiResponse<void>> markAsRead(String notificationId) async {
     try {
       final userId = await AuthService.getCurrentUserId();
@@ -84,14 +67,14 @@ class NotificationService {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
-      await _supabase
-          .from('notifications')
-          .update({
-            'is_read': true,
-            'read_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', notificationId)
-          .eq('user_id', userId);
+      // RPC 함수 호출 (Custom JWT 세션 지원)
+      await _supabase.rpc(
+        'mark_notification_as_read_safe',
+        params: {
+          'p_notification_id': notificationId,
+          'p_user_id': userId,
+        },
+      );
 
       return ApiResponse<void>(success: true);
     } catch (e) {
@@ -99,7 +82,7 @@ class NotificationService {
     }
   }
 
-  // 모든 알림 읽음 처리
+  // 모든 알림 읽음 처리 (RPC 함수 사용, Custom JWT 세션 지원)
   Future<ApiResponse<void>> markAllAsRead() async {
     try {
       final userId = await AuthService.getCurrentUserId();
@@ -107,14 +90,13 @@ class NotificationService {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
-      await _supabase
-          .from('notifications')
-          .update({
-            'is_read': true,
-            'read_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', userId)
-          .eq('is_read', false);
+      // RPC 함수 호출 (Custom JWT 세션 지원)
+      await _supabase.rpc(
+        'mark_all_notifications_as_read_safe',
+        params: {
+          'p_user_id': userId,
+        },
+      );
 
       return ApiResponse<void>(success: true);
     } catch (e) {
@@ -122,7 +104,7 @@ class NotificationService {
     }
   }
 
-  // 읽지 않은 알림 개수 조회 (RLS + 직접 쿼리 - 최적화)
+  // 읽지 않은 알림 개수 조회 (RPC 함수 사용, Custom JWT 세션 지원)
   Future<ApiResponse<int>> getUnreadCount() async {
     try {
       final userId = await AuthService.getCurrentUserId();
@@ -130,20 +112,21 @@ class NotificationService {
         return ApiResponse<int>(success: false, error: '로그인이 필요합니다.');
       }
 
-      // COUNT 쿼리로 최적화
-      final response = await _supabase
-          .from('notifications')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('is_read', false);
+      // RPC 함수 호출 (Custom JWT 세션 지원)
+      final response = await _supabase.rpc(
+        'get_user_unread_notifications_count_safe',
+        params: {
+          'p_user_id': userId,
+        },
+      ) as int;
 
-      return ApiResponse<int>(success: true, data: response.length);
+      return ApiResponse<int>(success: true, data: response);
     } catch (e) {
       return ApiResponse<int>(success: false, error: '읽지 않은 알림 개수 조회 실패: $e');
     }
   }
 
-  // 알림 삭제
+  // 알림 삭제 (RPC 함수 사용, Custom JWT 세션 지원)
   Future<ApiResponse<void>> deleteNotification(String notificationId) async {
     try {
       final userId = await AuthService.getCurrentUserId();
@@ -151,11 +134,14 @@ class NotificationService {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
-      await _supabase
-          .from('notifications')
-          .delete()
-          .eq('id', notificationId)
-          .eq('user_id', userId);
+      // RPC 함수 호출 (Custom JWT 세션 지원)
+      await _supabase.rpc(
+        'delete_notification_safe',
+        params: {
+          'p_notification_id': notificationId,
+          'p_user_id': userId,
+        },
+      );
 
       return ApiResponse<void>(success: true);
     } catch (e) {

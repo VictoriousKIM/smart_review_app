@@ -44,7 +44,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       );
     } else {
       // 광고주 플로우
-      context.push('/signup/advertiser', extra: {'provider': widget.provider});
+      final providerParam = widget.provider != null ? '?provider=${widget.provider}' : '';
+      context.push('/signup/advertiser$providerParam');
     }
   }
 

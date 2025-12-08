@@ -5,6 +5,7 @@ import '../../../widgets/drawer/admin_drawer.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../services/wallet_service.dart';
+import '../../../utils/error_message_utils.dart';
 import 'widgets/pending_transaction_card.dart';
 import 'widgets/approve_dialog.dart';
 import 'widgets/reject_dialog.dart';
@@ -112,7 +113,13 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('거래 목록을 불러오는데 실패했습니다: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }

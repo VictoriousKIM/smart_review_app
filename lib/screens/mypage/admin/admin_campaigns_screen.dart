@@ -5,6 +5,7 @@ import '../../../widgets/drawer/admin_drawer.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../config/supabase_config.dart';
+import '../../../utils/error_message_utils.dart';
 
 class AdminCampaignsScreen extends ConsumerStatefulWidget {
   const AdminCampaignsScreen({super.key});
@@ -50,7 +51,11 @@ class _AdminCampaignsScreenState extends ConsumerState<AdminCampaignsScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('캠페인 목록을 불러오는데 실패했습니다: $e')),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }

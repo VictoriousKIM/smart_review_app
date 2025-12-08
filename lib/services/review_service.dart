@@ -31,7 +31,7 @@ class ReviewService {
         );
       }
 
-      // RPC 함수 호출 (상태 체크는 RPC 함수 내부에서 수행)
+      // RPC 함수 호출 (상태 체크는 RPC 함수 내부에서 수행, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
           await _supabase.rpc(
                 'create_review_safe',
@@ -41,6 +41,7 @@ class ReviewService {
                   'p_content': content,
                   'p_rating': rating,
                   'p_review_url': reviewUrl,
+                  'p_user_id': userId,
                 },
               )
               as Map<String, dynamic>;
@@ -69,12 +70,13 @@ class ReviewService {
         );
       }
 
-      // RPC 함수 호출 (페이지네이션 포함)
+      // RPC 함수 호출 (페이지네이션 포함, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final offset = (page - 1) * limit;
       final response =
           await _supabase.rpc(
                 'get_user_reviews_safe',
                 params: {
+                  'p_user_id': userId,
                   'p_status': status,
                   'p_limit': limit,
                   'p_offset': offset,
@@ -147,7 +149,7 @@ class ReviewService {
         );
       }
 
-      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
           await _supabase.rpc(
                 'update_review_status_safe',
@@ -155,6 +157,7 @@ class ReviewService {
                   'p_review_id': reviewId,
                   'p_status': status,
                   'p_rejection_reason': rejectionReason,
+                  'p_user_id': userId,
                 },
               )
               as Map<String, dynamic>;
@@ -185,7 +188,7 @@ class ReviewService {
         );
       }
 
-      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
           await _supabase.rpc(
                 'update_review_safe',
@@ -195,6 +198,7 @@ class ReviewService {
                   'p_content': content,
                   'p_rating': rating,
                   'p_review_url': reviewUrl,
+                  'p_user_id': userId,
                 },
               )
               as Map<String, dynamic>;
@@ -216,10 +220,13 @@ class ReviewService {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
-      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       await _supabase.rpc(
         'delete_review_safe',
-        params: {'p_review_id': reviewId},
+        params: {
+          'p_review_id': reviewId,
+          'p_user_id': userId,
+        },
       );
 
       return ApiResponse<void>(success: true);

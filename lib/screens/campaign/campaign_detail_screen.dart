@@ -11,6 +11,8 @@ import '../../widgets/custom_button.dart';
 import '../../services/campaign_duplicate_check_service.dart';
 import '../../services/campaign_application_service.dart';
 import '../../services/campaign_realtime_manager.dart';
+import '../../services/auth_service.dart';
+import '../../utils/error_message_utils.dart';
 import '../../config/supabase_config.dart';
 
 class CampaignDetailScreen extends ConsumerStatefulWidget {
@@ -485,8 +487,9 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
 
   /// 중복 체크 수행
   Future<void> _checkDuplicate(Campaign campaign) async {
-    final user = SupabaseConfig.client.auth.currentUser;
-    if (user == null) return;
+    // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+    final userId = await AuthService.getCurrentUserId();
+    if (userId == null) return;
 
     setState(() {
       _isCheckingDuplicate = true;
@@ -495,7 +498,7 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
     try {
       final duplicateCheck =
           await _duplicateCheckService.checkCampaignDuplicate(
-        userId: user.id,
+        userId: userId,
         campaign: {
           'id': campaign.id,
           'title': campaign.title,
@@ -576,8 +579,9 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
         Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('오류가 발생했습니다: $e'),
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io' show File;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,16 +11,35 @@ import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../services/company_service.dart';
 import '../../../services/cloudflare_workers_service.dart';
+import '../../../services/auth_service.dart';
+import '../../../utils/error_message_utils.dart';
+import '../../../utils/phone_formatter.dart';
 import '../../../config/supabase_config.dart';
 
 class BusinessRegistrationForm extends ConsumerStatefulWidget {
   final bool hasPendingManagerRequest;
   final VoidCallback? onVerificationComplete;
+  // 회원가입 모드 지원
+  final bool isSignupMode; // true: 회원가입 모드, false: 프로필 모드
+  final String? initialDisplayName; // 회원가입 모드에서 사용
+  final String? initialEmail; // 회원가입 모드에서 사용
+  final Function({
+    required Map<String, dynamic> businessData,
+    String? phone,
+    String? bankName,
+    String? accountNumber,
+    String? accountHolder,
+  })?
+  onComplete; // 회원가입 모드에서 사용
 
   const BusinessRegistrationForm({
     super.key,
     this.hasPendingManagerRequest = false,
     this.onVerificationComplete,
+    this.isSignupMode = false,
+    this.initialDisplayName,
+    this.initialEmail,
+    this.onComplete,
   });
 
   @override
@@ -42,50 +62,204 @@ class _BusinessRegistrationFormState
   bool _isDataSaved = false;
   String? _existingImageUrl; // 기존 등록된 이미지 URL
 
+  // 회원가입 모드용 컨트롤러
+  final _emailController = TextEditingController();
+  final _displayNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _bankNameController = TextEditingController();
+  final _accountNumberController = TextEditingController();
+  final _accountHolderController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
   @override
   void initState() {
     super.initState();
-    _loadExistingCompanyData();
+    if (widget.isSignupMode) {
+      // 회원가입 모드: 기존 데이터 로드 안 함
+      if (widget.initialEmail != null) {
+        _emailController.text = widget.initialEmail!;
+      }
+      if (widget.initialDisplayName != null) {
+        _displayNameController.text = widget.initialDisplayName!;
+      }
+      // 이름 입력 변경 시 버튼 상태 업데이트를 위한 리스너 추가
+      _displayNameController.addListener(_onFormChanged);
+    } else {
+      // 프로필 모드: 기존 데이터 로드
+      _loadExistingCompanyData();
+    }
+  }
+
+  /// 폼 변경 시 버튼 상태 업데이트
+  void _onFormChanged() {
+    if (widget.isSignupMode) {
+      setState(() {
+        // 버튼 상태 업데이트를 위한 setState
+      });
+    }
   }
 
   @override
   void dispose() {
+    if (widget.isSignupMode) {
+      _displayNameController.removeListener(_onFormChanged);
+      _emailController.dispose();
+      _displayNameController.dispose();
+      _phoneController.dispose();
+      _bankNameController.dispose();
+      _accountNumberController.dispose();
+      _accountHolderController.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 파일 업로드 섹션
-        _buildFileUploadSection(),
+    if (widget.isSignupMode) {
+      // 회원가입 모드: 전체 폼 래핑 (다음 버튼은 하단 고정)
+      return Container(
+        color: Colors.white,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 32),
+                        const Text(
+                          '기본 정보 입력',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -1.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          '광고주 프로필에 필요한 정보를 입력해주세요',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                            height: 1.4,
+                            letterSpacing: -0.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 64),
 
-        const SizedBox(height: 24),
+                        // 기본 정보 입력 (회원가입 모드에서만)
+                        _buildBasicInfoSection(),
 
-        // 광고주 정보 입력 폼
-        _buildBusinessInfoForm(),
+                        const SizedBox(height: 32),
 
-        const SizedBox(height: 24),
-      ],
-    );
+                        // 파일 업로드 섹션
+                        _buildFileUploadSection(),
+
+                        const SizedBox(height: 24),
+
+                        // 광고주 정보 입력 폼
+                        _buildBusinessInfoForm(),
+
+                        const SizedBox(height: 32),
+
+                        // 계좌정보 섹션 (제일 밑)
+                        const Divider(),
+                        const SizedBox(height: 24),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: const Text(
+                            '계좌정보 (선택)',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildAccountSection(),
+
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // 다음 버튼 (하단 고정, 너비 최대)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: (_isProcessing || !_canCompleteSignup)
+                            ? null
+                            : _handleNext,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          '회원가입 완료',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // 프로필 모드: 기존 동작
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 파일 업로드 섹션
+          _buildFileUploadSection(),
+
+          const SizedBox(height: 24),
+
+          // 광고주 정보 입력 폼
+          _buildBusinessInfoForm(),
+
+          const SizedBox(height: 24),
+        ],
+      );
+    }
   }
 
   Widget _buildFileUploadSection() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -169,7 +343,7 @@ class _BusinessRegistrationFormState
                       style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                     ),
                     Text(
-                      'JPG, PNG, PDF (최대 1MB)',
+                      'JPG, PNG (최대 1MB)',
                       style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                     ),
                   ],
@@ -449,36 +623,14 @@ class _BusinessRegistrationFormState
     if (_isLoadingExistingData) {
       return Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.1),
-              spreadRadius: 1,
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+        color: Colors.white,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -537,13 +689,7 @@ class _BusinessRegistrationFormState
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isEmpty ? Colors.grey[50] : Colors.blue[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isEmpty ? Colors.grey[300]! : Colors.blue[200]!,
-        ),
-      ),
+      color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -681,13 +827,7 @@ class _BusinessRegistrationFormState
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isEmpty ? Colors.grey[50] : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isEmpty ? Colors.grey[300]! : Colors.grey[200]!,
-        ),
-      ),
+      color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -732,8 +872,7 @@ class _BusinessRegistrationFormState
       print('🔍 파일 선택 시작 - 플랫폼: ${Theme.of(context).platform}');
 
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+        type: FileType.image,
         allowMultiple: false,
       );
 
@@ -743,11 +882,35 @@ class _BusinessRegistrationFormState
         final file = result.files.first;
         print('🔍 선택된 파일: ${file.name}, 크기: ${file.size} bytes');
 
-        // 파일 크기 체크 (10MB 제한)
+        // 파일 확장자 검증 (이미지 파일만 허용)
+        final fileName = file.name.toLowerCase();
+        final isValidImage =
+            fileName.endsWith('.jpg') ||
+            fileName.endsWith('.jpeg') ||
+            fileName.endsWith('.png');
+
+        if (!isValidImage) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('이미지 파일만 업로드 가능합니다. (JPG, PNG)'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        }
+
+        // 파일 크기 체크 (1MB 제한)
         if (file.size > 1 * 1024 * 1024) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('파일 크기는 1MB 이하여야 합니다')),
+              const SnackBar(
+                content: Text('파일 크기는 1MB 이하여야 합니다'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
             );
           }
           return;
@@ -795,9 +958,13 @@ class _BusinessRegistrationFormState
     } catch (e) {
       print('❌ 파일 선택 중 오류 발생: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('파일 선택 실패: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
@@ -822,25 +989,15 @@ class _BusinessRegistrationFormState
         _isLoadingExistingData = true;
       });
 
-      // 현재 사용자 ID 가져오기
-      SupabaseClient supabase;
-      try {
-        supabase = Supabase.instance.client;
-      } catch (e) {
-        supabase = SupabaseClient(
-          SupabaseConfig.supabaseUrl,
-          SupabaseConfig.supabaseAnonKey,
-        );
-      }
-
-      final user = supabase.auth.currentUser;
-      if (user == null) {
+      // 현재 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         print('❌ 사용자가 로그인되지 않았습니다.');
         return;
       }
 
       // 사용자의 회사 정보 조회
-      final companyData = await CompanyService.getCompanyByUserId(user.id);
+      final companyData = await CompanyService.getCompanyByUserId(userId);
 
       if (companyData != null) {
         setState(() {
@@ -879,6 +1036,64 @@ class _BusinessRegistrationFormState
     }
   }
 
+  /// 에러 메시지를 유저 친화적인 메시지로 변환
+  String _getUserFriendlyErrorMessage(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    // 네트워크 관련 에러
+    if (errorString.contains('socketexception') ||
+        errorString.contains('timeout') ||
+        errorString.contains('connection') ||
+        errorString.contains('network')) {
+      return '네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인하고 다시 시도해주세요.';
+    }
+
+    // 로그인 관련 에러
+    if (errorString.contains('로그인이 필요') ||
+        errorString.contains('login') ||
+        errorString.contains('unauthorized')) {
+      return '로그인이 필요합니다. 다시 로그인해주세요.';
+    }
+
+    // DB 저장 관련 에러
+    if (errorString.contains('db 저장') ||
+        errorString.contains('database') ||
+        errorString.contains('중복')) {
+      return '이미 등록된 사업자등록번호입니다.';
+    }
+
+    // 파일 업로드 관련 에러
+    if (errorString.contains('파일 업로드') ||
+        errorString.contains('upload') ||
+        errorString.contains('파일')) {
+      return '파일 업로드에 실패했습니다. 다시 시도해주세요.';
+    }
+
+    // AI 추출 관련 에러
+    if (errorString.contains('ai 추출') ||
+        errorString.contains('extraction') ||
+        errorString.contains('추출')) {
+      return '사업자등록증 정보를 읽을 수 없습니다. 이미지가 선명한지 확인하고 다시 시도해주세요.';
+    }
+
+    // 검증 관련 에러
+    if (errorString.contains('검증') ||
+        errorString.contains('validation') ||
+        errorString.contains('유효하지')) {
+      return '사업자등록번호가 유효하지 않습니다. 다시 확인해주세요.';
+    }
+
+    // 이미지 검증 관련 에러
+    if (errorString.contains('이미지 검증') ||
+        errorString.contains('image_verification') ||
+        errorString.contains('사업자등록증이 아닙니다')) {
+      return '업로드된 이미지가 사업자등록증이 아닙니다. 사업자등록증 이미지를 업로드해주세요.';
+    }
+
+    // 일반적인 에러
+    return '처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+  }
+
   Future<void> _processWithAI() async {
     if (_selectedFileBytes == null) return;
 
@@ -907,8 +1122,8 @@ class _BusinessRegistrationFormState
       // 이미지를 base64로 인코딩
       final base64Image = base64Encode(_selectedFileBytes!);
 
-      // 사용자 ID 가져오기
-      final userId = Supabase.instance.client.auth.currentUser?.id;
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
         throw Exception('로그인이 필요합니다.');
       }
@@ -968,75 +1183,126 @@ class _BusinessRegistrationFormState
             filePath != null &&
             publicUrl != null) {
           try {
-            // 1단계: DB 저장 먼저 시도 (중복 체크 포함)
-            print('💾 DB 저장 시작 (파일 업로드 전)');
-            String? savedCompanyId;
-
-            try {
-              savedCompanyId = await _saveCompanyToDatabase(
-                extractedData: extractedData,
-                validationResult: validationResult,
-                fileUrl: publicUrl,
-              );
-              print('✅ DB 저장 완료: $savedCompanyId');
-            } catch (dbError) {
-              // DB 저장 실패 시 파일 업로드하지 않음
-              throw Exception('DB 저장 실패: $dbError');
-            }
-
-            // 2단계: DB 저장 성공 후 파일 업로드
-            print('📤 Presigned URL로 파일 업로드 시작');
-            final uploadResponse = await http.put(
-              Uri.parse(presignedUrl),
-              headers: {
-                'Content-Type':
-                    _selectedFileName?.toLowerCase().endsWith('.pdf') == true
-                    ? 'application/pdf'
-                    : 'image/png',
-              },
-              body: _selectedFileBytes!,
-            );
-
-            if (uploadResponse.statusCode != 200) {
-              // 파일 업로드 실패 → DB 롤백
-              print('❌ 파일 업로드 실패, DB 롤백 시작');
-              try {
-                await _deleteCompanyFromDatabase(savedCompanyId);
-                print('✅ DB 롤백 완료');
-              } catch (rollbackError) {
-                print('⚠️ DB 롤백 실패: $rollbackError');
+            if (widget.isSignupMode) {
+              // 회원가입 모드: 파일만 업로드하고 DB 저장은 하지 않음 (나중에 create_advertiser_profile_with_company에서 처리)
+              print('📤 회원가입 모드: 파일 업로드 시작');
+              // 파일 확장자에 따른 Content-Type 결정
+              String contentType = 'image/png';
+              final fileName = _selectedFileName?.toLowerCase() ?? '';
+              if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+                contentType = 'image/jpeg';
+              } else if (fileName.endsWith('.png')) {
+                contentType = 'image/png';
               }
-              throw Exception('파일 업로드 실패: ${uploadResponse.statusCode}');
-            }
 
-            print('✅ 파일 업로드 완료: $publicUrl');
-
-            // 성공: 회사 등록 완료
-            setState(() {
-              _isDataSaved = true;
-              _isProcessing = false;
-              _isValidatingBusinessNumber = false;
-            });
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('인증되었습니다'),
-                  backgroundColor: Colors.green,
-                ),
+              final uploadResponse = await http.put(
+                Uri.parse(presignedUrl),
+                headers: {'Content-Type': contentType},
+                body: _selectedFileBytes!,
               );
-            }
 
-            // 기존 회사 데이터 다시 로드
-            await _loadExistingCompanyData();
+              if (uploadResponse.statusCode != 200) {
+                throw Exception('파일 업로드 실패: ${uploadResponse.statusCode}');
+              }
 
-            // 부모 스크린에 알림 (사업자 인증 완료)
-            if (widget.onVerificationComplete != null) {
-              widget.onVerificationComplete!();
+              print('✅ 파일 업로드 완료: $publicUrl');
+
+              // 성공: 검증 완료 상태로 설정 (DB 저장은 하지 않음)
+              // publicUrl을 상태에 저장하여 _handleNext에서 사용
+              setState(() {
+                _isProcessing = false;
+                _isValidatingBusinessNumber = false;
+                // publicUrl을 _extractedData에 저장
+                if (_extractedData != null) {
+                  _extractedData!['registration_file_url'] = publicUrl;
+                }
+              });
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('검증이 완료되었습니다. 다음 단계로 진행하세요.'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } else {
+              // 프로필 모드: 기존 로직 (DB 저장)
+              // 1단계: DB 저장 먼저 시도 (중복 체크 포함)
+              print('💾 DB 저장 시작 (파일 업로드 전)');
+              String? savedCompanyId;
+
+              try {
+                savedCompanyId = await _saveCompanyToDatabase(
+                  extractedData: extractedData,
+                  validationResult: validationResult,
+                  fileUrl: publicUrl,
+                );
+                print('✅ DB 저장 완료: $savedCompanyId');
+              } catch (dbError) {
+                // DB 저장 실패 시 파일 업로드하지 않음
+                throw Exception('DB 저장 실패: $dbError');
+              }
+
+              // 2단계: DB 저장 성공 후 파일 업로드
+              print('📤 Presigned URL로 파일 업로드 시작');
+              // 파일 확장자에 따른 Content-Type 결정
+              String contentType = 'image/png';
+              final fileName = _selectedFileName?.toLowerCase() ?? '';
+              if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+                contentType = 'image/jpeg';
+              } else if (fileName.endsWith('.png')) {
+                contentType = 'image/png';
+              }
+
+              final uploadResponse = await http.put(
+                Uri.parse(presignedUrl),
+                headers: {'Content-Type': contentType},
+                body: _selectedFileBytes!,
+              );
+
+              if (uploadResponse.statusCode != 200) {
+                // 파일 업로드 실패 → DB 롤백
+                print('❌ 파일 업로드 실패, DB 롤백 시작');
+                try {
+                  await _deleteCompanyFromDatabase(savedCompanyId);
+                  print('✅ DB 롤백 완료');
+                } catch (rollbackError) {
+                  print('⚠️ DB 롤백 실패: $rollbackError');
+                }
+                throw Exception('파일 업로드 실패: ${uploadResponse.statusCode}');
+              }
+
+              print('✅ 파일 업로드 완료: $publicUrl');
+
+              // 성공: 회사 등록 완료
+              setState(() {
+                _isDataSaved = true;
+                _isProcessing = false;
+                _isValidatingBusinessNumber = false;
+              });
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('인증되었습니다'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+
+              // 기존 회사 데이터 다시 로드
+              await _loadExistingCompanyData();
+
+              // 부모 스크린에 알림 (사업자 인증 완료)
+              if (widget.onVerificationComplete != null) {
+                widget.onVerificationComplete!();
+              }
             }
           } catch (error) {
             // 에러 발생 시 처리
             print('❌ 처리 실패: $error');
+            final userFriendlyMessage = _getUserFriendlyErrorMessage(error);
 
             setState(() {
               _isProcessing = false;
@@ -1046,8 +1312,9 @@ class _BusinessRegistrationFormState
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('처리 실패: $error'),
+                  content: Text(userFriendlyMessage),
                   backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 2),
                 ),
               );
             }
@@ -1081,34 +1348,51 @@ class _BusinessRegistrationFormState
 
         if (mounted) {
           Color backgroundColor = Colors.red;
+          String userFriendlyMessage = errorMessage;
+
+          // step에 따라 유저 친화적인 메시지로 변환
           if (step == 'duplicate') {
             backgroundColor = Colors.orange;
+            userFriendlyMessage = '이미 등록된 사업자등록번호입니다.';
           } else if (step == 'image_verification') {
-            backgroundColor = Colors.orange; // 이미지 검증 실패는 주황색으로 표시
+            backgroundColor = Colors.orange;
+            userFriendlyMessage =
+                '업로드된 이미지가 사업자등록증이 아닙니다. 사업자등록증 이미지를 업로드해주세요.';
+          } else if (step == 'extraction') {
+            userFriendlyMessage =
+                '사업자등록증 정보를 읽을 수 없습니다. 이미지가 선명한지 확인하고 다시 시도해주세요.';
+          } else {
+            // 서버에서 온 에러 메시지도 유저 친화적으로 변환
+            userFriendlyMessage = _getUserFriendlyErrorMessage(errorMessage);
           }
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(errorMessage),
+              content: Text(userFriendlyMessage),
               backgroundColor: backgroundColor,
-              duration: const Duration(seconds: 5),
+              duration: const Duration(seconds: 2),
             ),
           );
         }
       }
     } catch (e) {
       print('❌ 검증 및 등록 실패: $e');
+      final userFriendlyMessage = _getUserFriendlyErrorMessage(e);
 
       setState(() {
         _isProcessing = false;
         _isValidatingBusinessNumber = false;
         _isBusinessNumberValid = false;
-        _businessNumberValidationMessage = '처리 중 오류 발생: $e';
+        _businessNumberValidationMessage = userFriendlyMessage;
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('처리 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(userFriendlyMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -1120,17 +1404,19 @@ class _BusinessRegistrationFormState
     required Map<String, dynamic> validationResult,
     required String fileUrl,
   }) async {
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
+    // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+    final userId = await AuthService.getCurrentUserId();
+    if (userId == null) {
       throw Exception('로그인이 필요합니다.');
     }
+
+    final supabase = Supabase.instance.client;
 
     // RPC 함수 호출 (중복 체크 및 트랜잭션 포함)
     final result = await supabase.rpc(
       'register_company',
       params: {
-        'p_user_id': user.id,
+        'p_user_id': userId,
         'p_business_name': extractedData['business_name'] ?? '',
         'p_business_number': extractedData['business_number'] ?? '',
         'p_address': extractedData['business_address'] ?? '',
@@ -1172,5 +1458,197 @@ class _BusinessRegistrationFormState
       print('❌ 회사 삭제 중 오류: $e');
       rethrow;
     }
+  }
+
+  /// 기본 정보 입력 섹션 (회원가입 모드에서만 사용)
+  Widget _buildBasicInfoSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 이메일 표시 (읽기 전용)
+          if (widget.initialEmail != null ||
+              _emailController.text.isNotEmpty) ...[
+            TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                labelText: '이메일',
+                border: OutlineInputBorder(),
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+              ),
+              readOnly: true,
+              enabled: false,
+            ),
+            const SizedBox(height: 16),
+          ],
+          TextFormField(
+            controller: _displayNameController,
+            decoration: const InputDecoration(
+              labelText: '이름 *',
+              hintText: '이름을 입력해주세요',
+              border: OutlineInputBorder(),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '이름을 입력해주세요';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _phoneController,
+            decoration: const InputDecoration(
+              labelText: '전화번호 (선택)',
+              hintText: '010-1234-5678',
+              border: OutlineInputBorder(),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+            keyboardType: TextInputType.phone,
+            inputFormatters: [PhoneNumberFormatter()],
+            validator: (value) {
+              // 빈 값은 허용 (선택 항목)
+              if (value == null || value.trim().isEmpty) {
+                return null;
+              }
+              // 값이 있으면 형식 검증
+              final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
+              if (digitsOnly.length < 10 || digitsOnly.length > 11) {
+                return '올바른 전화번호를 입력해주세요';
+              }
+              return null;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 회원가입 완료 가능 여부 확인 (필수 항목 체크)
+  bool get _canCompleteSignup {
+    // 이름이 입력되어 있는지 확인
+    if (_displayNameController.text.trim().isEmpty) {
+      return false;
+    }
+
+    // 사업자등록증이 검증되었는지 확인
+    if (!_isBusinessNumberValid) {
+      return false;
+    }
+
+    // 사업자 정보가 추출되었는지 확인
+    if (_extractedData == null) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// 다음 단계로 이동 (회원가입 모드에서만 사용)
+  void _handleNext() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (!_isBusinessNumberValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사업자등록증을 검증해주세요'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (_extractedData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사업자 정보를 추출해주세요'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // onComplete 콜백 호출
+    if (widget.onComplete != null) {
+      widget.onComplete!(
+        businessData: {
+          'business_name': _extractedData!['business_name'] ?? '',
+          'business_number': _extractedData!['business_number'] ?? '',
+          'address':
+              _extractedData!['business_address'] ??
+              _extractedData!['address'] ??
+              '',
+          'representative_name': _extractedData!['representative_name'] ?? '',
+          'business_type': _extractedData!['business_type'] ?? '',
+          'registration_file_url':
+              _extractedData!['registration_file_url'], // 파일 업로드 후 URL
+        },
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        bankName: _bankNameController.text.trim().isEmpty
+            ? null
+            : _bankNameController.text.trim(),
+        accountNumber: _accountNumberController.text.trim().isEmpty
+            ? null
+            : _accountNumberController.text.trim(),
+        accountHolder: _accountHolderController.text.trim().isEmpty
+            ? null
+            : _accountHolderController.text.trim(),
+      );
+    }
+  }
+
+  /// 계좌정보 섹션 (회원가입 모드에서만 사용)
+  Widget _buildAccountSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextFormField(
+            controller: _bankNameController,
+            decoration: const InputDecoration(
+              labelText: '은행명',
+              hintText: '은행명을 입력해주세요',
+              border: OutlineInputBorder(),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _accountNumberController,
+            decoration: const InputDecoration(
+              labelText: '계좌번호',
+              hintText: '계좌번호를 입력해주세요 (예: 123-456-789012)',
+              border: OutlineInputBorder(),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+            keyboardType: TextInputType.text,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(
+                RegExp(r'[0-9\-]'),
+              ), // 숫자와 하이픈만 허용
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _accountHolderController,
+            decoration: const InputDecoration(
+              labelText: '예금주',
+              hintText: '예금주명을 입력해주세요',
+              border: OutlineInputBorder(),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

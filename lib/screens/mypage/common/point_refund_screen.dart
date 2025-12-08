@@ -4,6 +4,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/wallet_service.dart';
 import '../../../services/company_user_service.dart';
 import '../../../utils/user_type_helper.dart';
+import '../../../utils/error_message_utils.dart';
 import '../../../models/wallet_models.dart';
 
 class PointRefundScreen extends StatefulWidget {
@@ -87,7 +88,11 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('지갑 정보를 불러올 수 없습니다: $e')),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -161,7 +166,11 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('출금 신청 중 오류가 발생했습니다: $e')),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }

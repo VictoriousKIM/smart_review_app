@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/supabase_config.dart';
+import 'session/custom_jwt_session_provider.dart';
 
 // 웹용
 import 'package:universal_html/html.dart' as html;
@@ -269,14 +270,9 @@ class NaverAuthService {
         // Supabase SDK는 setSession(refreshToken)만 지원하므로,
         // Custom JWT의 경우 세션을 수동으로 관리해야 함
 
-        // Custom JWT 저장 (SharedPreferences - 웹/모바일 공통)
+        // Custom JWT 저장 (통합 세션 관리자 사용)
         try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('custom_jwt_token', customAccessToken);
-          await prefs.setString('custom_jwt_user_id', user.id);
-          await prefs.setString('custom_jwt_user_email', user.email ?? '');
-
-          // 이름 정보도 저장 (회원가입 화면에서 사용)
+          // 이름 정보 추출 (회원가입 화면에서 사용)
           final userMetadata =
               userData['user_metadata'] as Map<String, dynamic>? ?? {};
           final fullName =
@@ -284,15 +280,26 @@ class NaverAuthService {
               userMetadata['name'] as String? ??
               userMetadata['display_name'] as String? ??
               '';
+          
+          // CustomJwtSessionProvider를 통해 세션 저장
+          await CustomJwtSessionProvider.saveSession(
+            token: customAccessToken,
+            userId: user.id,
+            email: user.email,
+            provider: 'naver',
+          );
+
+          // 이름 정보도 저장 (회원가입 화면에서 사용)
           if (fullName.isNotEmpty) {
+            final prefs = await SharedPreferences.getInstance();
             await prefs.setString('custom_jwt_user_name', fullName);
           }
 
-          debugPrint('✅ Custom JWT를 SharedPreferences에 저장했습니다');
+          debugPrint('✅ Custom JWT를 통합 세션 관리자에 저장했습니다');
           debugPrint('   - Email: ${user.email}');
           debugPrint('   - Name: $fullName');
         } catch (e) {
-          debugPrint('⚠️ SharedPreferences 저장 실패: $e');
+          debugPrint('⚠️ Custom JWT 세션 저장 실패: $e');
         }
 
         // setSession 시도 (실패할 가능성 높지만 시도)

@@ -12,6 +12,7 @@ import '../../../models/user.dart' as app_user;
 import '../../../models/wallet_models.dart';
 import '../../../config/supabase_config.dart';
 import '../../../utils/phone_formatter.dart';
+import '../../../utils/error_message_utils.dart';
 import '../../../widgets/address_form_field.dart';
 import 'business_registration_form.dart';
 import 'account_registration_form.dart';
@@ -84,13 +85,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   /// users 테이블에서 전화번호와 주소 정보 로드
   Future<void> _loadUserProfileDetails() async {
     try {
-      final user = await _authService.currentUser;
-      if (user == null) return;
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) return;
 
       final response = await SupabaseConfig.client
           .from('users')
           .select('phone, address')
-          .eq('id', user.uid)
+          .eq('id', userId)
           .maybeSingle();
 
       if (response != null) {
@@ -161,7 +163,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('프로필 로드 실패: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
@@ -681,8 +689,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       });
 
       try {
-        final user = await _authService.currentUser;
-        if (user == null) {
+        // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+        final userId = await AuthService.getCurrentUserId();
+        if (userId == null) {
           throw Exception('사용자 정보를 찾을 수 없습니다');
         }
 
@@ -706,7 +715,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               'address': fullAddress,
               'updated_at': DateTime.now().toIso8601String(),
             })
-            .eq('id', user.uid);
+            .eq('id', userId);
 
         // 프로필 다시 로드
         await _loadUserProfile();
@@ -728,7 +737,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('프로필 저장 실패: $e')));
+          ).showSnackBar(
+            SnackBar(
+              content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
+          );
         }
       }
     }
@@ -821,12 +836,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _isLoadingCompanyData = true;
       });
 
-      final user = await _authService.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        setState(() {
+          _isLoadingCompanyData = false;
+        });
         return;
       }
 
-      final companyData = await CompanyService.getCompanyByUserId(user.uid);
+      final companyData = await CompanyService.getCompanyByUserId(userId);
       setState(() {
         _existingCompanyData = companyData;
         _isLoadingCompanyData = false;
@@ -1129,12 +1148,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   /// 매니저 등록 요청 취소
   Future<void> _cancelManagerRequest() async {
     try {
-      final user = await _authService.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         return;
       }
 
-      await CompanyService.cancelManagerRequest(user.uid);
+      await CompanyService.cancelManagerRequest(userId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1150,7 +1170,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('요청 취소 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -1163,13 +1187,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _isLoadingPendingRequest = true;
       });
 
-      final user = await _authService.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        setState(() {
+          _isLoadingPendingRequest = false;
+        });
         return;
       }
 
       final pendingRequest = await CompanyService.getPendingManagerRequest(
-        user.uid,
+        userId,
       );
       setState(() {
         _pendingManagerRequest = pendingRequest;

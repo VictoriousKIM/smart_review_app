@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/wallet_models.dart';
 import '../../../services/wallet_service.dart';
+import '../../../utils/error_message_utils.dart';
 
 /// 계좌등록폼 위젯
 /// 리뷰어용과 사업자용 모두 지원
@@ -189,7 +190,13 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('계좌정보 저장 실패: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }

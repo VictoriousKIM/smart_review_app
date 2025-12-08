@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/campaign_service.dart';
 import '../../services/wallet_service.dart';
 import '../../services/campaign_default_schedule_service.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../config/supabase_config.dart';
@@ -317,8 +318,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     String? pendingErrorMessage;
 
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         pendingErrorMessage = '로그인이 필요합니다.';
       } else {
         final wallets = await WalletService.getCompanyWallets();

@@ -29,13 +29,14 @@ class CampaignApplicationService {
         );
       }
 
-      // RPC 함수 호출
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
           await _supabase.rpc(
                 'apply_to_campaign_safe',
                 params: {
                   'p_campaign_id': campaignId,
                   'p_application_message': applicationMessage,
+                  'p_user_id': userId,
                 },
               )
               as Map<String, dynamic>;
@@ -64,12 +65,13 @@ class CampaignApplicationService {
         );
       }
 
-      // RPC 함수 호출 (페이지네이션 포함)
+      // RPC 함수 호출 (페이지네이션 포함, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final offset = (page - 1) * limit;
       final response =
           await _supabase.rpc(
                 'get_user_applications_safe',
                 params: {
+                  'p_user_id': userId,
                   'p_status': status,
                   'p_limit': limit,
                   'p_offset': offset,
@@ -109,7 +111,7 @@ class CampaignApplicationService {
         );
       }
 
-      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행, 페이지네이션 포함)
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행, 페이지네이션 포함, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final offset = (page - 1) * limit;
       final response =
           await _supabase.rpc(
@@ -119,6 +121,7 @@ class CampaignApplicationService {
                   'p_status': status,
                   'p_limit': limit,
                   'p_offset': offset,
+                  'p_user_id': userId,
                 },
               )
               as List;
@@ -154,7 +157,7 @@ class CampaignApplicationService {
         );
       }
 
-      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
           await _supabase.rpc(
                 'update_application_status_safe',
@@ -162,6 +165,7 @@ class CampaignApplicationService {
                   'p_application_id': applicationId,
                   'p_status': status,
                   'p_rejection_reason': rejectionReason,
+                  'p_user_id': userId,
                 },
               )
               as Map<String, dynamic>;
@@ -183,10 +187,13 @@ class CampaignApplicationService {
         return ApiResponse<void>(success: false, error: '로그인이 필요합니다.');
       }
 
-      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행)
+      // RPC 함수 호출 (권한 체크는 RPC 함수 내부에서 수행, Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       await _supabase.rpc(
         'cancel_application_safe',
-        params: {'p_application_id': applicationId},
+        params: {
+          'p_application_id': applicationId,
+          'p_user_id': userId,
+        },
       );
 
       return ApiResponse<void>(success: true);

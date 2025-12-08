@@ -7,9 +7,11 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
-      // RPC 함수 호출
-      final response =
-          await supabase.rpc('can_convert_to_advertiser_safe') as bool;
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
+      final response = await supabase.rpc(
+        'can_convert_to_advertiser_safe',
+        params: {'p_user_id': userId},
+      ) as bool;
 
       return response;
     } catch (e) {
@@ -23,9 +25,12 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
-      // RPC 함수 호출
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
-          await supabase.rpc('get_user_company_role_safe') as String?;
+          await supabase.rpc(
+                'get_user_company_role_safe',
+                params: {'p_user_id': userId},
+              ) as String?;
 
       return response;
     } catch (e) {
@@ -39,8 +44,11 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
-      // RPC 함수 호출
-      final response = await supabase.rpc('is_user_in_company_safe') as bool;
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
+      final response = await supabase.rpc(
+        'is_user_in_company_safe',
+        params: {'p_user_id': userId},
+      ) as bool;
 
       return response;
     } catch (e) {
@@ -54,9 +62,12 @@ class CompanyUserService {
     try {
       final supabase = Supabase.instance.client;
 
-      // RPC 함수 호출
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
-          await supabase.rpc('get_user_company_id_safe') as String?;
+          await supabase.rpc(
+                'get_user_company_id_safe',
+                params: {'p_user_id': userId},
+              ) as String?;
 
       return response;
     } catch (e) {

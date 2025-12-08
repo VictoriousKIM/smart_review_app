@@ -5,6 +5,7 @@ import '../../../services/wallet_service.dart';
 import '../../../services/company_user_service.dart';
 import '../../../services/company_service.dart';
 import '../../../utils/user_type_helper.dart';
+import '../../../utils/error_message_utils.dart';
 import '../../../utils/postcode_service.dart';
 
 class PointChargeScreen extends StatefulWidget {
@@ -152,7 +153,13 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('지갑 정보를 불러올 수 없습니다: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
@@ -320,7 +327,13 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('충전 요청 중 오류가 발생했습니다: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }

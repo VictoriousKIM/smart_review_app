@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/error_message_utils.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/email_login_form.dart';
 
@@ -59,7 +60,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         });
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('로그인 실패: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
     // finally 블록 제거: authStateChanges에서 로그인 완료 시 로딩 상태 해제

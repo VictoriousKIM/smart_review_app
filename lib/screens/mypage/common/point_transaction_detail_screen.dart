@@ -5,6 +5,7 @@ import '../../../utils/date_time_utils.dart';
 import '../../../services/wallet_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/campaign_service.dart';
+import '../../../utils/error_message_utils.dart';
 import '../admin/widgets/approve_dialog.dart';
 import '../admin/widgets/reject_dialog.dart';
 import 'package:flutter/services.dart';
@@ -67,7 +68,13 @@ class _PointTransactionDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('거래 정보를 불러올 수 없습니다: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } finally {
       setState(() {

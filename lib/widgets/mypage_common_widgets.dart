@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/sns_platform_connection_service.dart';
 import '../services/wallet_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/address_form_field.dart';
 
 class MyPageCommonWidgets {
@@ -1057,14 +1058,15 @@ class _PlatformConnectionDialogState extends State<PlatformConnectionDialog> {
   /// 프로필 정보 로드
   Future<void> _loadProfileInfo() async {
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) return;
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) return;
 
       // users 테이블에서 프로필 정보 조회
       final response = await Supabase.instance.client
           .from('users')
           .select('display_name, phone, address')
-          .eq('id', user.id)
+          .eq('id', userId)
           .maybeSingle();
 
       if (response != null) {

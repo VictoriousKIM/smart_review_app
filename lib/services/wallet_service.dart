@@ -19,9 +19,12 @@ class WalletService {
         return null;
       }
 
-      // RPC 함수 호출
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
-          await _supabase.rpc('get_user_wallet_current_safe')
+          await _supabase.rpc(
+                'get_user_wallet_current_safe',
+                params: {'p_user_id': userId},
+              )
               as Map<String, dynamic>?;
 
       if (response == null) {
@@ -58,8 +61,11 @@ class WalletService {
         return [];
       }
 
-      // RPC 함수 호출
-      final response = await _supabase.rpc('get_company_wallets_safe') as List;
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
+      final response = await _supabase.rpc(
+            'get_company_wallets_safe',
+            params: {'p_user_id': userId},
+          ) as List;
 
       if (response.isEmpty) {
         return [];
@@ -153,11 +159,15 @@ class WalletService {
         return [];
       }
 
-      // RPC 함수 호출
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
           await _supabase.rpc(
                 'get_user_point_history_safe',
-                params: {'p_limit': limit, 'p_offset': offset},
+                params: {
+                  'p_user_id': userId,
+                  'p_limit': limit,
+                  'p_offset': offset,
+                },
               )
               as List;
 

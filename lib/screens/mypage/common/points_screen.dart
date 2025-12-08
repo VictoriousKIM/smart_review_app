@@ -5,6 +5,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/wallet_service.dart';
 import '../../../services/company_user_service.dart';
 import '../../../utils/user_type_helper.dart';
+import '../../../utils/error_message_utils.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../utils/date_time_utils.dart';
 
@@ -208,7 +209,13 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('포인트 정보를 불러올 수 없습니다: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }

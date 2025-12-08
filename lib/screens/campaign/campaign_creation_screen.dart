@@ -17,6 +17,7 @@ import '../../services/wallet_service.dart';
 import '../../services/cloudflare_workers_service.dart';
 import '../../services/company_user_service.dart';
 import '../../services/campaign_default_schedule_service.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../config/supabase_config.dart';
@@ -281,8 +282,9 @@ class _CampaignCreationScreenState
     String? pendingErrorMessage;
 
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         pendingErrorMessage = '로그인이 필요합니다.';
       } else {
         final wallets = await WalletService.getCompanyWallets();
@@ -379,29 +381,41 @@ class _CampaignCreationScreenState
         );
 
         if (image != null) {
-          final bytes = await image.readAsBytes();
+          // 파일 확장자 검증 (이미지 파일만 허용)
+          final fileName = image.name.toLowerCase();
+          final isValidImage =
+              fileName.endsWith('.jpg') ||
+              fileName.endsWith('.jpeg') ||
+              fileName.endsWith('.png') ||
+              fileName.endsWith('.webp');
 
-          if (bytes.length > 5 * 1024 * 1024) {
-            pendingErrorMessage = '이미지 크기가 너무 큽니다. (최대 5MB)';
+          if (!isValidImage) {
+            pendingErrorMessage = '이미지 파일만 업로드 가능합니다. (JPG, PNG, WEBP)';
           } else {
-            // ✅ 원본 이미지를 먼저 표시 (리사이징 전)
-            if (mounted) {
-              setState(() {
-                _capturedImage = bytes; // 원본 먼저 표시
-                _isLoadingImage = false; // 로딩 해제
-              });
-            }
+            final bytes = await image.readAsBytes();
 
-            // ✅ 리사이징은 백그라운드에서 처리
-            pendingImageBytes = await _getCachedOrResizeImage(bytes);
+            if (bytes.length > 5 * 1024 * 1024) {
+              pendingErrorMessage = '이미지 크기가 너무 큽니다. (최대 5MB)';
+            } else {
+              // ✅ 원본 이미지를 먼저 표시 (리사이징 전)
+              if (mounted) {
+                setState(() {
+                  _capturedImage = bytes; // 원본 먼저 표시
+                  _isLoadingImage = false; // 로딩 해제
+                });
+              }
 
-            // ✅ 리사이징 완료 후 업데이트
-            if (mounted && pendingImageBytes != null) {
-              setState(() {
-                _capturedImage = pendingImageBytes; // 리사이징된 이미지로 교체
-              });
+              // ✅ 리사이징은 백그라운드에서 처리
+              pendingImageBytes = await _getCachedOrResizeImage(bytes);
+
+              // ✅ 리사이징 완료 후 업데이트
+              if (mounted && pendingImageBytes != null) {
+                setState(() {
+                  _capturedImage = pendingImageBytes; // 리사이징된 이미지로 교체
+                });
+              }
+              return; // 리사이징 완료 후 종료
             }
-            return; // 리사이징 완료 후 종료
           }
         }
       } catch (e) {
@@ -544,7 +558,7 @@ class _CampaignCreationScreenState
             const SnackBar(
               content: Text('이미지 분석 완료!'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 1),
+              duration: Duration(seconds: 2),
             ),
           );
         }
@@ -1032,13 +1046,14 @@ class _CampaignCreationScreenState
           _errorMessage = null;
         });
 
-        final user = SupabaseConfig.client.auth.currentUser;
-        if (user == null) {
+        // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+        final userId = await AuthService.getCurrentUserId();
+        if (userId == null) {
           throw Exception('로그인이 필요합니다.');
         }
 
         // 회사 ID 가져오기
-        final companyId = await CompanyUserService.getUserCompanyId(user.id);
+        final companyId = await CompanyUserService.getUserCompanyId(userId);
         if (companyId == null) {
           throw Exception('회사 정보를 찾을 수 없습니다.');
         }
@@ -1060,7 +1075,7 @@ class _CampaignCreationScreenState
         final presignedUrlResponse =
             await CloudflareWorkersService.getPresignedUrl(
               fileName: fileName,
-              userId: user.id,
+              userId: userId,
               contentType: 'image/jpeg',
               fileType: 'campaign-images',
               method: 'PUT',

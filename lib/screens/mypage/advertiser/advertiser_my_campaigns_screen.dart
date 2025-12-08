@@ -9,6 +9,7 @@ import '../../../models/campaign_realtime_event.dart';
 import '../../../services/campaign_service.dart';
 import '../../../services/campaign_realtime_manager.dart';
 import '../../../services/company_user_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../utils/date_time_utils.dart';
@@ -124,11 +125,12 @@ class _AdvertiserMyCampaignsScreenState
         return;
       }
 
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) return;
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) return;
 
       // 회사 ID 조회
-      final companyId = await CompanyUserService.getUserCompanyId(user.id);
+      final companyId = await CompanyUserService.getUserCompanyId(userId);
       if (companyId == null) {
         debugPrint('⚠️ 회사 ID를 찾을 수 없어 Realtime 구독을 시작하지 않습니다.');
         return;
@@ -537,8 +539,9 @@ class _AdvertiserMyCampaignsScreenState
     });
 
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
-      if (user == null) {
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -597,7 +600,7 @@ class _AdvertiserMyCampaignsScreenState
           final companyResult = await SupabaseConfig.client
               .from('company_users')
               .select('company_id')
-              .eq('user_id', user.id)
+              .eq('user_id', userId)
               .eq('status', 'active')
               .maybeSingle();
 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../services/review_service.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../utils/date_time_utils.dart';
+import '../../../utils/error_message_utils.dart';
 
 class ReviewerReviewsScreen extends ConsumerStatefulWidget {
   const ReviewerReviewsScreen({super.key});
@@ -45,7 +46,11 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(response.error ?? '리뷰 목록을 불러올 수 없습니다')),
+            SnackBar(
+              content: Text(ErrorMessageUtils.getUserFriendlyMessage(response.error ?? '리뷰 목록을 불러올 수 없습니다')),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
           );
         }
       }
@@ -58,7 +63,13 @@ class _ReviewerReviewsScreenState extends ConsumerState<ReviewerReviewsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('오류가 발생했습니다: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }

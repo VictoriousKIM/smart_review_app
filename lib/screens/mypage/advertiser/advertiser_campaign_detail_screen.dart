@@ -590,7 +590,7 @@ class _AdvertiserCampaignDetailScreenState
         SnackBar(
           content: Text(refundMessage),
           backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
+          duration: const Duration(seconds: 2),
         ),
       );
 

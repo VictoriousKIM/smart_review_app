@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/account_deletion_service.dart';
+import '../utils/error_message_utils.dart';
 
 class AccountDeletionScreen extends StatefulWidget {
   const AccountDeletionScreen({super.key});
@@ -37,7 +38,7 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
         _eligibilityData = eligibility;
       });
     } catch (e) {
-      _showErrorSnackBar('상태 확인 중 오류가 발생했습니다: $e');
+      _showErrorSnackBar(e);
     } finally {
       setState(() => _isLoading = false);
     }
@@ -58,7 +59,7 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
       _showSuccessSnackBar('계정 삭제 요청이 완료되었습니다.');
       await _checkDeletionStatus();
     } catch (e) {
-      _showErrorSnackBar('삭제 요청 중 오류가 발생했습니다: $e');
+      _showErrorSnackBar(e);
     } finally {
       setState(() => _isLoading = false);
     }
@@ -72,17 +73,21 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
       _showSuccessSnackBar('계정 삭제 요청이 취소되었습니다.');
       await _checkDeletionStatus();
     } catch (e) {
-      _showErrorSnackBar('삭제 요청 취소 중 오류가 발생했습니다: $e');
+      _showErrorSnackBar(e);
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  void _showErrorSnackBar(String message) {
+  void _showErrorSnackBar(dynamic error) {
+    final userFriendlyMessage = error is String 
+        ? error 
+        : ErrorMessageUtils.getUserFriendlyMessage(error);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(userFriendlyMessage),
         backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

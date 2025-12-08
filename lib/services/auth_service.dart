@@ -7,13 +7,13 @@ import 'package:postgrest/postgrest.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart' as kakao;
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart' as app_user;
 import '../config/supabase_config.dart';
 import '../utils/error_handler.dart';
 import 'user_service.dart';
 import 'naver_auth_service.dart';
 import '../utils/date_time_utils.dart';
+import 'session/unified_session_manager.dart';
 
 /// 사용자 인증 상태
 enum UserState {
@@ -32,37 +32,28 @@ class AuthService {
   // GoogleSignIn 인스턴스 생성 방식 변경 (v7 API)
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
-  // 사용자 상태 확인 (중복 프로필 체크 제거)
+  // 통합 세션 관리자
+  final UnifiedSessionManager _sessionManager = UnifiedSessionManager();
+  
+  /// 활성 세션의 provider 정보를 가져옵니다
+  Future<String?> getActiveProvider() async {
+    return await _sessionManager.getActiveProviderName();
+  }
+
+  // 사용자 상태 확인 (통합 세션 관리자 사용)
   Future<UserState> getUserState() async {
-    final session = _supabase.auth.currentSession;
-    if (session == null) {
+    // 통합 세션 관리자를 통해 활성 세션 가져오기
+    final sessionInfo = await _sessionManager.getActiveSession();
+    
+    if (sessionInfo == null) {
       return UserState.notLoggedIn;
     }
 
     try {
-      // 세션 만료 확인 및 토큰 갱신
-      if (session.isExpired) {
-        try {
-          final refreshedSession = await _supabase.auth.refreshSession();
-          if (refreshedSession.session == null) {
-            return UserState.notLoggedIn;
-          }
-        } catch (refreshError) {
-          // 토큰 갱신 실패 시 로그아웃 처리
-          if (ErrorHandler.isMissingDestinationScopesError(refreshError) ||
-              ErrorHandler.isOAuthClientIdError(refreshError)) {
-            await _supabase.auth.signOut();
-            return UserState.notLoggedIn;
-          }
-          // 네트워크 에러 등은 재시도 가능하므로 현재 상태 유지
-          // 세션이 만료되었지만 갱신 실패 시에도 프로필 체크는 진행
-        }
-      }
-
       // RPC 함수 호출로 안전한 프로필 조회
       await _supabase.rpc(
         'get_user_profile_safe',
-        params: {'p_user_id': session.user.id},
+        params: {'p_user_id': sessionInfo.userId},
       );
 
       return UserState.loggedIn;
@@ -90,149 +81,66 @@ class AuthService {
     }
   }
 
-  // 현재 사용자 가져오기 (RPC 사용 - 보안 강화)
+  // 현재 사용자 가져오기 (통합 세션 관리자 사용)
   Future<app_user.User?> get currentUser async {
-    // Custom JWT 세션 확인 (SharedPreferences에 저장된 경우)
+    // 통합 세션 관리자를 통해 활성 세션 가져오기
+    final sessionInfo = await _sessionManager.getActiveSession();
+    if (sessionInfo == null) {
+      return null;
+    }
+
+    debugPrint('✅ 활성 세션에서 사용자 정보 조회: ${sessionInfo.userId} (provider: ${sessionInfo.provider})');
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final customJwtToken = prefs.getString('custom_jwt_token');
-      final customJwtUserId = prefs.getString('custom_jwt_user_id');
-      if (customJwtToken != null &&
-          customJwtToken.isNotEmpty &&
-          customJwtUserId != null &&
-          customJwtUserId.isNotEmpty) {
-        debugPrint('✅ Custom JWT 세션에서 사용자 정보 조회: $customJwtUserId');
-        // Custom JWT가 있으면 사용자 ID로 프로필 조회
-        try {
-          final userProfile = await getUserProfile(
-            customJwtUserId,
-            customJwtToken: customJwtToken,
-          );
-          if (userProfile != null) {
-            debugPrint('✅ Custom JWT로 사용자 프로필 조회 성공');
-            return userProfile;
-          } else {
-            debugPrint('⚠️ Custom JWT로 사용자 프로필 조회 결과: null');
-          }
-        } catch (e) {
-          debugPrint('⚠️ Custom JWT 사용자 프로필 조회 실패: $e');
-          // 프로필이 없을 수 있으므로 계속 진행
-        }
-      }
+      // RPC 함수 호출로 안전한 프로필 조회
+      final profileResponse = await _supabase.rpc(
+        'get_user_profile_safe',
+        params: {'p_user_id': sessionInfo.userId},
+      );
+
+      debugPrint('✅ 프로필 조회 성공');
+
+      // Supabase User 객체 생성
+      final supabaseUser = User(
+        id: sessionInfo.userId,
+        appMetadata: {'provider': sessionInfo.provider ?? 'unknown'},
+        userMetadata: sessionInfo.userMetadata ?? {},
+        aud: 'authenticated',
+        createdAt: DateTime.now().toIso8601String(),
+        email: sessionInfo.email,
+      );
+
+      // 데이터베이스 프로필 정보로 User 객체 생성
+      final userProfile = app_user.User.fromDatabaseProfile(
+        profileResponse,
+        supabaseUser,
+      );
+
+      // 사용자 통계 계산 (level, reviewCount)
+      final stats = await _userService.getUserStats(userProfile.uid);
+
+      debugPrint('✅ 사용자 프로필 조회 성공');
+
+      return userProfile.copyWith(
+        level: stats['level'],
+        reviewCount: stats['reviewCount'],
+      );
     } catch (e) {
-      debugPrint('⚠️ Custom JWT 세션 확인 중 에러: $e');
-    }
+      // 프로필이 없는 경우 null 반환
+      final isProfileNotFound =
+          e.toString().contains('User profile not found') ||
+          (e is PostgrestException &&
+              (e.code == 'PGRST116' ||
+                  e.message.contains('No rows returned')));
 
-    final session = _supabase.auth.currentSession;
-    final user = session?.user;
-    if (user != null) {
-      try {
-        // 세션 만료 확인 및 토큰 갱신 시도
-        if (session!.isExpired) {
-          debugPrint('세션이 만료되었습니다. 토큰 갱신 시도...');
-          try {
-            final refreshedSession = await _supabase.auth.refreshSession();
-            if (refreshedSession.session == null) {
-              debugPrint('토큰 갱신 실패. 로그아웃 처리');
-              await _supabase.auth.signOut();
-              return null;
-            }
-          } catch (refreshError) {
-            debugPrint('토큰 갱신 중 에러 발생: $refreshError');
-
-            // "missing destination name scopes" 에러인 경우 손상된 세션으로 간주
-            if (ErrorHandler.isMissingDestinationScopesError(refreshError)) {
-              debugPrint(
-                '손상된 세션 감지 (missing destination name scopes). 로그아웃 처리',
-              );
-              ErrorHandler.handleAuthError(
-                refreshError,
-                context: {
-                  'action': 'refreshSession',
-                  'error_type': 'missing_destination_scopes',
-                  'user_id': session.user.id,
-                  'expires_at': session.expiresAt != null
-                      ? DateTime.fromMillisecondsSinceEpoch(
-                          session.expiresAt! * 1000,
-                        ).toIso8601String()
-                      : null,
-                },
-              );
-              try {
-                await _supabase.auth.signOut();
-              } catch (_) {
-                // 로그아웃 실패는 무시
-              }
-              return null;
-            }
-
-            // oauth_client_id 관련 에러인 경우 손상된 세션으로 간주
-            if (ErrorHandler.isOAuthClientIdError(refreshError)) {
-              debugPrint('손상된 세션 감지 (oauth_client_id 에러). 로그아웃 처리');
-              try {
-                await _supabase.auth.signOut();
-              } catch (_) {
-                // 로그아웃 실패는 무시
-              }
-            }
-            return null;
-          }
-        }
-
-        // RPC 함수 호출로 안전한 프로필 조회
-        final profileResponse = await _supabase.rpc(
-          'get_user_profile_safe',
-          params: {'p_user_id': user.id},
-        );
-
-        // 데이터베이스 프로필 정보로 User 객체 생성
-        final userProfile = app_user.User.fromDatabaseProfile(
-          profileResponse,
-          user,
-        );
-
-        // 사용자 통계 계산 (level, reviewCount)
-        final stats = await _userService.getUserStats(userProfile.uid);
-
-        return userProfile.copyWith(
-          level: stats['level'],
-          reviewCount: stats['reviewCount'],
-        );
-      } catch (e) {
-        // oauth_client_id 관련 에러인 경우 손상된 세션으로 간주
-        if (ErrorHandler.isOAuthClientIdError(e)) {
-          debugPrint('손상된 세션 감지 (oauth_client_id 에러). 로그아웃 처리');
-          ErrorHandler.handleAuthError(
-            e,
-            context: {'action': 'currentUser', 'error_type': 'oauth_client_id'},
-          );
-          try {
-            await _supabase.auth.signOut();
-          } catch (_) {
-            // 로그아웃 실패는 무시
-          }
-          return null;
-        }
-
-        // 프로필이 없는 경우 null 반환 (자동 생성 제거)
-        final isProfileNotFound =
-            e.toString().contains('User profile not found') ||
-            (e is PostgrestException &&
-                (e.code == 'PGRST116' ||
-                    e.message.contains('No rows returned')));
-
-        if (isProfileNotFound) {
-          // 프로필 없음 → null 반환 (signup으로 리다이렉트)
-          debugPrint('프로필이 없습니다. 회원가입이 필요합니다: ${user.id}');
-          return null;
-        } else {
-          // 다른 에러인 경우
-          debugPrint('사용자 프로필 조회 실패: $e');
-          return null;
-        }
+      if (isProfileNotFound) {
+        debugPrint('⚠️ 세션은 있지만 프로필이 없습니다');
+        return null;
+      } else {
+        debugPrint('⚠️ 프로필 조회 실패: $e');
+        return null;
       }
     }
-    return null;
   }
 
   // 인증 상태 스트림 (RPC 사용 - 보안 강화)
@@ -376,11 +284,18 @@ class AuthService {
   // Kakao 로그인
   Future<void> signInWithKakao() async {
     try {
+      // 카카오 로그인 스코프 설정 (profile_image 제외)
+      // 필요한 스코프만 요청: profile_nickname, account_email
+      final queryParams = {
+        'scope': 'profile_nickname,account_email', // profile_image 제외
+      };
+
       if (kIsWeb) {
         // 웹에서는 Supabase OAuth 사용
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.kakao,
           authScreenLaunchMode: LaunchMode.inAppWebView,
+          queryParams: queryParams,
         );
 
         // 로그인 성공 시 프로필 관리는 authStateChanges에서 자동으로 처리됨
@@ -393,6 +308,7 @@ class AuthService {
           OAuthProvider.kakao,
           authScreenLaunchMode: LaunchMode.externalApplication,
           redirectTo: redirectTo,
+          queryParams: queryParams,
         );
 
         // 로그인 성공 시 프로필 관리는 authStateChanges에서 자동으로 처리됨
@@ -426,17 +342,8 @@ class AuthService {
   // 로그아웃
   Future<void> signOut() async {
     try {
-      // Custom JWT 세션 제거 (SharedPreferences - 웹/모바일 공통)
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('custom_jwt_token');
-        await prefs.remove('custom_jwt_user_id');
-        await prefs.remove('custom_jwt_user_email');
-        await prefs.remove('custom_jwt_user_name');
-        debugPrint('✅ Custom JWT 세션 제거 완료');
-      } catch (e) {
-        debugPrint('⚠️ Custom JWT 세션 제거 실패: $e');
-      }
+      // 통합 세션 관리자를 통해 모든 세션 삭제
+      await _sessionManager.clearAllSessions();
 
       // Google 로그아웃
       try {
@@ -454,8 +361,6 @@ class AuthService {
         debugPrint('Kakao 로그아웃 실패: $e');
       }
 
-      // Supabase 로그아웃
-      await _supabase.auth.signOut();
       debugPrint('로그아웃 완료');
     } catch (e) {
       throw Exception('로그아웃 실패: $e');
@@ -749,23 +654,9 @@ class AuthService {
   // Custom JWT 세션에서 사용자 ID 가져오기 (정적 메서드)
   // 다른 서비스에서 Custom JWT 세션을 체크할 때 사용
   static Future<String?> getCurrentUserId() async {
-    try {
-      // Custom JWT 세션 확인 (SharedPreferences에 저장된 경우)
-      final prefs = await SharedPreferences.getInstance();
-      final customJwtToken = prefs.getString('custom_jwt_token');
-      final customJwtUserId = prefs.getString('custom_jwt_user_id');
-      if (customJwtToken != null &&
-          customJwtToken.isNotEmpty &&
-          customJwtUserId != null &&
-          customJwtUserId.isNotEmpty) {
-        return customJwtUserId;
-      }
-    } catch (e) {
-      debugPrint('⚠️ Custom JWT 세션 확인 중 에러: $e');
-    }
-
-    // Supabase 세션 확인
-    final session = SupabaseConfig.client.auth.currentSession;
-    return session?.user.id;
+    // 통합 세션 관리자를 통해 활성 세션의 사용자 ID 가져오기
+    final sessionManager = UnifiedSessionManager();
+    final sessionInfo = await sessionManager.getActiveSession();
+    return sessionInfo?.userId;
   }
 }
