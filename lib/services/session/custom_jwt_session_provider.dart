@@ -1,11 +1,22 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'session_info.dart';
 import 'session_provider.dart';
 
 /// Custom JWT 세션 제공자
 /// 네이버 로그인 등 Custom JWT를 사용하는 세션을 관리합니다
 class CustomJwtSessionProvider implements SessionProvider {
+  // Secure Storage 인스턴스 (웹/모바일 모두 지원)
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+    // 웹에서는 Web Crypto API를 사용하여 암호화
+  );
+
   static const String _tokenKey = 'custom_jwt_token';
   static const String _userIdKey = 'custom_jwt_user_id';
   static const String _emailKey = 'custom_jwt_user_email';
@@ -17,11 +28,10 @@ class CustomJwtSessionProvider implements SessionProvider {
   @override
   Future<SessionInfo?> getSession() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString(_tokenKey);
-      final userId = prefs.getString(_userIdKey);
-      final email = prefs.getString(_emailKey);
-      final provider = prefs.getString(_providerKey);
+      final token = await _storage.read(key: _tokenKey);
+      final userId = await _storage.read(key: _userIdKey);
+      final email = await _storage.read(key: _emailKey);
+      final provider = await _storage.read(key: _providerKey);
 
       if (token == null || token.isEmpty || userId == null || userId.isEmpty) {
         return null;
@@ -67,12 +77,11 @@ class CustomJwtSessionProvider implements SessionProvider {
   @override
   Future<void> clearSession() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_tokenKey);
-      await prefs.remove(_userIdKey);
-      await prefs.remove(_emailKey);
-      await prefs.remove(_providerKey);
-      await prefs.remove('custom_jwt_user_name');
+      await _storage.delete(key: _tokenKey);
+      await _storage.delete(key: _userIdKey);
+      await _storage.delete(key: _emailKey);
+      await _storage.delete(key: _providerKey);
+      await _storage.delete(key: 'custom_jwt_user_name');
     } catch (e) {
       debugPrint('⚠️ Custom JWT 세션 삭제 실패: $e');
     }
@@ -86,14 +95,13 @@ class CustomJwtSessionProvider implements SessionProvider {
     String? provider,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, token);
-      await prefs.setString(_userIdKey, userId);
+      await _storage.write(key: _tokenKey, value: token);
+      await _storage.write(key: _userIdKey, value: userId);
       if (email != null) {
-        await prefs.setString(_emailKey, email);
+        await _storage.write(key: _emailKey, value: email);
       }
       if (provider != null) {
-        await prefs.setString(_providerKey, provider);
+        await _storage.write(key: _providerKey, value: provider);
       }
     } catch (e) {
       debugPrint('⚠️ Custom JWT 세션 저장 실패: $e');

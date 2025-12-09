@@ -270,7 +270,10 @@ class _ReviewerApplicationsScreenState
                   onPressed: () {
                     // TODO: 리뷰 작성 화면으로 이동
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('리뷰 작성 기능은 준비 중입니다')),
+                      const SnackBar(
+                        content: Text('리뷰 작성 기능은 준비 중입니다'),
+                        duration: Duration(seconds: 2),
+                      ),
                     );
                   },
                   backgroundColor: const Color(0xFF137fec),

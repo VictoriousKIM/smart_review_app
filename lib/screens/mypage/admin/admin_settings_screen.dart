@@ -87,7 +87,10 @@ class AdminSettingsScreen extends ConsumerWidget {
                       onChanged: (value) {
                         // TODO: 점검 모드 설정 구현
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('점검 모드 설정은 구현 예정입니다')),
+                          const SnackBar(
+                            content: Text('점검 모드 설정은 구현 예정입니다'),
+                            duration: Duration(seconds: 2),
+                          ),
                         );
                       },
                     ),
@@ -101,7 +104,10 @@ class AdminSettingsScreen extends ConsumerWidget {
                     onTap: () {
                       // TODO: 공지사항 관리 페이지로 이동
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('공지사항 관리 기능은 구현 예정입니다')),
+                        const SnackBar(
+                          content: Text('공지사항 관리 기능은 구현 예정입니다'),
+                          duration: Duration(seconds: 2),
+                        ),
                       );
                     },
                   ),
@@ -114,7 +120,10 @@ class AdminSettingsScreen extends ConsumerWidget {
                     onTap: () {
                       // TODO: 이벤트 관리 페이지로 이동
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('이벤트 관리 기능은 구현 예정입니다')),
+                        const SnackBar(
+                          content: Text('이벤트 관리 기능은 구현 예정입니다'),
+                          duration: Duration(seconds: 2),
+                        ),
                       );
                     },
                   ),

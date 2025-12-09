@@ -54,10 +54,18 @@ class _AdvertiserReviewerScreenState
 
       final supabase = Supabase.instance.client;
 
-      // RPC 함수로 리뷰어 목록 조회
+      // RPC 함수로 리뷰어 목록 조회 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
       final reviewerListResponse = await supabase.rpc(
         'get_company_reviewers',
-        params: {'p_company_id': companyId},
+        params: {
+          'p_company_id': companyId,
+          'p_user_id': userId,
+        },
       );
 
       final reviewerList = (reviewerListResponse as List).map((item) {
@@ -197,12 +205,18 @@ class _AdvertiserReviewerScreenState
 
     try {
       final supabase = Supabase.instance.client;
+      // Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달
+      final currentUserId = await AuthService.getCurrentUserId();
+      if (currentUserId == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
       
       await supabase.rpc(
         'deactivate_reviewer_role',
         params: {
           'p_company_id': reviewer['company_id'],
           'p_user_id': reviewer['user_id'],
+          'p_current_user_id': currentUserId,
         },
       );
 
@@ -231,12 +245,18 @@ class _AdvertiserReviewerScreenState
   Future<void> _activateReviewer(Map<String, dynamic> reviewer) async {
     try {
       final supabase = Supabase.instance.client;
+      // Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달
+      final currentUserId = await AuthService.getCurrentUserId();
+      if (currentUserId == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
       
       await supabase.rpc(
         'activate_reviewer_role',
         params: {
           'p_company_id': reviewer['company_id'],
           'p_user_id': reviewer['user_id'],
+          'p_current_user_id': currentUserId,
         },
       );
 

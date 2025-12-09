@@ -34,10 +34,10 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
       CampaignDuplicateCheckService(SupabaseConfig.client);
   final CampaignApplicationService _applicationService =
       CampaignApplicationService();
-  
+
   final _realtimeManager = CampaignRealtimeManager.instance;
   late final String _screenId;
-  
+
   // 디바운싱/스로틀링용 타이머
   Timer? _updateTimer;
   DateTime? _lastParticipantsUpdate;
@@ -48,7 +48,7 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
     _screenId = 'campaign_detail_${widget.campaignId}';
     _initRealtimeSubscription();
   }
-  
+
   @override
   void dispose() {
     _updateTimer?.cancel();
@@ -56,7 +56,7 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
     _realtimeManager.unsubscribe(_screenId, force: false);
     super.dispose();
   }
-  
+
   /// Realtime 구독 초기화
   Future<void> _initRealtimeSubscription() async {
     try {
@@ -73,33 +73,34 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
       debugPrint('❌ Realtime 구독 초기화 실패: $e');
     }
   }
-  
+
   /// Realtime 이벤트 처리 (디바운싱/스로틀링 적용)
   void _handleRealtimeUpdate(CampaignRealtimeEvent event) {
     if (!mounted) return;
-    
+
     // 참여자 수 업데이트는 Throttle (500ms)
     if (event.isUpdate && event.campaign != null) {
       final now = DateTime.now();
       if (_lastParticipantsUpdate != null &&
-          now.difference(_lastParticipantsUpdate!) < const Duration(milliseconds: 500)) {
+          now.difference(_lastParticipantsUpdate!) <
+              const Duration(milliseconds: 500)) {
         // Throttle: 500ms 이내의 업데이트는 무시
         return;
       }
       _lastParticipantsUpdate = now;
     }
-    
+
     // 리스트 갱신은 Debounce (1초)
     _updateTimer?.cancel();
     _updateTimer = Timer(const Duration(milliseconds: 1000), () {
       _processRealtimeEvent(event);
     });
   }
-  
+
   /// Realtime 이벤트 처리 (실제 업데이트)
   void _processRealtimeEvent(CampaignRealtimeEvent event) {
     if (!mounted) return;
-    
+
     if (event.isUpdate && event.campaign != null) {
       // Provider invalidate하여 캠페인 정보 새로고침
       ref.invalidate(campaignDetailProvider(widget.campaignId));
@@ -131,8 +132,9 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
                   Text('캠페인을 불러올 수 없습니다'),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () =>
-                        ref.invalidate(campaignDetailProvider(widget.campaignId)),
+                    onPressed: () => ref.invalidate(
+                      campaignDetailProvider(widget.campaignId),
+                    ),
                     child: const Text('다시 시도'),
                   ),
                 ],
@@ -369,10 +371,9 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       _duplicateMessage!,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: Colors.red),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: Colors.red),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -496,18 +497,18 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
     });
 
     try {
-      final duplicateCheck =
-          await _duplicateCheckService.checkCampaignDuplicate(
-        userId: userId,
-        campaign: {
-          'id': campaign.id,
-          'title': campaign.title,
-          'seller': campaign.seller,
-          'prevent_product_duplicate': campaign.preventProductDuplicate,
-          'prevent_store_duplicate': campaign.preventStoreDuplicate,
-          'duplicate_prevent_days': campaign.duplicatePreventDays,
-        },
-      );
+      final duplicateCheck = await _duplicateCheckService
+          .checkCampaignDuplicate(
+            userId: userId,
+            campaign: {
+              'id': campaign.id,
+              'title': campaign.title,
+              'seller': campaign.seller,
+              'prevent_product_duplicate': campaign.preventProductDuplicate,
+              'prevent_store_duplicate': campaign.preventStoreDuplicate,
+              'duplicate_prevent_days': campaign.duplicatePreventDays,
+            },
+          );
 
       if (mounted) {
         setState(() {
@@ -536,6 +537,7 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
         SnackBar(
           content: Text(_duplicateMessage ?? '중복 참여는 불가능합니다.'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
         ),
       );
       return;
@@ -561,6 +563,7 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
             const SnackBar(
               content: Text('캠페인 신청이 완료되었습니다.'),
               backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
             ),
           );
           // 캠페인 상세 정보 새로고침
@@ -570,6 +573,7 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
             SnackBar(
               content: Text(result.error ?? '신청에 실패했습니다.'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -590,8 +594,11 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
 
   void _shareCampaign(BuildContext context, Campaign campaign) {
     // TODO: 캠페인 공유 로직 구현
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('공유 기능은 준비 중입니다')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('공유 기능은 준비 중입니다'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 }

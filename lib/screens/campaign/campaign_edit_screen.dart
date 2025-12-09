@@ -216,6 +216,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
             SnackBar(
               content: Text(result.error ?? '캠페인을 불러올 수 없습니다.'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
             ),
           );
           context.pop();
@@ -227,6 +228,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           SnackBar(
             content: Text('캠페인 로딩 중 오류가 발생했습니다: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
         context.pop();
@@ -641,6 +643,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
             SnackBar(
               content: Text(response.message ?? '캠페인이 수정되었습니다!'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
           final campaign = response.data;
@@ -1381,6 +1384,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         const SnackBar(
           content: Text('캠페인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.'),
           backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -1422,6 +1426,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               const SnackBar(
                 content: Text('신청 시작일시는 캠페인 생성일자 이후여야 합니다'),
                 backgroundColor: Colors.orange,
+                duration: Duration(seconds: 2),
               ),
             );
           }
@@ -1442,6 +1447,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         const SnackBar(
           content: Text('캠페인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.'),
           backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -1490,6 +1496,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         const SnackBar(
           content: Text('캠페인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.'),
           backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -1531,6 +1538,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               const SnackBar(
                 content: Text('리뷰 시작일시는 캠페인 생성일자 이후여야 합니다'),
                 backgroundColor: Colors.orange,
+                duration: Duration(seconds: 2),
               ),
             );
           }
@@ -1551,6 +1559,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         const SnackBar(
           content: Text('캠페인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.'),
           backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -1773,6 +1782,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('신청 시작 시간 형식이 올바르지 않습니다 (HH:mm)'),
+                    duration: Duration(seconds: 2),
                   ),
                 );
                 return;
@@ -1781,6 +1791,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('신청 종료 시간 형식이 올바르지 않습니다 (HH:mm)'),
+                    duration: Duration(seconds: 2),
                   ),
                 );
                 return;
@@ -1789,6 +1800,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('리뷰 시작 시간 형식이 올바르지 않습니다 (HH:mm)'),
+                    duration: Duration(seconds: 2),
                   ),
                 );
                 return;
@@ -1797,6 +1809,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('리뷰 종료 시간 형식이 올바르지 않습니다 (HH:mm)'),
+                    duration: Duration(seconds: 2),
                   ),
                 );
                 return;
@@ -1811,7 +1824,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
               if (applyStartDays == null || applyStartDays < 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('신청 시작일 오프셋은 0 이상의 숫자여야 합니다')),
+                  const SnackBar(
+                    content: Text('신청 시작일 오프셋은 0 이상의 숫자여야 합니다'),
+                    duration: Duration(seconds: 2),
+                  ),
                 );
                 return;
               }
@@ -1820,13 +1836,17 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                   const SnackBar(
                     content: Text('신청 시작일은 오늘로부터 14일 이내여야 합니다'),
                     backgroundColor: Colors.red,
+                    duration: Duration(seconds: 2),
                   ),
                 );
                 return;
               }
               if (applyEndDays == null || applyEndDays < 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('신청 종료일 오프셋은 0 이상의 숫자여야 합니다')),
+                  const SnackBar(
+                    content: Text('신청 종료일 오프셋은 0 이상의 숫자여야 합니다'),
+                    duration: Duration(seconds: 2),
+                  ),
                 );
                 return;
               }
@@ -1835,13 +1855,17 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                   const SnackBar(
                     content: Text('신청 종료일은 오늘로부터 14일 이내여야 합니다'),
                     backgroundColor: Colors.red,
+                    duration: Duration(seconds: 2),
                   ),
                 );
                 return;
               }
               if (reviewStartDays == null || reviewStartDays < 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('리뷰 시작일 오프셋은 0 이상의 숫자여야 합니다')),
+                  const SnackBar(
+                    content: Text('리뷰 시작일 오프셋은 0 이상의 숫자여야 합니다'),
+                    duration: Duration(seconds: 2),
+                  ),
                 );
                 return;
               }
@@ -1850,13 +1874,17 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                   const SnackBar(
                     content: Text('리뷰 시작일은 오늘로부터 14일 이내여야 합니다'),
                     backgroundColor: Colors.red,
+                    duration: Duration(seconds: 2),
                   ),
                 );
                 return;
               }
               if (reviewEndDays == null || reviewEndDays < 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('리뷰 종료일 오프셋은 0 이상의 숫자여야 합니다')),
+                  const SnackBar(
+                    content: Text('리뷰 종료일 오프셋은 0 이상의 숫자여야 합니다'),
+                    duration: Duration(seconds: 2),
+                  ),
                 );
                 return;
               }
@@ -1865,6 +1893,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                   const SnackBar(
                     content: Text('리뷰 종료일은 오늘로부터 14일 이내여야 합니다'),
                     backgroundColor: Colors.red,
+                    duration: Duration(seconds: 2),
                   ),
                 );
                 return;
@@ -1901,6 +1930,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                     const SnackBar(
                       content: Text('기본 일정 설정이 저장되었습니다'),
                       backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
                     ),
                   );
                 } else {
@@ -1908,6 +1938,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                     const SnackBar(
                       content: Text('기본 일정 설정 저장에 실패했습니다'),
                       backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
                     ),
                   );
                 }

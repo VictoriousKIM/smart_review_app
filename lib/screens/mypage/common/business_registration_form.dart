@@ -18,7 +18,7 @@ import '../../../config/supabase_config.dart';
 
 class BusinessRegistrationForm extends ConsumerStatefulWidget {
   final bool hasPendingManagerRequest;
-  final VoidCallback? onVerificationComplete;
+  final Future<void> Function()? onVerificationComplete;
   // 회원가입 모드 지원
   final bool isSignupMode; // true: 회원가입 모드, false: 프로필 모드
   final String? initialDisplayName; // 회원가입 모드에서 사용
@@ -61,6 +61,7 @@ class _BusinessRegistrationFormState
   bool _isLoadingExistingData = false;
   bool _isDataSaved = false;
   String? _existingImageUrl; // 기존 등록된 이미지 URL
+  bool _autoApproveReviewers = true; // 리뷰어 자동승인 여부 (기본값: true)
 
   // 회원가입 모드용 컨트롤러
   final _emailController = TextEditingController();
@@ -677,6 +678,55 @@ class _BusinessRegistrationFormState
           _buildInfoCard('사업장 주소', _extractedData?['business_address'] ?? ''),
           const SizedBox(height: 16),
           _buildInfoCard('업태/종목', _extractedData?['business_type'] ?? ''),
+          // 회원가입 모드에서만 리뷰어 자동승인 체크박스 표시
+          if (widget.isSignupMode) ...[
+            const SizedBox(height: 24),
+            _buildAutoApproveReviewersCheckbox(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 리뷰어 자동승인 체크박스
+  Widget _buildAutoApproveReviewersCheckbox() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            value: _autoApproveReviewers,
+            onChanged: (value) {
+              setState(() {
+                _autoApproveReviewers = value ?? true;
+              });
+            },
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '리뷰어 자동승인',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '체크 시 리뷰어 신청이 자동으로 승인됩니다. 체크 해제 시 승인이 필요합니다.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -685,6 +735,11 @@ class _BusinessRegistrationFormState
   Widget _buildBusinessNumberCard() {
     final businessNumber = _extractedData?['business_number'] ?? '';
     final isEmpty = businessNumber.isEmpty;
+
+    // 디버그: 화면에 표시되는 사업자등록번호 확인
+    if (!isEmpty) {
+      print('🖥️ 화면에 표시되는 사업자등록번호: $businessNumber');
+    }
 
     return Container(
       width: double.infinity,
@@ -948,7 +1003,10 @@ class _BusinessRegistrationFormState
           print('❌ 파일 바이트가 null이거나 비어있습니다');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('파일을 읽을 수 없습니다. 다시 시도해주세요.')),
+              const SnackBar(
+                content: Text('파일을 읽을 수 없습니다. 다시 시도해주세요.'),
+                duration: Duration(seconds: 2),
+              ),
             );
           }
         }
@@ -1152,9 +1210,14 @@ class _BusinessRegistrationFormState
       final extractedData =
           responseData['extractedData'] as Map<String, dynamic>?;
       if (extractedData != null) {
+        // 디버그: Workers에서 받은 사업자등록번호 확인
+        print('📥 Workers에서 받은 extractedData: $extractedData');
+        print('📥 사업자등록번호 (Workers 응답): ${extractedData['business_number']}');
         setState(() {
           _extractedData = extractedData;
         });
+        // 디버그: 상태에 저장된 사업자등록번호 확인
+        print('💾 상태에 저장된 사업자등록번호: ${_extractedData?['business_number']}');
       }
 
       // 검증 결과 설정
@@ -1295,8 +1358,12 @@ class _BusinessRegistrationFormState
               await _loadExistingCompanyData();
 
               // 부모 스크린에 알림 (사업자 인증 완료)
+              print('🔄 검증 완료 - onVerificationComplete 콜백 호출 시작');
               if (widget.onVerificationComplete != null) {
-                widget.onVerificationComplete!();
+                await widget.onVerificationComplete!();
+                print('✅ 검증 완료 - onVerificationComplete 콜백 호출 완료');
+              } else {
+                print('⚠️ 검증 완료 - onVerificationComplete 콜백이 null입니다');
               }
             }
           } catch (error) {
@@ -1412,19 +1479,28 @@ class _BusinessRegistrationFormState
 
     final supabase = Supabase.instance.client;
 
+    // 디버그: DB 저장 전 사업자등록번호 확인
+    final businessNumber = extractedData['business_number'] ?? '';
+    print('💾 DB 저장 전 사업자등록번호: $businessNumber');
+    print('💾 DB 저장 전 extractedData: $extractedData');
+
     // RPC 함수 호출 (중복 체크 및 트랜잭션 포함)
     final result = await supabase.rpc(
       'register_company',
       params: {
         'p_user_id': userId,
         'p_business_name': extractedData['business_name'] ?? '',
-        'p_business_number': extractedData['business_number'] ?? '',
+        'p_business_number': businessNumber,
         'p_address': extractedData['business_address'] ?? '',
         'p_representative_name': extractedData['representative_name'] ?? '',
         'p_business_type': extractedData['business_type'] ?? '',
         'p_registration_file_url': fileUrl,
+        'p_auto_approve_reviewers': _autoApproveReviewers,
       },
     );
+
+    // 디버그: DB 저장 후 반환된 사업자등록번호 확인
+    print('✅ DB 저장 후 반환된 사업자등록번호: ${result['business_number']}');
 
     if (result == null) {
       throw Exception('회사 등록 실패: 응답이 없습니다.');
@@ -1573,12 +1649,16 @@ class _BusinessRegistrationFormState
       return;
     }
 
+    // 디버그: 회원가입 완료 시 전달되는 사업자등록번호 확인
+    final businessNumberForSignup = _extractedData!['business_number'] ?? '';
+    print('📤 회원가입 완료 시 전달되는 사업자등록번호: $businessNumberForSignup');
+
     // onComplete 콜백 호출
     if (widget.onComplete != null) {
       widget.onComplete!(
         businessData: {
           'business_name': _extractedData!['business_name'] ?? '',
-          'business_number': _extractedData!['business_number'] ?? '',
+          'business_number': businessNumberForSignup,
           'address':
               _extractedData!['business_address'] ??
               _extractedData!['address'] ??
@@ -1587,6 +1667,7 @@ class _BusinessRegistrationFormState
           'business_type': _extractedData!['business_type'] ?? '',
           'registration_file_url':
               _extractedData!['registration_file_url'], // 파일 업로드 후 URL
+          'auto_approve_reviewers': _autoApproveReviewers,
         },
         phone: _phoneController.text.trim().isEmpty
             ? null

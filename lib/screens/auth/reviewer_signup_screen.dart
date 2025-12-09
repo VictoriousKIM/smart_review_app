@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../config/supabase_config.dart';
@@ -137,12 +138,14 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
   /// OAuth에서 가져온 사용자 정보 로드
   Future<void> _loadOAuthUserData() async {
     try {
-      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 정보 가져오기
+      // 네이버 로그인 (Custom JWT)인 경우 Secure Storage에서 정보 가져오기
       if (widget.provider == 'naver') {
         try {
-          final prefs = await SharedPreferences.getInstance();
-          final customJwtEmail = prefs.getString('custom_jwt_user_email');
-          final customJwtName = prefs.getString('custom_jwt_user_name');
+          const storage = FlutterSecureStorage();
+          final customJwtEmail = await storage.read(
+            key: 'custom_jwt_user_email',
+          );
+          final customJwtName = await storage.read(key: 'custom_jwt_user_name');
 
           if (customJwtEmail != null && customJwtEmail.isNotEmpty) {
             setState(() {
@@ -253,33 +256,11 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
     });
 
     try {
-      String userId;
-      String? customJwtToken;
-
-      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 정보 가져오기
-      if (widget.provider == 'naver') {
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          final customJwtUserId = prefs.getString('custom_jwt_user_id');
-          customJwtToken = prefs.getString('custom_jwt_token');
-
-          if (customJwtUserId == null || customJwtUserId.isEmpty) {
-            throw Exception('세션이 없습니다. 다시 로그인해주세요.');
-          }
-
-          userId = customJwtUserId;
-          debugPrint('✅ 네이버 로그인: Custom JWT로 회원가입 진행 (userId: $userId)');
-        } catch (e) {
-          debugPrint('⚠️ 네이버 로그인 정보 로드 실패: $e');
-          throw Exception('세션이 없습니다. 다시 로그인해주세요.');
-        }
-      } else {
-        // 일반 OAuth 로그인 (Google, Kakao 등)
-        final session = SupabaseConfig.client.auth.currentSession;
-        if (session?.user == null) {
-          throw Exception('세션이 없습니다. 다시 로그인해주세요.');
-        }
-        userId = session!.user.id;
+      // AuthService를 통해 일관된 방식으로 사용자 ID 가져오기
+      // (Custom JWT와 일반 세션 모두 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('세션이 없습니다. 다시 로그인해주세요.');
       }
 
       // 주소 합치기 (기본 주소 + 상세주소)
@@ -303,63 +284,22 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
         }
       }
 
-      // RPC 함수 호출
-      Map<String, dynamic>? result;
-
-      if (customJwtToken != null) {
-        // Custom JWT를 사용하여 직접 HTTP 요청 (웹/모바일 공통)
-        final supabaseUrl = SupabaseConfig.supabaseUrl;
-        final url = Uri.parse(
-          '$supabaseUrl/rest/v1/rpc/create_reviewer_profile_with_company',
-        );
-
-        final response = await http.post(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $customJwtToken',
-            'apikey': SupabaseConfig.supabaseAnonKey,
-            'Prefer': 'return=representation',
-          },
-          body: jsonEncode({
-            'p_user_id': userId,
-            'p_display_name': _displayName!,
-            'p_phone': _phone ?? '',
-            'p_address': fullAddress,
-            'p_company_id': _selectedCompanyId,
-            'p_sns_connections': _snsConnections.isNotEmpty
-                ? _snsConnections
-                : null,
-          }),
-        );
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data != null && data is Map<String, dynamic>) {
-            result = data;
-            debugPrint('✅ Custom JWT로 회원가입 RPC 호출 성공');
-          } else {
-            throw Exception('회원가입 응답 형식이 올바르지 않습니다');
-          }
-        } else {
-          throw Exception('회원가입 실패: ${response.statusCode} - ${response.body}');
-        }
-      } else {
-        // 일반 RPC 함수 호출
-        result = await SupabaseConfig.client.rpc(
-          'create_reviewer_profile_with_company',
-          params: {
-            'p_user_id': userId,
-            'p_display_name': _displayName!,
-            'p_phone': _phone ?? '',
-            'p_address': fullAddress,
-            'p_company_id': _selectedCompanyId,
-            'p_sns_connections': _snsConnections.isNotEmpty
-                ? _snsConnections
-                : null,
-          },
-        );
-      }
+      // RPC 함수 호출 (p_user_id 전달 - Custom JWT와 일반 세션 둘 다 지원)
+      final result =
+          await SupabaseConfig.client.rpc(
+                'create_reviewer_profile_with_company',
+                params: {
+                  'p_user_id': userId,
+                  'p_display_name': _displayName!,
+                  'p_phone': _phone ?? '',
+                  'p_address': fullAddress,
+                  'p_company_id': _selectedCompanyId,
+                  'p_sns_connections': _snsConnections.isNotEmpty
+                      ? _snsConnections
+                      : null,
+                },
+              )
+              as Map<String, dynamic>?;
 
       debugPrint('✅ 회원가입 RPC 결과: $result');
 

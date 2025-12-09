@@ -364,7 +364,10 @@ class _AdvertiserParticipantsScreenState
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${participant['name']}님이 승인되었습니다')),
+                SnackBar(
+                  content: Text('${participant['name']}님이 승인되었습니다'),
+                  duration: const Duration(seconds: 2),
+                ),
               );
             },
             child: const Text('승인'),
@@ -389,7 +392,10 @@ class _AdvertiserParticipantsScreenState
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${participant['name']}님이 거절되었습니다')),
+                SnackBar(
+                  content: Text('${participant['name']}님이 거절되었습니다'),
+                  duration: const Duration(seconds: 2),
+                ),
               );
             },
             child: const Text('거절', style: TextStyle(color: Colors.red)),
@@ -402,6 +408,9 @@ class _AdvertiserParticipantsScreenState
   void _viewReview(Map<String, dynamic> participant) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('리뷰 확인 기능은 준비 중입니다')));
+    ).showSnackBar(const SnackBar(
+      content: Text('리뷰 확인 기능은 준비 중입니다'),
+      duration: Duration(seconds: 2),
+    ));
   }
 }

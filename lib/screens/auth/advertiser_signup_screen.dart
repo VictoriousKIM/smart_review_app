@@ -1,11 +1,10 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../config/supabase_config.dart';
 import '../../utils/error_message_utils.dart';
+import '../../services/auth_service.dart';
 import '../mypage/common/business_registration_form.dart';
 
 /// 광고주 회원가입 화면
@@ -43,12 +42,14 @@ class _AdvertiserSignupScreenState
   /// OAuth에서 가져온 사용자 정보 로드
   Future<void> _loadOAuthUserData() async {
     try {
-      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 정보 가져오기
+      // 네이버 로그인 (Custom JWT)인 경우 Secure Storage에서 정보 가져오기
       if (widget.provider == 'naver') {
         try {
-          final prefs = await SharedPreferences.getInstance();
-          final customJwtEmail = prefs.getString('custom_jwt_user_email');
-          final customJwtName = prefs.getString('custom_jwt_user_name');
+          const storage = FlutterSecureStorage();
+          final customJwtEmail = await storage.read(
+            key: 'custom_jwt_user_email',
+          );
+          final customJwtName = await storage.read(key: 'custom_jwt_user_name');
 
           debugPrint('🔍 네이버 로그인 정보 확인:');
           debugPrint('   - provider: ${widget.provider}');
@@ -135,110 +136,37 @@ class _AdvertiserSignupScreenState
     });
 
     try {
-      String userId;
-      String? customJwtToken;
-
-      // 네이버 로그인 (Custom JWT)인 경우 SharedPreferences에서 정보 가져오기
-      if (widget.provider == 'naver') {
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          final customJwtUserId = prefs.getString('custom_jwt_user_id');
-          customJwtToken = prefs.getString('custom_jwt_token');
-
-          if (customJwtUserId == null || customJwtUserId.isEmpty) {
-            throw Exception('세션이 없습니다. 다시 로그인해주세요.');
-          }
-
-          userId = customJwtUserId;
-          debugPrint('✅ 네이버 로그인: Custom JWT로 회원가입 진행 (userId: $userId)');
-        } catch (e) {
-          debugPrint('⚠️ 네이버 로그인 정보 로드 실패: $e');
-          throw Exception('세션이 없습니다. 다시 로그인해주세요.');
-        }
-      } else {
-        // 일반 OAuth 로그인 (Google, Kakao 등)
-        final session = SupabaseConfig.client.auth.currentSession;
-        if (session?.user == null) {
-          throw Exception('세션이 없습니다. 다시 로그인해주세요.');
-        }
-        userId = session!.user.id;
+      // AuthService를 통해 일관된 방식으로 사용자 ID 가져오기
+      // (Custom JWT와 일반 세션 모두 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('세션이 없습니다. 다시 로그인해주세요.');
       }
 
-      // RPC 함수 호출
-      if (customJwtToken != null) {
-        // Custom JWT를 사용하여 직접 HTTP 요청 (웹/모바일 공통)
-        final supabaseUrl = SupabaseConfig.supabaseUrl;
-        final url = Uri.parse(
-          '$supabaseUrl/rest/v1/rpc/create_advertiser_profile_with_company',
-        );
+      // 디버그: 회원가입 RPC 호출 전 사업자등록번호 확인
+      final businessNumber = _businessData!['business_number'];
+      debugPrint('📤 회원가입 RPC 호출 전 사업자등록번호: $businessNumber');
 
-        final response = await http.post(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $customJwtToken',
-            'apikey': SupabaseConfig.supabaseAnonKey,
-            'Prefer': 'return=representation',
-          },
-          body: jsonEncode({
-            'p_user_id': userId,
-            'p_display_name': _displayName!,
-            'p_phone': _phone ?? '',
-            'p_business_name': _businessData!['business_name'],
-            'p_business_number': _businessData!['business_number'],
-            'p_address': _businessData!['address'],
-            'p_representative_name': _businessData!['representative_name'],
-            'p_business_type': _businessData!['business_type'],
-            'p_registration_file_url': _businessData!['registration_file_url'],
-            'p_bank_name': _bankName ?? '',
-            'p_account_number': _accountNumber ?? '',
-            'p_account_holder': _accountHolder ?? '',
-          }),
-        );
-
-        if (response.statusCode != 200) {
-          debugPrint('❌ Custom JWT로 회원가입 RPC 호출 실패: ${response.statusCode}');
-          debugPrint('❌ 응답 본문: ${response.body}');
-
-          // JSON 응답에서 메시지 추출 및 사용자 친화적 메시지로 변환
-          String errorMessage = '회원가입에 실패했습니다. 입력한 정보를 확인하고 다시 시도해주세요.';
-          try {
-            final errorJson = jsonDecode(response.body) as Map<String, dynamic>;
-            if (errorJson.containsKey('message')) {
-              final rawMessage = errorJson['message'] as String;
-              // 사용자 친화적 메시지로 변환
-              errorMessage = ErrorMessageUtils.getUserFriendlyMessage(
-                rawMessage,
-              );
-            }
-          } catch (e) {
-            // JSON 파싱 실패 시 기본 메시지 사용
-            debugPrint('⚠️ JSON 파싱 실패: $e');
-          }
-
-          throw Exception(errorMessage);
-        }
-        debugPrint('✅ Custom JWT로 회원가입 RPC 호출 성공');
-      } else {
-        // 일반 RPC 함수 호출
-        await SupabaseConfig.client.rpc(
-          'create_advertiser_profile_with_company',
-          params: {
-            'p_user_id': userId,
-            'p_display_name': _displayName!,
-            'p_phone': _phone ?? '',
-            'p_business_name': _businessData!['business_name'],
-            'p_business_number': _businessData!['business_number'],
-            'p_address': _businessData!['address'],
-            'p_representative_name': _businessData!['representative_name'],
-            'p_business_type': _businessData!['business_type'],
-            'p_registration_file_url': _businessData!['registration_file_url'],
-            'p_bank_name': _bankName ?? '',
-            'p_account_number': _accountNumber ?? '',
-            'p_account_holder': _accountHolder ?? '',
-          },
-        );
-      }
+      // RPC 함수 호출 (p_user_id 전달 - Custom JWT와 일반 세션 둘 다 지원)
+      await SupabaseConfig.client.rpc(
+        'create_advertiser_profile_with_company',
+        params: {
+          'p_user_id': userId,
+          'p_display_name': _displayName!,
+          'p_phone': _phone ?? '',
+          'p_business_name': _businessData!['business_name'],
+          'p_business_number': businessNumber,
+          'p_address': _businessData!['address'],
+          'p_representative_name': _businessData!['representative_name'],
+          'p_business_type': _businessData!['business_type'],
+          'p_registration_file_url': _businessData!['registration_file_url'],
+          'p_bank_name': _bankName ?? '',
+          'p_account_number': _accountNumber ?? '',
+          'p_account_holder': _accountHolder ?? '',
+          'p_auto_approve_reviewers':
+              _businessData!['auto_approve_reviewers'] ?? true,
+        },
+      );
 
       if (mounted) {
         // 성공 시 홈 화면으로 이동

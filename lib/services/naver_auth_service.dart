@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/supabase_config.dart';
@@ -290,9 +290,17 @@ class NaverAuthService {
           );
 
           // 이름 정보도 저장 (회원가입 화면에서 사용)
+          // Secure Storage 사용 (CustomJwtSessionProvider와 동일한 저장소)
           if (fullName.isNotEmpty) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('custom_jwt_user_name', fullName);
+            const storage = FlutterSecureStorage(
+              aOptions: AndroidOptions(
+                encryptedSharedPreferences: true,
+              ),
+              iOptions: IOSOptions(
+                accessibility: KeychainAccessibility.first_unlock_this_device,
+              ),
+            );
+            await storage.write(key: 'custom_jwt_user_name', value: fullName);
           }
 
           debugPrint('✅ Custom JWT를 통합 세션 관리자에 저장했습니다');

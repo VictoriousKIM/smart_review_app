@@ -328,7 +328,10 @@ class _NotificationSettingsScreenState
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('알림 설정이 초기화되었습니다')));
+    ).showSnackBar(const SnackBar(
+      content: Text('알림 설정이 초기화되었습니다'),
+      duration: Duration(seconds: 2),
+    ));
   }
 
   String _getSettingName(String key) {

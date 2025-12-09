@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'auth_service.dart';
 
 /// 회사 사용자 권한 체크 서비스
 class CompanyUserService {
@@ -83,11 +84,18 @@ class CompanyUserService {
   }) async {
     try {
       final supabase = Supabase.instance.client;
+      // Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달
+      final currentUserId = await AuthService.getCurrentUserId();
+      if (currentUserId == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+      
       final result = await supabase.rpc(
         'deactivate_manager_role',
         params: {
           'p_company_id': companyId,
           'p_user_id': userId,
+          'p_current_user_id': currentUserId,
         },
       );
       if (result == null) {
@@ -107,11 +115,18 @@ class CompanyUserService {
   }) async {
     try {
       final supabase = Supabase.instance.client;
+      // Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달
+      final currentUserId = await AuthService.getCurrentUserId();
+      if (currentUserId == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+      
       final result = await supabase.rpc(
         'activate_manager_role',
         params: {
           'p_company_id': companyId,
           'p_user_id': userId,
+          'p_current_user_id': currentUserId,
         },
       );
       if (result == null) {

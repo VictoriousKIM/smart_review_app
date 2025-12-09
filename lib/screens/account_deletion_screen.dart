@@ -97,6 +97,7 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

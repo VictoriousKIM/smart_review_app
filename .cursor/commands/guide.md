@@ -18,7 +18,7 @@
    - Health Check: `http://localhost:8787/health`
    - 로컬 Supabase와 연결되어 네이버 로그인, 파일 업로드 등을 처리
 
-3. **브라우저 탭 열기** (Playwright MCP 사용)
+3. **브라우저 탭을 순서대로 열기** (Playwright MCP 사용)
    - 첫 번째 탭: Flutter 웹 앱 (http://localhost:3001/) - 카카오 계정으로 로그인
    - 두 번째 탭: Supabase 로컬 Studio (http://127.0.0.1:54503)
    - 세 번째 탭: Cloudflare r2 대시보드 (https://dash.cloudflare.com)
@@ -37,8 +37,8 @@
    });
    ```
 
-4. **개발자 계정으로 로그인**
-   - "카카오로 로그인" 버튼 클릭
+<!-- 4. **개발자 계정으로 로그인**
+   - "카카오로 로그인" 버튼 클릭 -->
    <!-- - "이메일로 로그인" 버튼 클릭
    - 이메일 필드에 `dev@example.com` 입력
    - 비밀번호 필드에 `dev@example.com` 입력

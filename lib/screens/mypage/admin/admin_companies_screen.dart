@@ -183,7 +183,10 @@ class _AdminCompaniesScreenState extends ConsumerState<AdminCompaniesScreen> {
                                 onSelected: (value) {
                                   // TODO: 승인/거부 기능 구현
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('$value 기능은 구현 예정입니다')),
+                                    SnackBar(
+                                      content: Text('$value 기능은 구현 예정입니다'),
+                                      duration: const Duration(seconds: 2),
+                                    ),
                                   );
                                 },
                               ),

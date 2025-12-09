@@ -178,7 +178,10 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('계좌정보가 저장되었습니다')));
+        ).showSnackBar(const SnackBar(
+          content: Text('계좌정보가 저장되었습니다'),
+          duration: Duration(seconds: 2),
+        ));
       }
 
       // 콜백 호출

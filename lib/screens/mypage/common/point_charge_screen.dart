@@ -168,21 +168,30 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
     if (_selectedAmount == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('충전 금액을 선택해주세요.')));
+      ).showSnackBar(const SnackBar(
+        content: Text('충전 금액을 선택해주세요.'),
+        duration: Duration(seconds: 2),
+      ));
       return;
     }
 
     if (_depositorNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('입금자명을 입력해주세요.')));
+      ).showSnackBar(const SnackBar(
+        content: Text('입금자명을 입력해주세요.'),
+        duration: Duration(seconds: 2),
+      ));
       return;
     }
 
     if (_receiptType == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('영수증 발행 방법을 선택해주세요.')));
+      ).showSnackBar(const SnackBar(
+        content: Text('영수증 발행 방법을 선택해주세요.'),
+        duration: Duration(seconds: 2),
+      ));
       return;
     }
 
@@ -191,33 +200,48 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       if (_cashReceiptRecipientType == null) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('수령인 유형을 선택해주세요.')));
+        ).showSnackBar(const SnackBar(
+          content: Text('수령인 유형을 선택해주세요.'),
+          duration: Duration(seconds: 2),
+        ));
         return;
       }
       if (_cashReceiptRecipientType == 'individual') {
         if (_cashReceiptNameController.text.trim().isEmpty) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('이름을 입력해주세요.')));
+          ).showSnackBar(const SnackBar(
+            content: Text('이름을 입력해주세요.'),
+            duration: Duration(seconds: 2),
+          ));
           return;
         }
         if (_cashReceiptPhoneController.text.trim().isEmpty) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('휴대폰 번호를 입력해주세요.')));
+          ).showSnackBar(const SnackBar(
+            content: Text('휴대폰 번호를 입력해주세요.'),
+            duration: Duration(seconds: 2),
+          ));
           return;
         }
       } else if (_cashReceiptRecipientType == 'business') {
         if (_cashReceiptBusinessNameController.text.trim().isEmpty) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('사업자명을 입력해주세요.')));
+          ).showSnackBar(const SnackBar(
+            content: Text('사업자명을 입력해주세요.'),
+            duration: Duration(seconds: 2),
+          ));
           return;
         }
         if (_cashReceiptBusinessNumberController.text.trim().isEmpty) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('사업자 번호를 입력해주세요.')));
+          ).showSnackBar(const SnackBar(
+            content: Text('사업자 번호를 입력해주세요.'),
+            duration: Duration(seconds: 2),
+          ));
           return;
         }
       }
@@ -228,25 +252,37 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       if (_taxInvoiceRepresentativeController.text.trim().isEmpty) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('대표자명을 입력해주세요.')));
+        ).showSnackBar(const SnackBar(
+          content: Text('대표자명을 입력해주세요.'),
+          duration: Duration(seconds: 2),
+        ));
         return;
       }
       if (_taxInvoiceCompanyNameController.text.trim().isEmpty) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('회사명을 입력해주세요.')));
+        ).showSnackBar(const SnackBar(
+          content: Text('회사명을 입력해주세요.'),
+          duration: Duration(seconds: 2),
+        ));
         return;
       }
       if (_taxInvoiceBusinessNumberController.text.trim().isEmpty) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('사업자번호를 입력해주세요.')));
+        ).showSnackBar(const SnackBar(
+          content: Text('사업자번호를 입력해주세요.'),
+          duration: Duration(seconds: 2),
+        ));
         return;
       }
       if (_taxInvoiceAddressController.text.trim().isEmpty) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('주소를 입력해주세요.')));
+        ).showSnackBar(const SnackBar(
+          content: Text('주소를 입력해주세요.'),
+          duration: Duration(seconds: 2),
+        ));
         return;
       }
     }
@@ -254,7 +290,10 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
     if (_walletId.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('지갑 정보를 찾을 수 없습니다.')));
+      ).showSnackBar(const SnackBar(
+        content: Text('지갑 정보를 찾을 수 없습니다.'),
+        duration: Duration(seconds: 2),
+      ));
       return;
     }
 
@@ -320,7 +359,10 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('충전 요청이 완료되었습니다.')));
+        ).showSnackBar(const SnackBar(
+          content: Text('충전 요청이 완료되었습니다.'),
+          duration: Duration(seconds: 2),
+        ));
         context.pop(true); // 성공 시 true 반환
       }
     } catch (e) {

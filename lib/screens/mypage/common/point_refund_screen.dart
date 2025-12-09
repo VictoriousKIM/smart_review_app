@@ -103,7 +103,10 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
 
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('올바른 금액을 입력해주세요.')),
+        const SnackBar(
+          content: Text('올바른 금액을 입력해주세요.'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
@@ -119,14 +122,20 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
 
     if (amount > _currentPoints) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('보유 포인트보다 많은 금액을 출금할 수 없습니다.')),
+        const SnackBar(
+          content: Text('보유 포인트보다 많은 금액을 출금할 수 없습니다.'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
 
     if (_walletId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('지갑 정보를 찾을 수 없습니다.')),
+        const SnackBar(
+          content: Text('지갑 정보를 찾을 수 없습니다.'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
@@ -159,7 +168,10 @@ class _PointRefundScreenState extends State<PointRefundScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('출금 신청이 완료되었습니다.')),
+          const SnackBar(
+            content: Text('출금 신청이 완료되었습니다.'),
+            duration: Duration(seconds: 2),
+          ),
         );
         context.pop(true); // 성공 시 true 반환
       }

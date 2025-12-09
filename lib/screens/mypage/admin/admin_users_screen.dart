@@ -98,7 +98,10 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       await _authService.adminChangeUserRole(user.uid, newRole);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('사용자 권한이 변경되었습니다')),
+          const SnackBar(
+            content: Text('사용자 권한이 변경되었습니다'),
+            duration: Duration(seconds: 2),
+          ),
         );
         _loadUsers();
       }
@@ -120,7 +123,10 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       await _adminService.updateUserStatus(user.uid, newStatus);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('사용자 상태가 $newStatus로 변경되었습니다')),
+          SnackBar(
+            content: Text('사용자 상태가 $newStatus로 변경되었습니다'),
+            duration: const Duration(seconds: 2),
+          ),
         );
         _loadUsers();
       }

@@ -14,6 +14,7 @@ import '../../../config/supabase_config.dart';
 import '../../../utils/phone_formatter.dart';
 import '../../../utils/error_message_utils.dart';
 import '../../../widgets/address_form_field.dart';
+import '../../../utils/user_type_helper.dart';
 import 'business_registration_form.dart';
 import 'account_registration_form.dart';
 
@@ -44,6 +45,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   bool _isLoadingPendingRequest = false;
   UserWallet? _userWallet;
   CompanyWallet? _companyWallet;
+  bool? _isOwner;
+  bool _isLoadingOwner = false;
 
   late TabController _tabController;
 
@@ -56,6 +59,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _loadCompanyData();
     _loadPendingManagerRequest();
     _loadWalletData();
+    _loadOwnerStatus();
 
     // URL 파라미터로 광고주 탭을 요청한 경우 자동으로 광고주 탭으로 이동
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -153,7 +157,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('사용자 정보를 불러올 수 없습니다')));
+          ).showSnackBar(const SnackBar(
+            content: Text('사용자 정보를 불러올 수 없습니다'),
+            duration: Duration(seconds: 2),
+          ));
         }
       }
     } catch (e) {
@@ -161,9 +168,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
             backgroundColor: Colors.red,
@@ -197,7 +202,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   Widget _buildTabbedContent() {
-    // 사용자가 null이 아닌 경우 항상 탭 표시 (유저타입 제약 없음)
+    // 사용자가 null이 아닌 경우 항상 탭 표시
     if (_user != null) {
       return Column(
         children: [
@@ -728,16 +733,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('프로필이 저장되었습니다')));
+          ).showSnackBar(const SnackBar(
+            content: Text('프로필이 저장되었습니다'),
+            duration: Duration(seconds: 2),
+          ));
         }
       } catch (e) {
         setState(() {
           _isSaving = false;
         });
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
               backgroundColor: Colors.red,
@@ -773,20 +779,57 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   Widget _buildBusinessTab() {
+    // 디버그 로그
+    print(
+      '🔍 _buildBusinessTab - _isOwner: $_isOwner, _isLoadingOwner: $_isLoadingOwner, _existingCompanyData: ${_existingCompanyData != null}',
+    );
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           const SizedBox(height: 24),
-          // 광고주등록폼 통합
+          // 광고주등록폼 통합 (모든 사용자에게 표시)
           _buildBusinessRegistrationForm(),
-          const SizedBox(height: 24),
-          // 계좌정보 섹션 (광고주 탭)
-          AccountRegistrationForm(
-            companyWallet: _companyWallet,
-            onSaved: _loadWalletData,
-            isBusinessTab: true,
-          ),
+          // 오너에게만 표시되는 정보
+          if (_isOwner == true && !_isLoadingOwner) ...[
+            const SizedBox(height: 24),
+            // 계좌정보 섹션 (오너만)
+            AccountRegistrationForm(
+              companyWallet: _companyWallet,
+              onSaved: _loadWalletData,
+              isBusinessTab: true,
+            ),
+            // 회사 정보가 있을 때 리뷰어 자동승인 설정 표시 (오너만)
+            if (_existingCompanyData != null && !_isLoadingCompanyData) ...[
+              const SizedBox(height: 24),
+              _buildAutoApproveReviewersToggle(),
+            ],
+          ],
+          // 로딩 중이거나 오너가 아니고 회사 데이터가 없을 때만 메시지 표시
+          if (_isLoadingOwner) ...[
+            const SizedBox(height: 24),
+            const Center(child: CircularProgressIndicator()),
+          ],
+          // 오너가 아니고 회사 데이터가 없을 때만 메시지 표시
+          if (_isOwner == false && 
+              _existingCompanyData == null && 
+              !_isLoadingOwner && 
+              !_isLoadingCompanyData) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
+              child: const Text(
+                '회사 정보는 오너만 볼 수 있습니다.',
+                style: TextStyle(color: Colors.orange),
+              ),
+            ),
+          ],
           // 광고주 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
           if (_existingCompanyData == null && !_isLoadingCompanyData) ...[
             const SizedBox(height: 24),
@@ -815,17 +858,144 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       child: BusinessRegistrationForm(
         hasPendingManagerRequest: _pendingManagerRequest != null,
         onVerificationComplete: () async {
+          print('🔄 검증 완료 콜백 시작 - 데이터 다시 로드');
           // 광고주 인증 완료 시 프로필 및 회사 데이터 다시 로드
           await _loadUserProfile();
+          // _loadCompanyData()에서 이미 _isOwner를 업데이트하므로 _loadOwnerStatus()는 불필요
           await _loadCompanyData();
           await _loadWalletData(); // 지갑 데이터 로드 (계좌정보 표시를 위해 필요)
           await _loadPendingManagerRequest();
-          // 데이터 로드 완료 후 setState로 위젯 다시 빌드하여 계좌정보 표시
+          
+          print('✅ 검증 완료 콜백 - 모든 데이터 로드 완료');
+          print('🔍 최종 상태 - _isOwner: $_isOwner, _isLoadingOwner: $_isLoadingOwner, _existingCompanyData: ${_existingCompanyData != null}, _companyWallet: ${_companyWallet != null}');
+          
+          // 모든 데이터 로드 완료 후 명시적으로 setState 호출하여 화면 업데이트
+          // 각 메서드에서 이미 setState를 호출하지만, 확실한 화면 업데이트를 위해 한 번 더 호출
           if (mounted) {
-            setState(() {});
+            setState(() {
+              // 로딩 상태를 확실히 false로 설정
+              _isLoadingOwner = false;
+              _isLoadingCompanyData = false;
+              print('🔄 setState 호출 - 화면 업데이트 (계좌정보 및 리뷰어 자동승인 설정 표시)');
+            });
           }
         },
       ),
+    );
+  }
+
+  /// 리뷰어 자동승인 토글
+  Widget _buildAutoApproveReviewersToggle() {
+    if (_existingCompanyData == null) {
+      return const SizedBox.shrink();
+    }
+
+    final companyId = _existingCompanyData!['id'] as String?;
+    final autoApproveReviewers =
+        _existingCompanyData!['auto_approve_reviewers'] as bool? ?? true;
+    bool isUpdating = false;
+
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withValues(alpha: 0.1),
+                spreadRadius: 1,
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '리뷰어 자동승인',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  const Spacer(),
+                  if (isUpdating)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Switch(
+                      value: autoApproveReviewers,
+                      onChanged: companyId != null
+                          ? (value) async {
+                              setState(() {
+                                isUpdating = true;
+                              });
+                              try {
+                                await CompanyService.updateAutoApproveReviewers(
+                                  companyId: companyId,
+                                  autoApproveReviewers: value,
+                                );
+                                // 회사 데이터 다시 로드
+                                await _loadCompanyData();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        value
+                                            ? '리뷰어 자동승인이 활성화되었습니다.'
+                                            : '리뷰어 자동승인이 비활성화되었습니다.',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        ErrorMessageUtils.getUserFriendlyMessage(
+                                          e,
+                                        ),
+                                      ),
+                                      backgroundColor: Colors.red,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) {
+                                  setState(() {
+                                    isUpdating = false;
+                                  });
+                                }
+                              }
+                            }
+                          : null,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                autoApproveReviewers
+                    ? '리뷰어 신청 시 자동으로 승인됩니다.'
+                    : '리뷰어 신청 시 승인이 필요합니다.',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -845,15 +1015,61 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         return;
       }
 
-      final companyData = await CompanyService.getCompanyByUserId(userId);
+      // 오너인 경우 광고주 회사 정보 조회, 그 외에는 모든 역할 포함 조회
+      final isOwner = await UserTypeHelper.isAdvertiserOwner(userId);
+      final companyData = isOwner
+          ? await CompanyService.getAdvertiserCompanyByUserId(userId)
+          : await CompanyService.getCompanyByUserId(userId);
+
+      print(
+        '🔍 회사 데이터 로드 - isOwner: $isOwner, companyData: ${companyData != null}',
+      );
+
       setState(() {
+        _isOwner = isOwner; // 오너 상태도 함께 업데이트
         _existingCompanyData = companyData;
         _isLoadingCompanyData = false;
+        _isLoadingOwner = false; // 오너 상태 로딩도 완료로 표시
       });
     } catch (e) {
       print('❌ 회사 데이터 로드 실패: $e');
       setState(() {
         _isLoadingCompanyData = false;
+      });
+    }
+  }
+
+  /// 오너 여부 확인
+  Future<void> _loadOwnerStatus() async {
+    try {
+      setState(() {
+        _isLoadingOwner = true;
+      });
+
+      // 사용자 ID 가져오기 (Custom JWT 세션 지원)
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        print('⚠️ 오너 여부 확인: userId가 null입니다');
+        setState(() {
+          _isOwner = false;
+          _isLoadingOwner = false;
+        });
+        return;
+      }
+
+      print('🔍 오너 여부 확인 시작 - userId: $userId');
+      final isOwner = await UserTypeHelper.isAdvertiserOwner(userId);
+      print('✅ 오너 여부 확인 완료 - isOwner: $isOwner');
+
+      setState(() {
+        _isOwner = isOwner;
+        _isLoadingOwner = false;
+      });
+    } catch (e) {
+      print('❌ 오너 여부 확인 실패: $e');
+      setState(() {
+        _isOwner = false;
+        _isLoadingOwner = false;
       });
     }
   }
@@ -1161,6 +1377,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           const SnackBar(
             content: Text('매니저 등록 요청이 취소되었습니다.'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -1474,6 +1691,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       '${company['business_name']} 매니저 등록 요청이 완료되었습니다. 승인 대기 중입니다.',
                     ),
                     backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
                   ),
                 );
                 // 회사 데이터 및 pending 요청 다시 로드

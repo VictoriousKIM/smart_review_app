@@ -187,7 +187,10 @@ class _CompanyPointsScreenState extends State<CompanyPointsScreen> {
                 onPressed: () {
                   // TODO: 포인트 충전 화면으로 이동
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('포인트 충전 기능은 곧 추가됩니다')),
+                    const SnackBar(
+                      content: Text('포인트 충전 기능은 곧 추가됩니다'),
+                      duration: Duration(seconds: 2),
+                    ),
                   );
                 },
                 icon: const Icon(Icons.add_circle_outline),

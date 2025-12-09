@@ -62,10 +62,12 @@ class WalletService {
       }
 
       // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
-      final response = await _supabase.rpc(
-            'get_company_wallets_safe',
-            params: {'p_user_id': userId},
-          ) as List;
+      final response =
+          await _supabase.rpc(
+                'get_company_wallets_safe',
+                params: {'p_user_id': userId},
+              )
+              as List;
 
       if (response.isEmpty) {
         return [];
@@ -91,11 +93,18 @@ class WalletService {
     String companyId,
   ) async {
     try {
-      // RPC 함수 호출
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        print('❌ 로그인되지 않음');
+        return null;
+      }
+
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
           await _supabase.rpc(
                 'get_company_wallet_by_company_id_safe',
-                params: {'p_company_id': companyId},
+                params: {'p_company_id': companyId, 'p_user_id': userId},
               )
               as Map<String, dynamic>?;
 
@@ -190,11 +199,20 @@ class WalletService {
     int offset = 0,
   }) async {
     try {
+      // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        print('❌ 로그인되지 않음');
+        return [];
+      }
+
+      // RPC 함수 호출 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response =
           await _supabase.rpc(
                 'get_company_point_history_unified',
                 params: {
                   'p_company_id': companyId,
+                  'p_user_id': userId,
                   'p_limit': limit,
                   'p_offset': offset,
                 },

@@ -463,6 +463,7 @@ class _SNSConnectionSectionState extends State<SNSConnectionSection> {
               '연결 정보를 불러오는데 실패했습니다: ${SNSPlatformConnectionService.getErrorMessage(e)}',
             ),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -514,6 +515,7 @@ class _SNSConnectionSectionState extends State<SNSConnectionSection> {
           const SnackBar(
             content: Text('연결이 삭제되었습니다'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
         // 삭제된 연결의 플랫폼 찾기
@@ -541,6 +543,7 @@ class _SNSConnectionSectionState extends State<SNSConnectionSection> {
               '삭제 실패: ${SNSPlatformConnectionService.getErrorMessage(e)}',
             ),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -1163,6 +1166,7 @@ class _PlatformConnectionDialogState extends State<PlatformConnectionDialog> {
             SnackBar(
               content: Text('${widget.platformName} 연결이 수정되었습니다'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -1183,6 +1187,7 @@ class _PlatformConnectionDialogState extends State<PlatformConnectionDialog> {
             SnackBar(
               content: Text('${widget.platformName} 연결이 완료되었습니다'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -1193,6 +1198,7 @@ class _PlatformConnectionDialogState extends State<PlatformConnectionDialog> {
           SnackBar(
             content: Text(SNSPlatformConnectionService.getErrorMessage(e)),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
