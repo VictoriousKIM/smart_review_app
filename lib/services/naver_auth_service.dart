@@ -281,8 +281,8 @@ class NaverAuthService {
               userMetadata['display_name'] as String? ??
               '';
           
-          // CustomJwtSessionProvider를 통해 세션 저장
-          await CustomJwtSessionProvider.saveSession(
+          // CustomJwtSessionProvider를 통해 세션 저장 (저장 완료 확인)
+          await CustomJwtSessionProvider.saveSessionAndVerify(
             token: customAccessToken,
             userId: user.id,
             email: user.email,

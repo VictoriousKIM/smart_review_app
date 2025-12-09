@@ -107,5 +107,48 @@ class CustomJwtSessionProvider implements SessionProvider {
       debugPrint('⚠️ Custom JWT 세션 저장 실패: $e');
     }
   }
+
+  /// Custom JWT 세션 저장 및 저장 완료 확인 (저장 완료 보장)
+  /// 세션 저장 후 저장이 완료되었는지 확인하여 안정성을 보장합니다
+  static Future<void> saveSessionAndVerify({
+    required String token,
+    required String userId,
+    String? email,
+    String? provider,
+  }) async {
+    // 세션 저장
+    await saveSession(
+      token: token,
+      userId: userId,
+      email: email,
+      provider: provider,
+    );
+
+    // 저장 완료 확인 (최대 3회 재시도)
+    for (int i = 0; i < 3; i++) {
+      final savedToken = await _storage.read(key: _tokenKey);
+      final savedUserId = await _storage.read(key: _userIdKey);
+
+      if (savedToken == token && savedUserId == userId) {
+        debugPrint('✅ Custom JWT 세션 저장 완료 확인됨 (시도 ${i + 1}/3)');
+        return;
+      }
+
+      // 저장이 완료되지 않았으면 잠시 대기 후 재시도
+      if (i < 2) {
+        debugPrint('⚠️ 세션 저장 확인 실패, 재시도 중... (시도 ${i + 1}/3)');
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+    }
+
+    // 최종 확인 실패 시 에러 발생
+    final finalToken = await _storage.read(key: _tokenKey);
+    final finalUserId = await _storage.read(key: _userIdKey);
+    if (finalToken != token || finalUserId != userId) {
+      throw Exception(
+        'Custom JWT 세션 저장 확인 실패: 저장된 값이 예상과 다릅니다',
+      );
+    }
+  }
 }
 

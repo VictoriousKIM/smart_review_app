@@ -12,6 +12,7 @@ import '../models/user.dart' as app_user;
 import '../config/supabase_config.dart';
 import '../services/auth_service.dart';
 import '../services/naver_auth_service.dart';
+import '../services/session/unified_session_manager.dart';
 
 // Widgets & Shells
 import '../widgets/main_shell.dart';
@@ -128,6 +129,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           'Redirect: /loading 경로는 전역 redirect 제외 (GoRoute redirect에서 처리)',
         );
         return null; // GoRoute의 redirect가 실행되도록 null 반환
+      }
+
+      // 네이버 세션 저장 중인지 확인 (플래그 기반)
+      final prefs = await SharedPreferences.getInstance();
+      final isNaverSessionSaving =
+          prefs.getBool('naver_session_saving') ?? false;
+      if (isNaverSessionSaving) {
+        debugPrint('Redirect: 네이버 세션 저장 중 (전역 redirect 제외)');
+        return null; // 세션 저장이 완료될 때까지 전역 redirect 제외
       }
 
       // Signup 관련 경로는 redirect 제외 (무한 루프 방지)
@@ -258,12 +268,37 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
             if (isProcessed) {
               debugPrint('⚠️ 이미 처리된 OAuth code입니다. 중복 요청을 무시합니다.');
-              // 이미 처리된 경우 홈으로 리다이렉트
-              return '/home';
+              // 이미 처리된 경우 세션 저장이 완료될 때까지 대기
+              final isNaverSessionSaving =
+                  prefs.getBool('naver_session_saving') ?? false;
+              if (isNaverSessionSaving) {
+                debugPrint('⏳ 세션 저장 중입니다. 완료될 때까지 대기...');
+                // 세션 저장 완료까지 최대 3초 대기
+                for (int i = 0; i < 30; i++) {
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  final stillSaving =
+                      prefs.getBool('naver_session_saving') ?? false;
+                  if (!stillSaving) {
+                    break;
+                  }
+                }
+              }
+              // 세션 확인 후 적절한 경로로 리다이렉트
+              final userState = await authService.getUserState();
+              if (userState == UserState.tempSession) {
+                return '/signup?type=oauth&provider=naver';
+              } else if (userState == UserState.loggedIn) {
+                return '/home';
+              }
+              // 세션이 없으면 로그인으로
+              return '/login';
             }
 
             // code 처리 시작 표시
             await prefs.setBool(processedCodeKey, true);
+
+            // 세션 저장 중 플래그 설정 (전역 redirect 제외용)
+            await prefs.setBool('naver_session_saving', true);
 
             try {
               debugPrint('🔄 Workers API 호출 시작...');
@@ -298,9 +333,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 debugPrint('   - User ID: ${user?.id}');
                 debugPrint('   - Email: ${user?.email}');
 
-                // 프로필 확인 후 적절한 경로로 리다이렉트
+                // 세션 저장 완료 대기 (saveSessionAndVerify에서 이미 확인했지만 추가 안정성)
+                await Future.delayed(const Duration(milliseconds: 150));
 
+                // 세션이 저장되었는지 확인
+                final sessionManager = UnifiedSessionManager();
+                final hasSession = await sessionManager.hasActiveSession();
+
+                if (!hasSession) {
+                  debugPrint('⚠️ 세션 저장 실패: 세션이 저장되지 않았습니다');
+                  throw Exception('세션 저장 실패');
+                }
+
+                debugPrint('✅ 세션 저장 확인 완료');
+
+                // 프로필 확인 후 적절한 경로로 리다이렉트
                 final userState = await authService.getUserState();
+
+                // 세션 저장 완료 플래그 제거 (전역 redirect가 이제 세션을 확인할 수 있음)
+                await prefs.setBool('naver_session_saving', false);
+
                 if (userState == UserState.tempSession) {
                   // 프로필이 없으면 회원가입으로
                   debugPrint('🔄 프로필이 없습니다. 회원가입으로 리다이렉트');
@@ -310,9 +362,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   debugPrint('🔄 프로필이 있습니다. 홈으로 리다이렉트');
                   return '/home';
                 } else {
-                  // 로그인 상태가 아니면 홈으로 (전역 redirect가 처리)
-                  debugPrint('🔄 홈으로 리다이렉트 (전역 redirect가 처리)');
-                  return '/home';
+                  // 세션이 없으면 로그인으로 (에러 상황)
+                  debugPrint('⚠️ 세션 확인 실패, 로그인으로 리다이렉트');
+                  // 플래그 제거 (에러 상황)
+                  await prefs.setBool('naver_session_saving', false);
+                  return '/login';
                 }
               } else {
                 debugPrint('❌ 로그인 실패: 사용자 정보 또는 세션이 null입니다');
@@ -324,6 +378,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             } catch (e, stackTrace) {
               debugPrint('❌ 네이버 로그인 콜백 처리 오류: $e');
               debugPrint('스택 트레이스: $stackTrace');
+
+              // 세션 저장 중 플래그 제거 (에러 발생 시)
+              await prefs.setBool('naver_session_saving', false);
 
               // "no valid data in session" 에러는 이미 사용된 code이므로 처리 표시 유지
               // 다른 에러는 재시도 가능하도록 처리 표시 제거
@@ -392,11 +449,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'advertiser-signup',
             builder: (context, state) {
               // 쿼리 파라미터에서 provider 가져오기 (extra보다 우선)
-              final provider = state.uri.queryParameters['provider'] ?? 
-                  (state.extra as Map<String, dynamic>?)?['provider'] as String?;
-              return AdvertiserSignupScreen(
-                provider: provider,
-              );
+              final provider =
+                  state.uri.queryParameters['provider'] ??
+                  (state.extra as Map<String, dynamic>?)?['provider']
+                      as String?;
+              return AdvertiserSignupScreen(provider: provider);
             },
           ),
         ],

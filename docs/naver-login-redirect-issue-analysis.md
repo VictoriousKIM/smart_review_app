@@ -352,7 +352,7 @@ redirect: (context, state) async {
 **단점:**
 - 이미 `/loading` 경로는 제외되어 있음 (추가 효과 제한적)
 
-### 방안 4: 세션 저장 후 즉시 리다이렉트 (가장 추천)
+### 방안 4: 세션 저장 후 즉시 리다이렉트
 
 세션 저장 후 `getUserState()`를 호출하지 않고, 바로 적절한 경로로 리다이렉트합니다. 전역 redirect가 세션을 확인하여 처리하도록 합니다.
 
@@ -403,11 +403,12 @@ if (authResponse?.user != null && authResponse?.session != null) {
 
 ## 🎯 최종 해결 방안
 
-**방안 4 (세션 저장 후 즉시 리다이렉트)**를 추천합니다. 이유:
+**방안 5 (세션 저장 중 플래그 사용)**를 추천합니다. 이유:
 
-1. **안정성**: 세션 저장 완료를 보장
-2. **명확성**: 프로필 확인 후 적절한 경로로 리다이렉트
-3. **사용자 경험**: 약간의 지연 시간이 있지만, 로그인 스크린으로 이동하는 문제를 해결
+1. **안정성**: 플래그 기반으로 정확한 타이밍 제어
+2. **성능**: 지연 시간 없이 안정적으로 동작
+3. **명확성**: 전역 redirect에서 명확하게 제외
+4. **근본적 해결**: 타이밍 문제를 근본적으로 해결
 
 ### 구현 단계
 
@@ -415,11 +416,17 @@ if (authResponse?.user != null && authResponse?.session != null) {
    - `CustomJwtSessionProvider`에 `saveSessionAndVerify` 메서드 추가
    - 세션 저장 후 저장 완료를 확인
 
-2. **/loading 경로의 redirect 수정**
+2. **세션 저장 중 플래그 관리**
+   - 세션 저장 시작 시 `naver_session_saving` 플래그 설정
+   - 전역 redirect에서 플래그 확인하여 제외
+   - 세션 저장 완료 시 플래그 제거
+
+3. **/loading 경로의 redirect 수정**
    - 세션 저장 후 저장 완료 확인
    - 프로필 확인 후 적절한 경로로 리다이렉트
+   - 플래그 제거로 전역 redirect 활성화
 
-3. **테스트**
+4. **테스트**
    - 네이버 로그인 플로우 테스트
    - 로그인 스크린으로 이동하지 않는지 확인
 
@@ -432,7 +439,8 @@ if (authResponse?.user != null && authResponse?.session != null) {
 | 방안 1 | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
 | 방안 2 | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | 방안 3 | ⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
-| 방안 4 | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 방안 4 | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| 방안 5 | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 
 ---
 
@@ -450,13 +458,41 @@ Custom JWT 세션도 `authStateChanges` 스트림에서 감지하도록 개선�
 - Custom JWT 세션 변경을 감지하는 별도 스트림 추가
 - `authStateChanges`와 병합하여 통합 스트림 생성
 
-### 2. 세션 저장 상태 관리
+세션 저장 중임을 표시하는 플래그를 사용하여 전역 redirect에서 제외합니다.
 
-세션 저장 중임을 표시하는 상태를 관리하여 전역 redirect에서 제외할 수 있습니다.
+**수정 위치**: `lib/config/app_router.dart`
 
-**개선 방안:**
-- `SharedPreferences`에 세션 저장 중 플래그 저장
-- 전역 redirect에서 플래그 확인하여 제외
+```dart
+// 전역 redirect에서
+final prefs = await SharedPreferences.getInstance();
+final isNaverSessionSaving = prefs.getBool('naver_session_saving') ?? false;
+if (isNaverSessionSaving) {
+  debugPrint('Redirect: 네이버 세션 저장 중 (전역 redirect 제외)');
+  return null; // 세션 저장이 완료될 때까지 전역 redirect 제외
+}
+
+// /loading 경로의 redirect에서
+// 세션 저장 시작 시
+await prefs.setBool('naver_session_saving', true);
+
+// 세션 저장 완료 시
+await prefs.setBool('naver_session_saving', false);
+```
+
+**장점:**
+- 지연 시간 없이 안정적으로 동작
+- 전역 redirect에서 명확하게 제외
+- 타이밍 문제를 근본적으로 해결
+- 구현이 간단하고 명확함
+
+**단점:**
+- 플래그 관리 필요 (에러 처리 시에도 제거 필요)
+
+**구현 완료:**
+- ✅ 세션 저장 시작 시 플래그 설정
+- ✅ 전역 redirect에서 플래그 확인하여 제외
+- ✅ 세션 저장 완료 시 플래그 제거
+- ✅ 에러 처리 시 플래그 제거
 
 ---
 
