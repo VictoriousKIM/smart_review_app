@@ -66,7 +66,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             );
         pending = pendingTransactions.length;
       } catch (e) {
-        print('대기 중 포인트 거래 개수 조회 실패: $e');
+        debugPrint('대기 중 포인트 거래 개수 조회 실패: $e');
         pending = 0;
       }
 
@@ -78,8 +78,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         _isLoadingStats = false;
       });
     } catch (e, stackTrace) {
-      print('❌ 통계 로드 실패: $e');
-      print('스택 트레이스: $stackTrace');
+      debugPrint('❌ 통계 로드 실패: $e');
+      debugPrint('스택 트레이스: $stackTrace');
       setState(() => _isLoadingStats = false);
     }
   }

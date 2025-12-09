@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
@@ -28,10 +27,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Campaign> _allCampaigns = [];
   List<Campaign> _recruitingCampaigns = []; // 모집중인 캠페인만 표시
   bool _isLoading = true;
-  DateTime? _nextOpenAt; // 서버가 알려준 다음 오픈 시간 (Phase 2)
 
   // Pull-to-Refresh 충돌 방지용 큐
-  List<CampaignRealtimeEvent> _pendingRealtimeEvents = [];
+  final List<CampaignRealtimeEvent> _pendingRealtimeEvents = [];
 
   // 디바운싱/스로틀링용 타이머
   Timer? _updateTimer;
@@ -79,7 +77,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       if (!duration.isNegative) {
         debugPrint(
-          '💰 다음 캠페인 오픈 예약: ${duration.inSeconds}초 후 (${nearestNextStartTime})',
+          '💰 다음 캠페인 오픈 예약: ${duration.inSeconds}초 후 ($nearestNextStartTime)',
         );
         _preciseTimer = Timer(duration, () {
           if (mounted) {
@@ -270,7 +268,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         setState(() {
           _allCampaigns = campaigns;
-          _nextOpenAt = nextOpenAt;
           _updateFilteredCampaigns();
           _isLoading = false;
         });
@@ -495,7 +492,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _navigateToCampaignDetail(String campaignId) {
-    // print('🔥 Home campaign card tapped: $campaignId');
+    // debugPrint('🔥 Home campaign card tapped: $campaignId');
     context.go('/campaigns/$campaignId');
   }
 }

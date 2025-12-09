@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/point_models.dart';
 
@@ -21,7 +22,7 @@ class PointService {
       }
       return [];
     } catch (e) {
-      print('Error getting user wallets: $e');
+      debugPrint('Error getting user wallets: $e');
       rethrow;
     }
   }
@@ -39,7 +40,7 @@ class PointService {
       }
       return null;
     } catch (e) {
-      print('Error getting wallet info: $e');
+      debugPrint('Error getting wallet info: $e');
       rethrow;
     }
   }
@@ -68,7 +69,7 @@ class PointService {
 
       return response.toString();
     } catch (e) {
-      print('Error requesting point charge: $e');
+      debugPrint('Error requesting point charge: $e');
       rethrow;
     }
   }
@@ -81,7 +82,7 @@ class PointService {
         params: {'p_transaction_id': transactionId},
       );
     } catch (e) {
-      print('Error completing point charge: $e');
+      debugPrint('Error completing point charge: $e');
       rethrow;
     }
   }
@@ -103,7 +104,7 @@ class PointService {
 
       return response.toString();
     } catch (e) {
-      print('Error requesting personal withdrawal: $e');
+      debugPrint('Error requesting personal withdrawal: $e');
       rethrow;
     }
   }
@@ -121,7 +122,7 @@ class PointService {
 
       return response.toString();
     } catch (e) {
-      print('Error requesting company withdrawal: $e');
+      debugPrint('Error requesting company withdrawal: $e');
       rethrow;
     }
   }
@@ -140,7 +141,7 @@ class PointService {
         },
       );
     } catch (e) {
-      print('Error approving withdrawal: $e');
+      debugPrint('Error approving withdrawal: $e');
       rethrow;
     }
   }
@@ -165,7 +166,7 @@ class PointService {
         },
       );
     } catch (e) {
-      print('Error transferring personal to company: $e');
+      debugPrint('Error transferring personal to company: $e');
       rethrow;
     }
   }
@@ -186,7 +187,7 @@ class PointService {
         },
       );
     } catch (e) {
-      print('Error transferring company to personal: $e');
+      debugPrint('Error transferring company to personal: $e');
       rethrow;
     }
   }
@@ -204,7 +205,7 @@ class PointService {
       }
       return [];
     } catch (e) {
-      print('Error getting transfer history: $e');
+      debugPrint('Error getting transfer history: $e');
       rethrow;
     }
   }
@@ -230,7 +231,7 @@ class PointService {
       }
       return [];
     } catch (e) {
-      print('Error getting wallet logs: $e');
+      debugPrint('Error getting wallet logs: $e');
       rethrow;
     }
   }
@@ -275,7 +276,7 @@ class PointService {
 
       return response.toString();
     } catch (e) {
-      print('Error creating campaign: $e');
+      debugPrint('Error creating campaign: $e');
       rethrow;
     }
   }
@@ -296,7 +297,7 @@ class PointService {
         },
       );
     } catch (e) {
-      print('Error rewarding review: $e');
+      debugPrint('Error rewarding review: $e');
       rethrow;
     }
   }
@@ -314,7 +315,7 @@ class PointService {
       );
       return response == true;
     } catch (e) {
-      print('Error checking admin status: $e');
+      debugPrint('Error checking admin status: $e');
       return false;
     }
   }
@@ -332,7 +333,7 @@ class PointService {
       }
       return null;
     } catch (e) {
-      print('Error getting system overview: $e');
+      debugPrint('Error getting system overview: $e');
       rethrow;
     }
   }
@@ -355,7 +356,7 @@ class PointService {
         },
       );
     } catch (e) {
-      print('Error adjusting points: $e');
+      debugPrint('Error adjusting points: $e');
       rethrow;
     }
   }
@@ -376,7 +377,7 @@ class PointService {
         },
       );
     } catch (e) {
-      print('Error changing user role: $e');
+      debugPrint('Error changing user role: $e');
       rethrow;
     }
   }
@@ -400,7 +401,7 @@ class PointService {
       }
       return null;
     } catch (e) {
-      print('Error verifying wallet points: $e');
+      debugPrint('Error verifying wallet points: $e');
       rethrow;
     }
   }
@@ -415,7 +416,7 @@ class PointService {
       }
       return [];
     } catch (e) {
-      print('Error verifying all points: $e');
+      debugPrint('Error verifying all points: $e');
       rethrow;
     }
   }
@@ -441,7 +442,7 @@ class PointService {
       }
       return null;
     } catch (e) {
-      print('Error getting daily point stats: $e');
+      debugPrint('Error getting daily point stats: $e');
       rethrow;
     }
   }
@@ -463,7 +464,7 @@ class PointService {
       }
       return null;
     } catch (e) {
-      print('Error getting monthly point stats: $e');
+      debugPrint('Error getting monthly point stats: $e');
       rethrow;
     }
   }

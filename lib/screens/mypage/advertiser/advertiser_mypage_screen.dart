@@ -97,7 +97,7 @@ class _AdvertiserMyPageScreenState
         });
       }
     } catch (e) {
-      print('❌ 회사 포인트 조회 실패: $e');
+      debugPrint('❌ 회사 포인트 조회 실패: $e');
       if (mounted) {
         setState(() {
           _currentPoints = 0;
@@ -171,7 +171,7 @@ class _AdvertiserMyPageScreenState
                   .toList();
             }
           } catch (e) {
-            print('⚠️ 대체 조회 실패: $e');
+            debugPrint('⚠️ 대체 조회 실패: $e');
           }
         }
 
@@ -192,8 +192,9 @@ class _AdvertiserMyPageScreenState
           if (campaign.applyEndDate.isBefore(now)) return false;
           // 참여자가 다 차지 않은 경우만
           if (campaign.maxParticipants != null &&
-              campaign.currentParticipants >= campaign.maxParticipants!)
+              campaign.currentParticipants >= campaign.maxParticipants!) {
             return false;
+          }
           return true;
         }).length;
 
@@ -239,7 +240,7 @@ class _AdvertiserMyPageScreenState
         });
       }
     } catch (e) {
-      print('❌ 캠페인 통계 로드 실패: $e');
+      debugPrint('❌ 캠페인 통계 로드 실패: $e');
       if (mounted) {
         setState(() {
           _isLoadingStats = false;

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 
@@ -50,7 +51,7 @@ class UserService {
         'completedCampaigns': (response['completedCampaigns'] as num).toInt(),
       };
     } catch (e) {
-      print('사용자 통계 계산 실패: $e');
+      debugPrint('사용자 통계 계산 실패: $e');
       return {
         'level': 1,
         'reviewCount': 0,

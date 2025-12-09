@@ -338,7 +338,7 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen>
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: platformColor.withOpacity(0.1),
+                    color: platformColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Icon(platformIcon, color: platformColor, size: 20),

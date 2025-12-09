@@ -898,7 +898,7 @@ class _SNSConnectionSectionState extends State<SNSConnectionSection> {
                                           ],
                                         ),
                                       );
-                                    }).toList(),
+                                    }),
                                 ],
                               ),
                             ),

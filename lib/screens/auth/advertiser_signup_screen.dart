@@ -89,13 +89,11 @@ class _AdvertiserSignupScreenState
           _email = user.email;
 
           // OAuth에서 가져온 이름 설정
-          if (_displayName == null) {
-            _displayName =
-                metadata['full_name'] ??
-                metadata['name'] ??
-                metadata['display_name'] ??
-                (user.email != null ? user.email!.split('@')[0] : null);
-          }
+          _displayName ??=
+              metadata['full_name'] ??
+              metadata['name'] ??
+              metadata['display_name'] ??
+              (user.email != null ? user.email!.split('@')[0] : null);
           _isLoadingUserData = false;
         });
       } else {

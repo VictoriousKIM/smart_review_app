@@ -70,7 +70,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
         });
       }
     } catch (e) {
-      print('❌ 개인 포인트 조회 실패: $e');
+      debugPrint('❌ 개인 포인트 조회 실패: $e');
       if (mounted) {
         setState(() {
           _currentPoints = 0;
@@ -90,7 +90,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
       }
       return await CompanyUserService.canConvertToAdvertiser(userId);
     } catch (e) {
-      print('❌ 광고주 전환 가능 여부 확인 실패: $e');
+      debugPrint('❌ 광고주 전환 가능 여부 확인 실패: $e');
       return false;
     }
   }
@@ -151,7 +151,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
         });
       }
     } catch (e) {
-      print('❌ 캠페인 통계 로드 실패: $e');
+      debugPrint('❌ 캠페인 통계 로드 실패: $e');
       if (mounted) {
         setState(() {
           _isLoadingStats = false;

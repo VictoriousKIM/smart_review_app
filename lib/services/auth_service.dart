@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:postgrest/postgrest.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart' as kakao;
 import 'package:http/http.dart' as http;
@@ -50,10 +49,14 @@ class AuthService {
     }
 
     try {
-      // RPC 함수 호출로 안전한 프로필 조회
+      // RPC 함수 호출로 안전한 프로필 조회 (Custom JWT 세션 지원)
+      final currentUserId = await getCurrentUserId();
       await _supabase.rpc(
         'get_user_profile_safe',
-        params: {'p_user_id': sessionInfo.userId},
+        params: {
+          'p_user_id': sessionInfo.userId,
+          'p_current_user_id': currentUserId,
+        },
       );
 
       return UserState.loggedIn;
@@ -92,10 +95,14 @@ class AuthService {
     debugPrint('✅ 활성 세션에서 사용자 정보 조회: ${sessionInfo.userId} (provider: ${sessionInfo.provider})');
 
     try {
-      // RPC 함수 호출로 안전한 프로필 조회
+      // RPC 함수 호출로 안전한 프로필 조회 (Custom JWT 세션 지원)
+      final currentUserId = await getCurrentUserId();
       final profileResponse = await _supabase.rpc(
         'get_user_profile_safe',
-        params: {'p_user_id': sessionInfo.userId},
+        params: {
+          'p_user_id': sessionInfo.userId,
+          'p_current_user_id': currentUserId,
+        },
       );
 
       debugPrint('✅ 프로필 조회 성공');
@@ -149,10 +156,14 @@ class AuthService {
       final user = authState.session?.user;
       if (user != null) {
         try {
-          // RPC 함수 호출로 안전한 프로필 조회
+          // RPC 함수 호출로 안전한 프로필 조회 (Custom JWT 세션 지원)
+          final currentUserId = await getCurrentUserId();
           final profileResponse = await _supabase.rpc(
             'get_user_profile_safe',
-            params: {'p_user_id': user.id},
+            params: {
+              'p_user_id': user.id,
+              'p_current_user_id': currentUserId,
+            },
           );
 
           // 데이터베이스 프로필 정보로 User 객체 생성
@@ -450,10 +461,14 @@ class AuthService {
         '_ensureUserProfile 시작: ${user.id}, displayName: $displayName, isSignUp: $isSignUp',
       );
 
-      // RPC 함수로 안전하게 프로필 조회 (SECURITY DEFINER로 RLS 우회)
+      // RPC 함수로 안전하게 프로필 조회 (SECURITY DEFINER로 RLS 우회, Custom JWT 세션 지원)
+      final currentUserId = await getCurrentUserId();
       final profileResponse = await _supabase.rpc(
         'get_user_profile_safe',
-        params: {'p_user_id': user.id},
+        params: {
+          'p_user_id': user.id,
+          'p_current_user_id': currentUserId,
+        },
       );
 
       debugPrint('사용자 프로필이 이미 존재함: ${user.id}');
@@ -588,7 +603,10 @@ class AuthService {
               'apikey': SupabaseConfig.supabaseAnonKey,
               'Prefer': 'return=representation',
             },
-            body: jsonEncode({'p_user_id': userId}),
+            body: jsonEncode({
+              'p_user_id': userId,
+              'p_current_user_id': userId, // Custom JWT 세션에서는 동일한 ID 사용
+            }),
           );
 
           if (response.statusCode == 200) {
@@ -608,10 +626,14 @@ class AuthService {
         }
       }
 
-      // 일반 RPC 함수 호출로 안전한 프로필 조회
+      // 일반 RPC 함수 호출로 안전한 프로필 조회 (Custom JWT 세션 지원)
+      final currentUserId = await getCurrentUserId();
       final response = await _supabase.rpc(
         'get_user_profile_safe',
-        params: {'p_user_id': userId},
+        params: {
+          'p_user_id': userId,
+          'p_current_user_id': currentUserId,
+        },
       );
 
       return app_user.User.fromJson(response);

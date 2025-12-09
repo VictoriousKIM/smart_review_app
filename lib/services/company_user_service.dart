@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_service.dart';
 
@@ -16,7 +17,7 @@ class CompanyUserService {
 
       return response;
     } catch (e) {
-      print('❌ 광고주 전환 권한 확인 실패: $e');
+      debugPrint('❌ 광고주 전환 권한 확인 실패: $e');
       return false;
     }
   }
@@ -35,7 +36,7 @@ class CompanyUserService {
 
       return response;
     } catch (e) {
-      print('❌ 사용자 회사 역할 조회 실패: $e');
+      debugPrint('❌ 사용자 회사 역할 조회 실패: $e');
       return null;
     }
   }
@@ -53,7 +54,7 @@ class CompanyUserService {
 
       return response;
     } catch (e) {
-      print('❌ 사용자 회사 소속 확인 실패: $e');
+      debugPrint('❌ 사용자 회사 소속 확인 실패: $e');
       return false;
     }
   }
@@ -72,7 +73,7 @@ class CompanyUserService {
 
       return response;
     } catch (e) {
-      print('❌ 사용자 회사 ID 조회 실패: $e');
+      debugPrint('❌ 사용자 회사 ID 조회 실패: $e');
       return null;
     }
   }
@@ -103,7 +104,7 @@ class CompanyUserService {
       }
       return result as Map<String, dynamic>;
     } catch (e) {
-      print('❌ 매니저 비활성화 실패: $e');
+      debugPrint('❌ 매니저 비활성화 실패: $e');
       rethrow;
     }
   }
@@ -134,7 +135,7 @@ class CompanyUserService {
       }
       return result as Map<String, dynamic>;
     } catch (e) {
-      print('❌ 매니저 활성화 실패: $e');
+      debugPrint('❌ 매니저 활성화 실패: $e');
       rethrow;
     }
   }

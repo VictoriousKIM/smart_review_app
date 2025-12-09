@@ -123,7 +123,7 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ 캠페인 로드 실패: $e');
+      debugPrint('❌ 캠페인 로드 실패: $e');
       setState(() {
         _isLoading = false;
       });

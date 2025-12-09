@@ -188,19 +188,6 @@ class CampaignLogService {
     return newIndex > currentIndex && newIndex - currentIndex == 1;
   }
 
-  // 상태별 특수 로직 처리
-  // 주의: 이 메서드는 현재 사용하지 않음
-  // action 필드가 JSONB로 변경되어 action.data에 데이터를 저장할 수 있습니다.
-  // ignore: unused_element
-  @Deprecated('현재 사용하지 않음. action 필드가 JSONB로 변경되어 action.data에 데이터 저장 가능')
-  Future<void> _handleStatusSpecificLogic(
-    String status,
-    String campaignLogId,
-    Map<String, dynamic> data,
-  ) async {
-    // action 필드가 JSONB로 변경되어 action.data에 데이터를 저장할 수 있습니다.
-    // 필요시 이 메서드를 활성화하여 사용 가능
-  }
 
   // 사용자 캠페인 로그 조회 (RPC 함수 사용, Custom JWT 세션 지원)
   Future<ApiResponse<List<CampaignLog>>> getUserCampaignLogs({

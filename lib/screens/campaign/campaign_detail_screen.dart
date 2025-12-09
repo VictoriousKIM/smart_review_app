@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
@@ -555,10 +554,11 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
         campaignId: campaign.id,
       );
 
-      if (mounted) {
+      if (!mounted) return;
         Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
 
         if (result.success) {
+        if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('캠페인 신청이 완료되었습니다.'),
@@ -569,6 +569,7 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
           // 캠페인 상세 정보 새로고침
           ref.invalidate(campaignDetailProvider(widget.campaignId));
         } else {
+        if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(result.error ?? '신청에 실패했습니다.'),
@@ -576,10 +577,9 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
               duration: const Duration(seconds: 2),
             ),
           );
-        }
       }
     } catch (e) {
-      if (mounted) {
+      if (!mounted) return;
         Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -588,7 +588,6 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
             duration: const Duration(seconds: 2),
           ),
         );
-      }
     }
   }
 

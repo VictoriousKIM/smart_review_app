@@ -103,10 +103,10 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
                   limit: 50,
                 );
 
-            print('✅ 회사 포인트 내역 조회 결과: ${unifiedLogs.length}건');
+            debugPrint('✅ 회사 포인트 내역 조회 결과: ${unifiedLogs.length}건');
             for (var log in unifiedLogs) {
               final amount = log['point_amount'] ?? log['amount'] ?? 0;
-              print(
+              debugPrint(
                 '  - 거래 ID: ${log['id']}, 카테고리: ${log['transaction_category']}, 타입: ${log['transaction_type']}, 금액: $amount, 상태: ${log['status']}',
               );
             }
@@ -139,7 +139,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
               };
             }).toList();
 
-            print('✅ 포인트 내역 매핑 완료: ${_pointHistory.length}건');
+            debugPrint('✅ 포인트 내역 매핑 완료: ${_pointHistory.length}건');
           } else {
             _currentPoints = 0;
             _isOwner = false;

@@ -254,7 +254,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String?>(
-                  value: _userTypeFilter,
+                  initialValue: _userTypeFilter,
                   decoration: InputDecoration(
                     labelText: '사용자 타입',
                     border: OutlineInputBorder(
@@ -272,7 +272,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String?>(
-                  value: _statusFilter,
+                  initialValue: _statusFilter,
                   decoration: InputDecoration(
                     labelText: '상태',
                     border: OutlineInputBorder(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../models/wallet_models.dart';
 import '../models/point_transfer.dart';
 import '../config/supabase_config.dart';
@@ -15,7 +16,7 @@ class WalletService {
       // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('❌ 로그인되지 않음');
+        debugPrint('❌ 로그인되지 않음');
         return null;
       }
 
@@ -28,7 +29,7 @@ class WalletService {
               as Map<String, dynamic>?;
 
       if (response == null) {
-        print('ℹ️ 개인 지갑이 없습니다');
+        debugPrint('ℹ️ 개인 지갑이 없습니다');
         return null;
       }
 
@@ -43,10 +44,10 @@ class WalletService {
         'created_at': response['created_at'],
         'updated_at': response['updated_at'],
       });
-      print('✅ 개인 지갑 조회 성공: ${wallet.currentPoints}P');
+      debugPrint('✅ 개인 지갑 조회 성공: ${wallet.currentPoints}P');
       return wallet;
     } catch (e) {
-      print('❌ 개인 지갑 조회 실패: $e');
+      debugPrint('❌ 개인 지갑 조회 실패: $e');
       return null;
     }
   }
@@ -57,7 +58,7 @@ class WalletService {
       // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('❌ 로그인되지 않음');
+        debugPrint('❌ 로그인되지 않음');
         return [];
       }
 
@@ -80,10 +81,10 @@ class WalletService {
           )
           .toList();
 
-      print('✅ 회사 지갑 조회 성공: ${wallets.length}개');
+      debugPrint('✅ 회사 지갑 조회 성공: ${wallets.length}개');
       return wallets;
     } catch (e) {
-      print('❌ 회사 지갑 조회 실패: $e');
+      debugPrint('❌ 회사 지갑 조회 실패: $e');
       return [];
     }
   }
@@ -96,7 +97,7 @@ class WalletService {
       // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('❌ 로그인되지 않음');
+        debugPrint('❌ 로그인되지 않음');
         return null;
       }
 
@@ -114,7 +115,7 @@ class WalletService {
 
       return CompanyWallet.fromJson(response);
     } catch (e) {
-      print('❌ 회사 지갑 조회 실패: $e');
+      debugPrint('❌ 회사 지갑 조회 실패: $e');
       return null;
     }
   }
@@ -130,7 +131,7 @@ class WalletService {
       // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('❌ 로그인되지 않음');
+        debugPrint('❌ 로그인되지 않음');
         return [];
       }
 
@@ -147,10 +148,10 @@ class WalletService {
 
       final logs = response.map((e) => e as Map<String, dynamic>).toList();
 
-      print('✅ 개인 포인트 내역 통합 조회 성공: ${logs.length}건');
+      debugPrint('✅ 개인 포인트 내역 통합 조회 성공: ${logs.length}건');
       return logs;
     } catch (e) {
-      print('❌ 개인 포인트 내역 통합 조회 실패: $e');
+      debugPrint('❌ 개인 포인트 내역 통합 조회 실패: $e');
       return [];
     }
   }
@@ -164,7 +165,7 @@ class WalletService {
       // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('❌ 로그인되지 않음');
+        debugPrint('❌ 로그인되지 않음');
         return [];
       }
 
@@ -184,10 +185,10 @@ class WalletService {
           .map((e) => UserPointLog.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      print('✅ 개인 포인트 내역 조회 성공: ${logs.length}건');
+      debugPrint('✅ 개인 포인트 내역 조회 성공: ${logs.length}건');
       return logs;
     } catch (e) {
-      print('❌ 개인 포인트 내역 조회 실패: $e');
+      debugPrint('❌ 개인 포인트 내역 조회 실패: $e');
       return [];
     }
   }
@@ -202,7 +203,7 @@ class WalletService {
       // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('❌ 로그인되지 않음');
+        debugPrint('❌ 로그인되지 않음');
         return [];
       }
 
@@ -221,10 +222,10 @@ class WalletService {
 
       final logs = response.map((e) => e as Map<String, dynamic>).toList();
 
-      print('✅ 회사 포인트 내역 조회 성공: ${logs.length}건');
+      debugPrint('✅ 회사 포인트 내역 조회 성공: ${logs.length}건');
       return logs;
     } catch (e) {
-      print('❌ 회사 포인트 내역 조회 실패: $e');
+      debugPrint('❌ 회사 포인트 내역 조회 실패: $e');
 
       // 권한 없음 에러 처리
       if (e.toString().contains('Unauthorized')) {
@@ -242,6 +243,12 @@ class WalletService {
     int offset = 0,
   }) async {
     try {
+      // Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
+      }
+      
       final response =
           await _supabase.rpc(
                 'get_company_point_history',
@@ -249,6 +256,7 @@ class WalletService {
                   'p_company_id': companyId,
                   'p_limit': limit,
                   'p_offset': offset,
+                  'p_user_id': userId,
                 },
               )
               as List;
@@ -257,10 +265,10 @@ class WalletService {
           .map((e) => CompanyPointLog.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      print('✅ 회사 포인트 내역 조회 성공: ${logs.length}건');
+      debugPrint('✅ 회사 포인트 내역 조회 성공: ${logs.length}건');
       return logs;
     } catch (e) {
-      print('❌ 회사 포인트 내역 조회 실패: $e');
+      debugPrint('❌ 회사 포인트 내역 조회 실패: $e');
 
       // 권한 없음 에러 처리
       if (e.toString().contains('Unauthorized')) {
@@ -293,7 +301,7 @@ class WalletService {
 
       return stats;
     } catch (e) {
-      print('❌ 월별 통계 조회 실패: $e');
+      debugPrint('❌ 월별 통계 조회 실패: $e');
       return {};
     }
   }
@@ -318,7 +326,7 @@ class WalletService {
 
       return stats;
     } catch (e) {
-      print('❌ 사용자별 통계 조회 실패: $e');
+      debugPrint('❌ 사용자별 통계 조회 실패: $e');
       return {};
     }
   }
@@ -338,7 +346,7 @@ class WalletService {
       final requiredPoints = campaignReward * maxParticipants;
       return wallet.currentPoints >= requiredPoints;
     } catch (e) {
-      print('❌ 캠페인 생성 가능 여부 확인 실패: $e');
+      debugPrint('❌ 캠페인 생성 가능 여부 확인 실패: $e');
       return false;
     }
   }
@@ -369,7 +377,7 @@ class WalletService {
       final shortage = required - wallet.currentPoints;
       return shortage > 0 ? shortage : 0;
     } catch (e) {
-      print('❌ 부족 포인트 계산 실패: $e');
+      debugPrint('❌ 부족 포인트 계산 실패: $e');
       return 0;
     }
   }
@@ -424,9 +432,9 @@ class WalletService {
           'p_account_holder': accountHolder,
         },
       );
-      print('✅ 개인 지갑 계좌정보 업데이트 성공 (RPC)');
+      debugPrint('✅ 개인 지갑 계좌정보 업데이트 성공 (RPC)');
     } catch (e) {
-      print('❌ 개인 지갑 계좌정보 업데이트 실패: $e');
+      debugPrint('❌ 개인 지갑 계좌정보 업데이트 실패: $e');
       rethrow;
     }
   }
@@ -462,9 +470,9 @@ class WalletService {
           'p_account_holder': accountHolder,
         },
       );
-      print('✅ 회사 지갑 계좌정보 업데이트 성공 (RPC)');
+      debugPrint('✅ 회사 지갑 계좌정보 업데이트 성공 (RPC)');
     } catch (e) {
-      print('❌ 회사 지갑 계좌정보 업데이트 실패: $e');
+      debugPrint('❌ 회사 지갑 계좌정보 업데이트 실패: $e');
       rethrow;
     }
   }
@@ -491,10 +499,10 @@ class WalletService {
               )
               as Map<String, dynamic>;
 
-      print('✅ 포인트 이동 성공: $amount P');
+      debugPrint('✅ 포인트 이동 성공: $amount P');
       return response;
     } catch (e) {
-      print('❌ 포인트 이동 실패: $e');
+      debugPrint('❌ 포인트 이동 실패: $e');
       rethrow;
     }
   }
@@ -508,7 +516,7 @@ class WalletService {
       // Custom JWT 세션 또는 Supabase 세션에서 사용자 ID 가져오기
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('❌ 로그인되지 않음');
+        debugPrint('❌ 로그인되지 않음');
         return [];
       }
 
@@ -527,10 +535,10 @@ class WalletService {
           .map((e) => PointTransfer.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      print('✅ 포인트 이동 내역 조회 성공: ${transfers.length}건');
+      debugPrint('✅ 포인트 이동 내역 조회 성공: ${transfers.length}건');
       return transfers;
     } catch (e) {
-      print('❌ 포인트 이동 내역 조회 실패: $e');
+      debugPrint('❌ 포인트 이동 내역 조회 실패: $e');
       return [];
     }
   }
@@ -559,10 +567,10 @@ class WalletService {
         },
       );
 
-      print('✅ 캠페인 거래 생성 성공: $response');
+      debugPrint('✅ 캠페인 거래 생성 성공: $response');
       return response as String;
     } catch (e) {
-      print('❌ 캠페인 거래 생성 실패: $e');
+      debugPrint('❌ 캠페인 거래 생성 실패: $e');
       rethrow;
     }
   }
@@ -623,10 +631,10 @@ class WalletService {
         },
       );
 
-      print('✅ 현금 거래 생성 성공: $response');
+      debugPrint('✅ 현금 거래 생성 성공: $response');
       return response as String;
     } catch (e) {
-      print('❌ 현금 거래 생성 실패: $e');
+      debugPrint('❌ 현금 거래 생성 실패: $e');
       rethrow;
     }
   }
@@ -647,10 +655,10 @@ class WalletService {
         },
       );
 
-      print('✅ 현금 거래 상태 업데이트 성공: $status');
+      debugPrint('✅ 현금 거래 상태 업데이트 성공: $status');
       return response as bool;
     } catch (e) {
-      print('❌ 현금 거래 상태 업데이트 실패: $e');
+      debugPrint('❌ 현금 거래 상태 업데이트 실패: $e');
       rethrow;
     }
   }
@@ -664,6 +672,12 @@ class WalletService {
     int offset = 0,
   }) async {
     try {
+      // Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
+      }
+      
       final response =
           await _supabase.rpc(
                 'get_pending_cash_transactions',
@@ -673,6 +687,7 @@ class WalletService {
                   'p_user_type': userType,
                   'p_limit': limit,
                   'p_offset': offset,
+                  'p_current_user_id': userId,
                 },
               )
               as List;
@@ -681,10 +696,10 @@ class WalletService {
           .map((e) => e as Map<String, dynamic>)
           .toList();
 
-      print('✅ 대기중인 현금 거래 목록 조회 성공: ${transactions.length}건');
+      debugPrint('✅ 대기중인 현금 거래 목록 조회 성공: ${transactions.length}건');
       return transactions;
     } catch (e) {
-      print('❌ 대기중인 현금 거래 목록 조회 실패: $e');
+      debugPrint('❌ 대기중인 현금 거래 목록 조회 실패: $e');
       if (e.toString().contains('Unauthorized')) {
         throw Exception('관리자 권한이 필요합니다');
       }
@@ -702,10 +717,10 @@ class WalletService {
         params: {'p_transaction_id': transactionId},
       );
 
-      print('✅ 현금 거래 취소 성공');
+      debugPrint('✅ 현금 거래 취소 성공');
       return response as bool;
     } catch (e) {
-      print('❌ 현금 거래 취소 실패: $e');
+      debugPrint('❌ 현금 거래 취소 실패: $e');
       rethrow;
     }
   }

@@ -26,21 +26,31 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
   final TextEditingController _depositorNameController =
       TextEditingController();
   String? _receiptType; // 'cash_receipt', 'tax_invoice', 'none'
-  
+
   // 현금영수증 관련 필드
   String? _cashReceiptRecipientType; // 'individual', 'business'
-  final TextEditingController _cashReceiptNameController = TextEditingController();
-  final TextEditingController _cashReceiptPhoneController = TextEditingController();
-  final TextEditingController _cashReceiptBusinessNameController = TextEditingController();
-  final TextEditingController _cashReceiptBusinessNumberController = TextEditingController();
-  
+  final TextEditingController _cashReceiptNameController =
+      TextEditingController();
+  final TextEditingController _cashReceiptPhoneController =
+      TextEditingController();
+  final TextEditingController _cashReceiptBusinessNameController =
+      TextEditingController();
+  final TextEditingController _cashReceiptBusinessNumberController =
+      TextEditingController();
+
   // 세금계산서 관련 필드
-  final TextEditingController _taxInvoiceRepresentativeController = TextEditingController();
-  final TextEditingController _taxInvoiceCompanyNameController = TextEditingController();
-  final TextEditingController _taxInvoiceBusinessNumberController = TextEditingController();
-  final TextEditingController _taxInvoiceEmailController = TextEditingController();
-  final TextEditingController _taxInvoiceAddressController = TextEditingController();
-  final TextEditingController _taxInvoiceDetailAddressController = TextEditingController();
+  final TextEditingController _taxInvoiceRepresentativeController =
+      TextEditingController();
+  final TextEditingController _taxInvoiceCompanyNameController =
+      TextEditingController();
+  final TextEditingController _taxInvoiceBusinessNumberController =
+      TextEditingController();
+  final TextEditingController _taxInvoiceEmailController =
+      TextEditingController();
+  final TextEditingController _taxInvoiceAddressController =
+      TextEditingController();
+  final TextEditingController _taxInvoiceDetailAddressController =
+      TextEditingController();
 
   // 충전 금액 옵션 (포인트, 현금)
   final List<Map<String, int>> _chargeOptions = [
@@ -96,13 +106,13 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       final companyData = await CompanyService.getCompanyByUserId(user.uid);
       if (companyData != null) {
         setState(() {
-          _taxInvoiceRepresentativeController.text = 
+          _taxInvoiceRepresentativeController.text =
               companyData['representative_name']?.toString() ?? '';
-          _taxInvoiceCompanyNameController.text = 
+          _taxInvoiceCompanyNameController.text =
               companyData['business_name']?.toString() ?? '';
-          _taxInvoiceBusinessNumberController.text = 
+          _taxInvoiceBusinessNumberController.text =
               companyData['business_number']?.toString() ?? '';
-          _taxInvoiceEmailController.text = 
+          _taxInvoiceEmailController.text =
               companyData['contact_email']?.toString() ?? '';
           // 주소는 address 필드에서 가져오기
           final address = companyData['address']?.toString() ?? '';
@@ -110,7 +120,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
         });
       }
     } catch (e) {
-      print('❌ 회사 정보 로드 실패: $e');
+      debugPrint('❌ 회사 정보 로드 실패: $e');
     }
   }
 
@@ -151,9 +161,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
             backgroundColor: Colors.red,
@@ -166,82 +174,82 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
 
   Future<void> _submitCharge() async {
     if (_selectedAmount == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(
-        content: Text('충전 금액을 선택해주세요.'),
-        duration: Duration(seconds: 2),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('충전 금액을 선택해주세요.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
       return;
     }
 
     if (_depositorNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(
-        content: Text('입금자명을 입력해주세요.'),
-        duration: Duration(seconds: 2),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('입금자명을 입력해주세요.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
       return;
     }
 
     if (_receiptType == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(
-        content: Text('영수증 발행 방법을 선택해주세요.'),
-        duration: Duration(seconds: 2),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('영수증 발행 방법을 선택해주세요.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
       return;
     }
 
     // 현금영수증 선택 시 검증
     if (_receiptType == 'cash_receipt') {
       if (_cashReceiptRecipientType == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(
-          content: Text('수령인 유형을 선택해주세요.'),
-          duration: Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('수령인 유형을 선택해주세요.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
         return;
       }
       if (_cashReceiptRecipientType == 'individual') {
         if (_cashReceiptNameController.text.trim().isEmpty) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(
-            content: Text('이름을 입력해주세요.'),
-            duration: Duration(seconds: 2),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('이름을 입력해주세요.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
           return;
         }
         if (_cashReceiptPhoneController.text.trim().isEmpty) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(
-            content: Text('휴대폰 번호를 입력해주세요.'),
-            duration: Duration(seconds: 2),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('휴대폰 번호를 입력해주세요.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
           return;
         }
       } else if (_cashReceiptRecipientType == 'business') {
         if (_cashReceiptBusinessNameController.text.trim().isEmpty) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(
-            content: Text('사업자명을 입력해주세요.'),
-            duration: Duration(seconds: 2),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('사업자명을 입력해주세요.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
           return;
         }
         if (_cashReceiptBusinessNumberController.text.trim().isEmpty) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(
-            content: Text('사업자 번호를 입력해주세요.'),
-            duration: Duration(seconds: 2),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('사업자 번호를 입력해주세요.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
           return;
         }
       }
@@ -250,50 +258,50 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
     // 세금계산서 선택 시 검증
     if (_receiptType == 'tax_invoice') {
       if (_taxInvoiceRepresentativeController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(
-          content: Text('대표자명을 입력해주세요.'),
-          duration: Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('대표자명을 입력해주세요.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
         return;
       }
       if (_taxInvoiceCompanyNameController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(
-          content: Text('회사명을 입력해주세요.'),
-          duration: Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('회사명을 입력해주세요.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
         return;
       }
       if (_taxInvoiceBusinessNumberController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(
-          content: Text('사업자번호를 입력해주세요.'),
-          duration: Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('사업자번호를 입력해주세요.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
         return;
       }
       if (_taxInvoiceAddressController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(
-          content: Text('주소를 입력해주세요.'),
-          duration: Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('주소를 입력해주세요.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
         return;
       }
     }
 
     if (_walletId.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(
-        content: Text('지갑 정보를 찾을 수 없습니다.'),
-        duration: Duration(seconds: 2),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('지갑 정보를 찾을 수 없습니다.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
       return;
     }
 
@@ -323,16 +331,21 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
           cashReceiptName = _cashReceiptNameController.text.trim();
           cashReceiptPhone = _cashReceiptPhoneController.text.trim();
         } else if (_cashReceiptRecipientType == 'business') {
-          cashReceiptBusinessName = _cashReceiptBusinessNameController.text.trim();
-          cashReceiptBusinessNumber = _cashReceiptBusinessNumberController.text.trim();
+          cashReceiptBusinessName = _cashReceiptBusinessNameController.text
+              .trim();
+          cashReceiptBusinessNumber = _cashReceiptBusinessNumberController.text
+              .trim();
         }
       } else if (_receiptType == 'tax_invoice') {
-        taxInvoiceRepresentative = _taxInvoiceRepresentativeController.text.trim();
+        taxInvoiceRepresentative = _taxInvoiceRepresentativeController.text
+            .trim();
         taxInvoiceCompanyName = _taxInvoiceCompanyNameController.text.trim();
-        taxInvoiceBusinessNumber = _taxInvoiceBusinessNumberController.text.trim();
+        taxInvoiceBusinessNumber = _taxInvoiceBusinessNumberController.text
+            .trim();
         taxInvoiceEmail = _taxInvoiceEmailController.text.trim();
         taxInvoiceAddress = _taxInvoiceAddressController.text.trim();
-        taxInvoiceDetailAddress = _taxInvoiceDetailAddressController.text.trim();
+        taxInvoiceDetailAddress = _taxInvoiceDetailAddressController.text
+            .trim();
       }
 
       await WalletService.createPointCashTransaction(
@@ -357,19 +370,17 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(
-          content: Text('충전 요청이 완료되었습니다.'),
-          duration: Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('충전 요청이 완료되었습니다.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
         context.pop(true); // 성공 시 true 반환
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
             backgroundColor: Colors.red,
@@ -477,6 +488,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
           ),
         ),
         const SizedBox(height: 12),
+        // ignore: deprecated_member_use
         ..._chargeOptions.map((option) {
           final points = option['points']!;
           final cash = option['cash']!;
@@ -489,7 +501,9 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
               '(${cash.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원)',
             ),
             value: points,
+            // ignore: deprecated_member_use
             groupValue: _selectedAmount,
+            // ignore: deprecated_member_use
             onChanged: (value) {
               if (value != null) {
                 setState(() {
@@ -593,7 +607,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _receiptType,
+          initialValue: _receiptType,
           decoration: const InputDecoration(
             hintText: '발행방법(현금영수증/세금계산서/발행안함)',
             border: OutlineInputBorder(),
@@ -625,7 +639,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
                 _taxInvoiceDetailAddressController.clear();
               }
             });
-            
+
             // 세금계산서 선택 시 company 테이블에서 회사 정보 자동 로드
             if (value == 'tax_invoice') {
               await _loadCompanyInfoForTaxInvoice();
@@ -638,10 +652,13 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
           Row(
             children: [
               Expanded(
+                // ignore: deprecated_member_use
                 child: RadioListTile<String>(
                   title: const Text('개인'),
                   value: 'individual',
+                  // ignore: deprecated_member_use
                   groupValue: _cashReceiptRecipientType,
+                  // ignore: deprecated_member_use
                   onChanged: (value) {
                     setState(() {
                       _cashReceiptRecipientType = value;
@@ -658,10 +675,13 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
                 ),
               ),
               Expanded(
+                // ignore: deprecated_member_use
                 child: RadioListTile<String>(
                   title: const Text('사업자 지출증빙용'),
                   value: 'business',
+                  // ignore: deprecated_member_use
                   groupValue: _cashReceiptRecipientType,
+                  // ignore: deprecated_member_use
                   onChanged: (value) {
                     setState(() {
                       _cashReceiptRecipientType = value;
@@ -810,7 +830,8 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
                     context,
                     onComplete: (postalCode, address, extraAddress) {
                       setState(() {
-                        _taxInvoiceAddressController.text = address + (extraAddress ?? '');
+                        _taxInvoiceAddressController.text =
+                            address + (extraAddress ?? '');
                       });
                     },
                   );
@@ -889,7 +910,7 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
   bool _isReceiptInfoValid() {
     if (_receiptType == null) return false;
     if (_receiptType == 'none') return true;
-    
+
     if (_receiptType == 'cash_receipt') {
       if (_cashReceiptRecipientType == null) return false;
       if (_cashReceiptRecipientType == 'individual') {
@@ -900,14 +921,14 @@ class _PointChargeScreenState extends State<PointChargeScreen> {
             _cashReceiptBusinessNumberController.text.trim().isNotEmpty;
       }
     }
-    
+
     if (_receiptType == 'tax_invoice') {
       return _taxInvoiceRepresentativeController.text.trim().isNotEmpty &&
           _taxInvoiceCompanyNameController.text.trim().isNotEmpty &&
           _taxInvoiceBusinessNumberController.text.trim().isNotEmpty &&
           _taxInvoiceAddressController.text.trim().isNotEmpty;
     }
-    
+
     return false;
   }
 

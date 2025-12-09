@@ -214,7 +214,7 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
       setState(() {
         _isSearching = false;
         _errorMessage =
-            '너무 많은 검색 실패로 인해 검색이 일시적으로 차단되었습니다. ${minutes}분 ${seconds}초 후에 다시 시도해주세요.';
+            '너무 많은 검색 실패로 인해 검색이 일시적으로 차단되었습니다. $minutes분 $seconds초 후에 다시 시도해주세요.';
       });
       return;
     }
@@ -383,7 +383,7 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, -2),
               ),

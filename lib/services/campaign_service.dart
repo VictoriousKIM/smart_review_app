@@ -245,9 +245,7 @@ class CampaignService {
       final nextOpenAtStr = response['next_open_at'] as String?;
 
       final campaigns = campaignsJson != null
-          ? (campaignsJson as List)
-                .map((json) => Campaign.fromJson(json))
-                .toList()
+          ? campaignsJson.map((json) => Campaign.fromJson(json)).toList()
           : <Campaign>[];
 
       DateTime? nextOpenAt;
@@ -360,10 +358,7 @@ class CampaignService {
       // RPC 함수 호출로 안전한 캠페인 참여 취소 (Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달)
       final response = await _supabase.rpc(
         'leave_campaign_safe',
-        params: {
-          'p_campaign_id': campaignId,
-          'p_user_id': userId,
-        },
+        params: {'p_campaign_id': campaignId, 'p_user_id': userId},
       );
 
       return ApiResponse<Map<String, dynamic>>(
@@ -404,6 +399,9 @@ class CampaignService {
       debugPrint('   p_offset: $offset');
       debugPrint('   p_limit: $limit');
 
+      // Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달
+      final currentUserId = await AuthService.getCurrentUserId();
+
       final response = await _supabase.rpc(
         'get_user_campaigns_safe',
         params: {
@@ -411,6 +409,7 @@ class CampaignService {
           'p_status': statusParam,
           'p_offset': offset,
           'p_limit': limit,
+          'p_current_user_id': currentUserId,
         },
       );
 
@@ -683,7 +682,7 @@ class CampaignService {
         );
       }
 
-      print('❌ 캠페인 생성 실패: $e');
+      debugPrint('❌ 캠페인 생성 실패: $e');
       return ApiResponse<Campaign>(
         success: false,
         error: '캠페인 생성 중 오류가 발생했습니다.',
@@ -830,7 +829,7 @@ class CampaignService {
           'p_product_image_url': productImageUrl,
           'p_product_name': productName, // ✅ 추가
           'p_product_price': productPrice, // ✅ 추가 (paymentAmount 대체)
-          'p_purchase_method': purchaseMethod ?? 'mobile', // ✅ 하드코딩 제거
+          'p_purchase_method': purchaseMethod, // ✅ 하드코딩 제거
           'p_product_description': null, // ✅ 제거 (NULL로 설정)
           'p_review_type': reviewType ?? 'star_only',
           'p_review_text_length': reviewTextLength, // ✅ NULL 가능
@@ -838,7 +837,7 @@ class CampaignService {
           'p_prevent_product_duplicate': preventProductDuplicate ?? false,
           'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
           'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
-          'p_payment_method': paymentMethod ?? 'platform',
+          'p_payment_method': paymentMethod,
           'p_review_keywords': reviewKeywords,
         },
       );
@@ -886,7 +885,7 @@ class CampaignService {
         );
       }
 
-      print('❌ 캠페인 생성 실패: $e');
+      debugPrint('❌ 캠페인 생성 실패: $e');
       return ApiResponse<Campaign>(
         success: false,
         error: '캠페인 생성 중 오류가 발생했습니다: ${e.toString()}',
@@ -961,14 +960,14 @@ class CampaignService {
           'p_product_image_url': productImageUrl,
           'p_product_name': productName,
           'p_product_price': productPrice,
-          'p_purchase_method': purchaseMethod ?? 'mobile',
+          'p_purchase_method': purchaseMethod,
           'p_review_type': reviewType ?? 'star_only',
           'p_review_text_length': reviewTextLength,
           'p_review_image_count': reviewImageCount,
           'p_prevent_product_duplicate': preventProductDuplicate ?? false,
           'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
           'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
-          'p_payment_method': paymentMethod ?? 'platform',
+          'p_payment_method': paymentMethod,
           'p_review_keywords': reviewKeywords,
         },
       );
@@ -985,10 +984,10 @@ class CampaignService {
       );
     } catch (e) {
       final errorMessage = e.toString();
-      print('❌ 캠페인 업데이트 실패: $e');
+      debugPrint('❌ 캠페인 업데이트 실패: $e');
       return ApiResponse<Campaign>(
         success: false,
-        error: '캠페인 업데이트 중 오류가 발생했습니다: ${errorMessage}',
+        error: '캠페인 업데이트 중 오류가 발생했습니다: $errorMessage',
       );
     }
   }
@@ -1007,7 +1006,11 @@ class CampaignService {
 
       final response = await _supabase.rpc(
         'update_campaign_status',
-        params: {'p_campaign_id': campaignId, 'p_status': status.name},
+        params: {
+          'p_campaign_id': campaignId,
+          'p_status': status.name,
+          'p_user_id': userId,
+        },
       );
 
       if (response['success'] == true) {
@@ -1043,18 +1046,15 @@ class CampaignService {
         final campaignResult = await getCampaignById(campaignId);
         if (campaignResult.success && campaignResult.data != null) {
           productImageUrl = campaignResult.data!.productImageUrl;
-          print('🔍 캠페인 이미지 URL: $productImageUrl');
+          debugPrint('🔍 캠페인 이미지 URL: $productImageUrl');
         }
       } catch (e) {
-        print('⚠️ 캠페인 정보 조회 실패 (이미지 삭제 스킵): $e');
+        debugPrint('⚠️ 캠페인 정보 조회 실패 (이미지 삭제 스킵): $e');
       }
 
       final response = await _supabase.rpc(
         'delete_campaign',
-        params: {
-          'p_campaign_id': campaignId,
-          'p_user_id': userId,
-        },
+        params: {'p_campaign_id': campaignId, 'p_user_id': userId},
       );
 
       // response가 Map인지 확인
@@ -1063,16 +1063,16 @@ class CampaignService {
           // 캠페인 삭제 성공 후 R2 이미지도 삭제
           if (productImageUrl != null && productImageUrl.isNotEmpty) {
             try {
-              print('🗑️ R2 이미지 삭제 시도: $productImageUrl');
+              debugPrint('🗑️ R2 이미지 삭제 시도: $productImageUrl');
               await CloudflareWorkersService.deleteFile(productImageUrl);
-              print('✅ 캠페인 이미지 삭제 성공: $productImageUrl');
+              debugPrint('✅ 캠페인 이미지 삭제 성공: $productImageUrl');
             } catch (e, stackTrace) {
               // 이미지 삭제 실패해도 캠페인 삭제는 성공한 것으로 처리
-              print('⚠️ 캠페인 이미지 삭제 실패 (무시): $e');
-              print('⚠️ 스택 트레이스: $stackTrace');
+              debugPrint('⚠️ 캠페인 이미지 삭제 실패 (무시): $e');
+              debugPrint('⚠️ 스택 트레이스: $stackTrace');
             }
           } else {
-            print('ℹ️ 삭제할 이미지 URL이 없습니다.');
+            debugPrint('ℹ️ 삭제할 이미지 URL이 없습니다.');
           }
 
           return ApiResponse<void>(
@@ -1082,13 +1082,13 @@ class CampaignService {
         } else {
           // 에러 메시지 상세 출력
           final errorMsg = response['error'] ?? '캠페인 삭제에 실패했습니다';
-          print('❌ 캠페인 삭제 실패: $errorMsg');
-          print('❌ 전체 응답: $response');
+          debugPrint('❌ 캠페인 삭제 실패: $errorMsg');
+          debugPrint('❌ 전체 응답: $response');
           return ApiResponse<void>(success: false, error: errorMsg);
         }
       } else {
         // 예상치 못한 응답 형식
-        print('❌ 예상치 못한 응답 형식: $response (${response.runtimeType})');
+        debugPrint('❌ 예상치 못한 응답 형식: $response (${response.runtimeType})');
         return ApiResponse<void>(
           success: false,
           error: '서버 응답 형식이 올바르지 않습니다: ${response.toString()}',
@@ -1096,8 +1096,8 @@ class CampaignService {
       }
     } catch (e, stackTrace) {
       // 에러 상세 정보 출력
-      print('❌ 캠페인 삭제 예외 발생: $e');
-      print('❌ 스택 트레이스: $stackTrace');
+      debugPrint('❌ 캠페인 삭제 예외 발생: $e');
+      debugPrint('❌ 스택 트레이스: $stackTrace');
       return ApiResponse<void>(
         success: false,
         error: '캠페인 삭제 중 오류가 발생했습니다: ${e.toString()}',

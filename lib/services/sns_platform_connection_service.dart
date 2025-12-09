@@ -107,7 +107,7 @@ class SNSPlatformConnectionService {
 
       return result as Map<String, dynamic>;
     } catch (e) {
-      print('❌ SNS 연결 생성 실패: $e');
+      debugPrint('❌ SNS 연결 생성 실패: $e');
       rethrow;
     }
   }
@@ -176,7 +176,7 @@ class SNSPlatformConnectionService {
 
       return result as Map<String, dynamic>;
     } catch (e) {
-      print('❌ SNS 연결 수정 실패: $e');
+      debugPrint('❌ SNS 연결 수정 실패: $e');
       rethrow;
     }
   }
@@ -199,7 +199,7 @@ class SNSPlatformConnectionService {
       // 캐시 무효화
       await _invalidateCache(userId);
     } catch (e) {
-      print('❌ SNS 연결 삭제 실패: $e');
+      debugPrint('❌ SNS 연결 삭제 실패: $e');
       rethrow;
     }
   }
@@ -219,13 +219,13 @@ class SNSPlatformConnectionService {
       if (!forceRefresh) {
         final cachedData = await _getCachedConnections(userId);
         if (cachedData != null) {
-          print('✅ 캐시에서 SNS 연결 정보 로드');
+          debugPrint('✅ 캐시에서 SNS 연결 정보 로드');
           return cachedData;
         }
       }
 
       // 서버에서 데이터 조회 (RPC 함수 사용, Custom JWT 세션 지원)
-      print('🔄 서버에서 SNS 연결 정보 조회');
+      debugPrint('🔄 서버에서 SNS 연결 정보 조회');
       final response = await _supabase.rpc(
         'get_user_sns_connections_safe',
         params: {
@@ -240,7 +240,7 @@ class SNSPlatformConnectionService {
 
       return connections;
     } catch (e) {
-      print('❌ SNS 연결 조회 실패: $e');
+      debugPrint('❌ SNS 연결 조회 실패: $e');
 
       // 에러 발생 시 캐시에서 가져오기 시도
       try {
@@ -248,7 +248,7 @@ class SNSPlatformConnectionService {
         if (userId != null) {
           final cachedData = await _getCachedConnections(userId);
           if (cachedData != null) {
-            print('⚠️ 에러 발생으로 캐시 데이터 사용');
+            debugPrint('⚠️ 에러 발생으로 캐시 데이터 사용');
             return cachedData;
           }
         }
@@ -282,7 +282,7 @@ class SNSPlatformConnectionService {
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      print('❌ SNS 연결 조회 실패: $e');
+      debugPrint('❌ SNS 연결 조회 실패: $e');
       rethrow;
     }
   }
@@ -362,7 +362,7 @@ class SNSPlatformConnectionService {
       final List<dynamic> decoded = json.decode(cachedJson);
       return decoded.cast<Map<String, dynamic>>();
     } catch (e) {
-      print('⚠️ 캐시 조회 실패: $e');
+      debugPrint('⚠️ 캐시 조회 실패: $e');
       return null;
     }
   }
@@ -385,7 +385,7 @@ class SNSPlatformConnectionService {
       await prefs.setString(cacheKey, jsonString);
       await prefs.setInt(timestampKey, timestamp);
     } catch (e) {
-      print('⚠️ 캐시 저장 실패: $e');
+      debugPrint('⚠️ 캐시 저장 실패: $e');
       // 캐시 저장 실패는 치명적이지 않으므로 무시
     }
   }
@@ -400,7 +400,7 @@ class SNSPlatformConnectionService {
       await prefs.remove(cacheKey);
       await prefs.remove(timestampKey);
     } catch (e) {
-      print('⚠️ 캐시 무효화 실패: $e');
+      debugPrint('⚠️ 캐시 무효화 실패: $e');
     }
   }
 

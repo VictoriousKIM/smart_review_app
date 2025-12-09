@@ -15,17 +15,18 @@ class CampaignCard extends StatefulWidget {
 }
 
 class _CampaignCardState extends State<CampaignCard> {
-
   @override
   Widget build(BuildContext context) {
     final now = DateTimeUtils.nowKST();
     final isUpcoming = widget.campaign.applyStartDate.isAfter(now);
-    final isRecruiting = !isUpcoming &&
+    final isRecruiting =
+        !isUpcoming &&
         widget.campaign.status == CampaignStatus.active &&
         !widget.campaign.applyEndDate.isBefore(now) &&
         (widget.campaign.maxParticipants == null ||
-            widget.campaign.currentParticipants < widget.campaign.maxParticipants!);
-    
+            widget.campaign.currentParticipants <
+                widget.campaign.maxParticipants!);
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -60,7 +61,9 @@ class _CampaignCardState extends State<CampaignCard> {
                             ),
                             errorWidget: (context, url, error) {
                               // 디버깅 로그
-                              debugPrint('🖼️ 이미지 로딩 실패: ${widget.campaign.productImageUrl}');
+                              debugPrint(
+                                '🖼️ 이미지 로딩 실패: ${widget.campaign.productImageUrl}',
+                              );
                               debugPrint('에러: $error');
                               return Container(
                                 width: 140,
@@ -107,7 +110,9 @@ class _CampaignCardState extends State<CampaignCard> {
                       children: [
                         // 제목
                         Text(
-                          widget.campaign.title.isNotEmpty ? widget.campaign.title : '제목 없음',
+                          widget.campaign.title.isNotEmpty
+                              ? widget.campaign.title
+                              : '제목 없음',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -141,7 +146,7 @@ class _CampaignCardState extends State<CampaignCard> {
       ),
     );
   }
-  
+
   Widget _buildUpcomingBadge() {
     return CountdownWidget(targetDate: widget.campaign.applyStartDate);
   }
@@ -150,7 +155,7 @@ class _CampaignCardState extends State<CampaignCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.1),
+        color: Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: Colors.green, width: 1),
       ),
@@ -174,13 +179,15 @@ class _CampaignCardState extends State<CampaignCard> {
 
   Widget _buildParticipantsInfo() {
     final now = DateTimeUtils.nowKST();
-    final isRecruiting = widget.campaign.status == CampaignStatus.active &&
+    final isRecruiting =
+        widget.campaign.status == CampaignStatus.active &&
         !widget.campaign.applyStartDate.isAfter(now) &&
         !widget.campaign.applyEndDate.isBefore(now);
-    final isFull = widget.campaign.maxParticipants != null &&
+    final isFull =
+        widget.campaign.maxParticipants != null &&
         widget.campaign.currentParticipants >= widget.campaign.maxParticipants!;
     final canApply = isRecruiting && !isFull;
-    
+
     return Container(
       padding: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
@@ -191,11 +198,7 @@ class _CampaignCardState extends State<CampaignCard> {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.people,
-                size: 14,
-                color: Colors.grey[600],
-              ),
+              Icon(Icons.people, size: 14, color: Colors.grey[600]),
               const SizedBox(width: 4),
               Text(
                 '참여자',
@@ -216,9 +219,12 @@ class _CampaignCardState extends State<CampaignCard> {
               if (!canApply && isRecruiting) ...[
                 const SizedBox(width: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: Colors.red.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -242,13 +248,12 @@ class _CampaignCardState extends State<CampaignCard> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.campaign.productPrice != null && widget.campaign.productPrice! > 0)
+        if (widget.campaign.productPrice > 0)
           _buildPriceRow(
             '제품 가격',
             '${widget.campaign.productPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
           ),
-        if (widget.campaign.productPrice != null && widget.campaign.productPrice! > 0)
-          const SizedBox(height: 1),
+        if (widget.campaign.productPrice > 0) const SizedBox(height: 1),
         if (widget.campaign.campaignReward > 0)
           _buildPriceRow(
             '리뷰 보상',
@@ -278,7 +283,7 @@ class _CampaignCardState extends State<CampaignCard> {
 
   Widget _buildPlatformInfo() {
     final platformName = _getPlatformName(widget.campaign.platform);
-    
+
     return Container(
       padding: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
@@ -290,10 +295,7 @@ class _CampaignCardState extends State<CampaignCard> {
           Text('플랫폼', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
           Text(
             platformName,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -304,7 +306,7 @@ class _CampaignCardState extends State<CampaignCard> {
     if (platform == null || platform.isEmpty || platform.trim().isEmpty) {
       return '알 수 없음';
     }
-    
+
     switch (platform.toLowerCase().trim()) {
       case 'coupang':
         return '쿠팡';
@@ -333,7 +335,10 @@ class CountdownWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DateTime>(
-      stream: Stream.periodic(const Duration(seconds: 1), (_) => DateTimeUtils.nowKST()),
+      stream: Stream.periodic(
+        const Duration(seconds: 1),
+        (_) => DateTimeUtils.nowKST(),
+      ),
       builder: (context, snapshot) {
         final now = snapshot.data ?? DateTimeUtils.nowKST();
         final difference = targetDate.difference(now);
@@ -343,7 +348,7 @@ class CountdownWidget extends StatelessWidget {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: Colors.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: Colors.green, width: 1),
             ),
@@ -372,7 +377,7 @@ class CountdownWidget extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.1),
+            color: Colors.orange.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: Colors.orange, width: 1),
           ),
@@ -383,8 +388,8 @@ class CountdownWidget extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 hours > 0
-                    ? '${hours}시간 ${minutes.toString().padLeft(2, '0')}분 후 오픈'
-                    : '${minutes}분 ${seconds.toString().padLeft(2, '0')}초 후 오픈',
+                    ? '$hours시간 ${minutes.toString().padLeft(2, '0')}분 후 오픈'
+                    : '$minutes분 ${seconds.toString().padLeft(2, '0')}초 후 오픈',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,

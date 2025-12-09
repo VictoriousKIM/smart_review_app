@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../services/company_user_service.dart';
 
 /// 사용자 타입 및 역할 판단 헬퍼 클래스
@@ -39,7 +40,7 @@ class UserTypeHelper {
       // company_role이 'owner' 또는 'manager'인 경우는 광고주
       return false;
     } catch (e) {
-      print('❌ 리뷰어 확인 실패: $e');
+      debugPrint('❌ 리뷰어 확인 실패: $e');
       return false;
     }
   }
@@ -64,7 +65,7 @@ class UserTypeHelper {
       // company_role이 'owner' 또는 'manager'인 경우
       return companyRole == 'owner' || companyRole == 'manager';
     } catch (e) {
-      print('❌ 광고주 확인 실패: $e');
+      debugPrint('❌ 광고주 확인 실패: $e');
       return false;
     }
   }
@@ -77,7 +78,7 @@ class UserTypeHelper {
       final companyRole = await CompanyUserService.getUserCompanyRole(userId);
       return companyRole == 'owner';
     } catch (e) {
-      print('❌ 광고주 owner 확인 실패: $e');
+      debugPrint('❌ 광고주 owner 확인 실패: $e');
       return false;
     }
   }
@@ -90,7 +91,7 @@ class UserTypeHelper {
       final companyRole = await CompanyUserService.getUserCompanyRole(userId);
       return companyRole == 'manager';
     } catch (e) {
-      print('❌ 광고주 manager 확인 실패: $e');
+      debugPrint('❌ 광고주 manager 확인 실패: $e');
       return false;
     }
   }

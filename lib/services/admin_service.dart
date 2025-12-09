@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../models/user.dart' as app_user;
-import '../utils/date_time_utils.dart';
 
 class AdminService {
   static final AdminService _instance = AdminService._internal();

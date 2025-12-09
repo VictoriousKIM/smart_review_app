@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/campaign.dart';
@@ -27,14 +26,13 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
   List<Campaign> _recruitingCampaigns = []; // 모집중인 캠페인만 표시
 
   bool _isLoading = true;
-  DateTime? _nextOpenAt; // 서버가 알려준 다음 오픈 시간 (Phase 2)
   String _selectedCategory = 'all';
   String _searchQuery = '';
   bool _isSearchVisible = false;
   final TextEditingController _searchController = TextEditingController();
 
   // Pull-to-Refresh 충돌 방지용 큐
-  List<CampaignRealtimeEvent> _pendingRealtimeEvents = [];
+  final List<CampaignRealtimeEvent> _pendingRealtimeEvents = [];
 
   // 디바운싱/스로틀링용 타이머
   Timer? _updateTimer;
@@ -100,7 +98,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
 
       if (!duration.isNegative) {
         debugPrint(
-          '💰 다음 캠페인 오픈 예약: ${duration.inSeconds}초 후 (${nearestNextStartTime})',
+          '💰 다음 캠페인 오픈 예약: ${duration.inSeconds}초 후 ($nearestNextStartTime)',
         );
         _preciseTimer = Timer(duration, () {
           if (mounted) {
@@ -277,7 +275,6 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
 
         setState(() {
           _allCampaigns = filteredCampaigns;
-          _nextOpenAt = nextOpenAt;
           _updateFilteredCampaigns();
           _isLoading = false;
         });
@@ -473,7 +470,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -532,7 +529,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
                                   BoxShadow(
                                     color: const Color(
                                       0xFF137fec,
-                                    ).withOpacity(0.3),
+                                    ).withValues(alpha: 0.3),
                                     blurRadius: 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -591,7 +588,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
           child: CampaignCard(
             campaign: campaign,
             onTap: () {
-              // print('🔥 Campaign card tapped: ${campaign.id}');
+              // debugPrint('🔥 Campaign card tapped: ${campaign.id}');
               context.go('/campaigns/${campaign.id}');
             },
           ),

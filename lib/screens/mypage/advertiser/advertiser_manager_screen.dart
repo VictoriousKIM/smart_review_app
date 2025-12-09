@@ -96,7 +96,7 @@ class _AdvertiserManagerScreenState
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ 매니저 목록 로드 실패: $e');
+      debugPrint('❌ 매니저 목록 로드 실패: $e');
       setState(() {
         _isLoading = false;
       });

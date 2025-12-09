@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_service.dart';
 
@@ -45,7 +46,7 @@ class CompanyService {
 
       return companyData;
     } catch (e) {
-      print('❌ 광고주 회사 정보 조회 실패: $e');
+      debugPrint('❌ 광고주 회사 정보 조회 실패: $e');
       return null;
     }
   }
@@ -77,7 +78,7 @@ class CompanyService {
 
       return companyData;
     } catch (e) {
-      print('❌ 사용자 회사 정보 조회 실패: $e');
+      debugPrint('❌ 사용자 회사 정보 조회 실패: $e');
       return null;
     }
   }
@@ -90,12 +91,19 @@ class CompanyService {
     try {
       final supabase = Supabase.instance.client;
 
+      // Custom JWT 세션 지원을 위해 p_user_id 파라미터 전달
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
+      }
+
       // RPC 함수 호출
       final result = await supabase.rpc(
         'request_manager_role',
         params: {
           'p_business_name': businessName,
           'p_business_number': businessNumber,
+          'p_user_id': userId,
         },
       );
 
@@ -105,7 +113,7 @@ class CompanyService {
 
       return result as Map<String, dynamic>;
     } catch (e) {
-      print('❌ 매니저 등록 요청 실패: $e');
+      debugPrint('❌ 매니저 등록 요청 실패: $e');
       rethrow;
     }
   }
@@ -154,7 +162,7 @@ class CompanyService {
         'requested_at': companyUserResponse['created_at'],
       };
     } catch (e) {
-      print('❌ 매니저 등록 요청 상태 조회 실패: $e');
+      debugPrint('❌ 매니저 등록 요청 상태 조회 실패: $e');
       return null;
     }
   }
@@ -173,7 +181,7 @@ class CompanyService {
           .eq('status', 'pending')
           .eq('company_role', 'manager');
     } catch (e) {
-      print('❌ 매니저 등록 요청 삭제 실패: $e');
+      debugPrint('❌ 매니저 등록 요청 삭제 실패: $e');
       rethrow;
     }
   }
@@ -188,7 +196,7 @@ class CompanyService {
         throw Exception('로그인이 필요합니다');
       }
 
-      print('🔍 리뷰어 요청 목록 조회 시작 - userId: $userId');
+      debugPrint('🔍 리뷰어 요청 목록 조회 시작 - userId: $userId');
 
       final response = await supabase.rpc(
         'get_user_reviewer_requests',
@@ -196,21 +204,21 @@ class CompanyService {
       );
 
       final requests = (response as List).cast<Map<String, dynamic>>();
-      print('✅ 리뷰어 요청 목록 조회 성공 - 개수: ${requests.length}');
+      debugPrint('✅ 리뷰어 요청 목록 조회 성공 - 개수: ${requests.length}');
       if (requests.isNotEmpty) {
-        print('📋 조회된 요청 목록:');
+        debugPrint('📋 조회된 요청 목록:');
         for (var request in requests) {
-          print(
+          debugPrint(
             '  - company_id: ${request['company_id']}, company_name: ${request['company_name']}, status: ${request['status']}',
           );
         }
       } else {
-        print('⚠️ 조회된 요청이 없습니다.');
+        debugPrint('⚠️ 조회된 요청이 없습니다.');
       }
 
       return requests;
     } catch (e) {
-      print('❌ 리뷰어 요청 목록 조회 실패: $e');
+      debugPrint('❌ 리뷰어 요청 목록 조회 실패: $e');
       rethrow;
     }
   }
@@ -238,7 +246,7 @@ class CompanyService {
 
       return result as Map<String, dynamic>;
     } catch (e) {
-      print('❌ 리뷰어 자동승인 설정 업데이트 실패: $e');
+      debugPrint('❌ 리뷰어 자동승인 설정 업데이트 실패: $e');
       rethrow;
     }
   }

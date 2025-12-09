@@ -155,12 +155,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           _isLoading = false;
         });
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(
-            content: Text('사용자 정보를 불러올 수 없습니다'),
-            duration: Duration(seconds: 2),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('사용자 정보를 불러올 수 없습니다'),
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       }
     } catch (e) {
@@ -329,13 +329,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     children: [
                       TextButton(
                         onPressed: _cancelEdit,
-                        child: const Text('취소'),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4,
                           ),
                         ),
+                        child: const Text('취소'),
                       ),
                       const SizedBox(width: 4),
                       TextButton(
@@ -731,12 +731,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         });
 
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(
-            content: Text('프로필이 저장되었습니다'),
-            duration: Duration(seconds: 2),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('프로필이 저장되었습니다'),
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       } catch (e) {
         setState(() {
@@ -780,7 +780,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   Widget _buildBusinessTab() {
     // 디버그 로그
-    print(
+    debugPrint(
       '🔍 _buildBusinessTab - _isOwner: $_isOwner, _isLoadingOwner: $_isLoadingOwner, _existingCompanyData: ${_existingCompanyData != null}',
     );
 
@@ -812,9 +812,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const Center(child: CircularProgressIndicator()),
           ],
           // 오너가 아니고 회사 데이터가 없을 때만 메시지 표시
-          if (_isOwner == false && 
-              _existingCompanyData == null && 
-              !_isLoadingOwner && 
+          if (_isOwner == false &&
+              _existingCompanyData == null &&
+              !_isLoadingOwner &&
               !_isLoadingCompanyData) ...[
             const SizedBox(height: 24),
             Container(
@@ -858,17 +858,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       child: BusinessRegistrationForm(
         hasPendingManagerRequest: _pendingManagerRequest != null,
         onVerificationComplete: () async {
-          print('🔄 검증 완료 콜백 시작 - 데이터 다시 로드');
+          debugPrint('🔄 검증 완료 콜백 시작 - 데이터 다시 로드');
           // 광고주 인증 완료 시 프로필 및 회사 데이터 다시 로드
           await _loadUserProfile();
           // _loadCompanyData()에서 이미 _isOwner를 업데이트하므로 _loadOwnerStatus()는 불필요
           await _loadCompanyData();
           await _loadWalletData(); // 지갑 데이터 로드 (계좌정보 표시를 위해 필요)
           await _loadPendingManagerRequest();
-          
-          print('✅ 검증 완료 콜백 - 모든 데이터 로드 완료');
-          print('🔍 최종 상태 - _isOwner: $_isOwner, _isLoadingOwner: $_isLoadingOwner, _existingCompanyData: ${_existingCompanyData != null}, _companyWallet: ${_companyWallet != null}');
-          
+
+          debugPrint('✅ 검증 완료 콜백 - 모든 데이터 로드 완료');
+          debugPrint(
+            '🔍 최종 상태 - _isOwner: $_isOwner, _isLoadingOwner: $_isLoadingOwner, _existingCompanyData: ${_existingCompanyData != null}, _companyWallet: ${_companyWallet != null}',
+          );
+
           // 모든 데이터 로드 완료 후 명시적으로 setState 호출하여 화면 업데이트
           // 각 메서드에서 이미 setState를 호출하지만, 확실한 화면 업데이트를 위해 한 번 더 호출
           if (mounted) {
@@ -876,7 +878,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               // 로딩 상태를 확실히 false로 설정
               _isLoadingOwner = false;
               _isLoadingCompanyData = false;
-              print('🔄 setState 호출 - 화면 업데이트 (계좌정보 및 리뷰어 자동승인 설정 표시)');
+              debugPrint('🔄 setState 호출 - 화면 업데이트 (계좌정보 및 리뷰어 자동승인 설정 표시)');
             });
           }
         },
@@ -946,33 +948,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                 );
                                 // 회사 데이터 다시 로드
                                 await _loadCompanyData();
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        value
-                                            ? '리뷰어 자동승인이 활성화되었습니다.'
-                                            : '리뷰어 자동승인이 비활성화되었습니다.',
-                                      ),
-                                      backgroundColor: Colors.green,
-                                      duration: const Duration(seconds: 2),
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      value
+                                          ? '리뷰어 자동승인이 활성화되었습니다.'
+                                          : '리뷰어 자동승인이 비활성화되었습니다.',
                                     ),
-                                  );
-                                }
+                                    backgroundColor: Colors.green,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
                               } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        ErrorMessageUtils.getUserFriendlyMessage(
-                                          e,
-                                        ),
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      ErrorMessageUtils.getUserFriendlyMessage(
+                                        e,
                                       ),
-                                      backgroundColor: Colors.red,
-                                      duration: const Duration(seconds: 2),
                                     ),
-                                  );
-                                }
+                                    backgroundColor: Colors.red,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
                               } finally {
                                 if (mounted) {
                                   setState(() {
@@ -1015,13 +1015,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         return;
       }
 
-      // 오너인 경우 광고주 회사 정보 조회, 그 외에는 모든 역할 포함 조회
+      // owner 또는 manager 역할만 조회 (reviewer 제외)
       final isOwner = await UserTypeHelper.isAdvertiserOwner(userId);
-      final companyData = isOwner
-          ? await CompanyService.getAdvertiserCompanyByUserId(userId)
-          : await CompanyService.getCompanyByUserId(userId);
+      // reviewer는 데이터를 받아서 보이지 않도록 항상 getAdvertiserCompanyByUserId 사용
+      final companyData = await CompanyService.getAdvertiserCompanyByUserId(
+        userId,
+      );
 
-      print(
+      debugPrint(
         '🔍 회사 데이터 로드 - isOwner: $isOwner, companyData: ${companyData != null}',
       );
 
@@ -1032,7 +1033,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _isLoadingOwner = false; // 오너 상태 로딩도 완료로 표시
       });
     } catch (e) {
-      print('❌ 회사 데이터 로드 실패: $e');
+      debugPrint('❌ 회사 데이터 로드 실패: $e');
       setState(() {
         _isLoadingCompanyData = false;
       });
@@ -1049,7 +1050,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       // 사용자 ID 가져오기 (Custom JWT 세션 지원)
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('⚠️ 오너 여부 확인: userId가 null입니다');
+        debugPrint('⚠️ 오너 여부 확인: userId가 null입니다');
         setState(() {
           _isOwner = false;
           _isLoadingOwner = false;
@@ -1057,16 +1058,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         return;
       }
 
-      print('🔍 오너 여부 확인 시작 - userId: $userId');
+      debugPrint('🔍 오너 여부 확인 시작 - userId: $userId');
       final isOwner = await UserTypeHelper.isAdvertiserOwner(userId);
-      print('✅ 오너 여부 확인 완료 - isOwner: $isOwner');
+      debugPrint('✅ 오너 여부 확인 완료 - isOwner: $isOwner');
 
       setState(() {
         _isOwner = isOwner;
         _isLoadingOwner = false;
       });
     } catch (e) {
-      print('❌ 오너 여부 확인 실패: $e');
+      debugPrint('❌ 오너 여부 확인 실패: $e');
       setState(() {
         _isOwner = false;
         _isLoadingOwner = false;
@@ -1421,7 +1422,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _isLoadingPendingRequest = false;
       });
     } catch (e) {
-      print('❌ pending 매니저 요청 로드 실패: $e');
+      debugPrint('❌ pending 매니저 요청 로드 실패: $e');
       setState(() {
         _isLoadingPendingRequest = false;
       });
@@ -1451,7 +1452,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _currentPoints = userWallet?.currentPoints ?? 0;
       });
     } catch (e) {
-      print('❌ 지갑 데이터 로드 실패: $e');
+      debugPrint('❌ 지갑 데이터 로드 실패: $e');
     }
   }
 
@@ -1503,7 +1504,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
                     setDialogState(() {
                       errorMessage =
-                          '검색이 5번 연속 실패하여 5분간 차단되었습니다. ${remainingMinutes}분 ${remainingSecs}초 후에 다시 시도해주세요.';
+                          '검색이 5번 연속 실패하여 5분간 차단되었습니다. $remainingMinutes분 $remainingSecs초 후에 다시 시도해주세요.';
                     });
                   } else {
                     // 차단 시간이 지났으면 리셋
@@ -1520,7 +1521,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   timer.cancel();
                 }
               } catch (e) {
-                print('⚠️ 카운트다운 업데이트 실패: $e');
+                debugPrint('⚠️ 카운트다운 업데이트 실패: $e');
                 timer.cancel();
               }
             });
@@ -1534,7 +1535,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               await prefs.remove(searchFailureCountKey);
               await prefs.remove(searchFailureTimestampKey);
             } catch (e) {
-              print('⚠️ 검색 실패 횟수 리셋 실패: $e');
+              debugPrint('⚠️ 검색 실패 횟수 리셋 실패: $e');
             }
           }
 
@@ -1556,7 +1557,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 startCountdown();
               }
             } catch (e) {
-              print('⚠️ 검색 실패 횟수 증가 실패: $e');
+              debugPrint('⚠️ 검색 실패 횟수 증가 실패: $e');
             }
           }
 
@@ -1585,7 +1586,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               }
               return false;
             } catch (e) {
-              print('⚠️ 검색 차단 확인 실패: $e');
+              debugPrint('⚠️ 검색 차단 확인 실패: $e');
               return false;
             }
           }
@@ -1652,7 +1653,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 });
               }
             } catch (e) {
-              print('❌ 광고사 검색 실패: $e');
+              debugPrint('❌ 광고사 검색 실패: $e');
 
               // 검색 실패 (에러 발생)
               await incrementSearchFailureCount();

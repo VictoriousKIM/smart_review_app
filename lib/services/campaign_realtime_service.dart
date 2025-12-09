@@ -132,12 +132,12 @@ class CampaignRealtimeService {
       debugPrint('📡 companyId 필터: $companyId');
       debugPrint('📡 activeOnly 필터: $activeOnly');
       debugPrint(
-        '📡 newRecord keys: ${newRecord != null ? newRecord.keys.toList() : null}',
+        '📡 newRecord keys: ${newRecord.keys.toList()}',
       );
       debugPrint('📡 ========================================');
 
       // 필터링: 회사 ID
-      if (companyId != null && newRecord != null) {
+      if (companyId != null) {
         final recordCompanyId = newRecord['company_id'] as String?;
         if (recordCompanyId != companyId) {
           debugPrint('⏭️ companyId 필터로 무시: $recordCompanyId != $companyId');
@@ -146,7 +146,7 @@ class CampaignRealtimeService {
       }
 
       // 필터링: 활성화된 캠페인만
-      if (activeOnly && newRecord != null) {
+      if (activeOnly) {
         final status = newRecord['status'] as String?;
         debugPrint('📡 캠페인 status: $status');
         if (status != 'active') {
@@ -157,21 +157,19 @@ class CampaignRealtimeService {
 
       // Campaign 파싱
       Campaign? campaign;
-      if (newRecord != null) {
-        try {
-          debugPrint('📡 Campaign.fromJson 시도...');
-          campaign = Campaign.fromJson(newRecord);
-          debugPrint('✅ Campaign 파싱 성공: ${campaign.id}');
-          debugPrint('   title: ${campaign.title}');
-          debugPrint('   currentParticipants: ${campaign.currentParticipants}');
-          debugPrint('   maxParticipants: ${campaign.maxParticipants}');
-        } catch (e, stackTrace) {
-          debugPrint('❌ Campaign 파싱 실패!');
-          debugPrint('   에러: $e');
-          debugPrint('   스택트레이스: $stackTrace');
-          debugPrint('   newRecord: $newRecord');
-          return;
-        }
+      try {
+        debugPrint('📡 Campaign.fromJson 시도...');
+        campaign = Campaign.fromJson(newRecord);
+        debugPrint('✅ Campaign 파싱 성공: ${campaign.id}');
+        debugPrint('   title: ${campaign.title}');
+        debugPrint('   currentParticipants: ${campaign.currentParticipants}');
+        debugPrint('   maxParticipants: ${campaign.maxParticipants}');
+      } catch (e, stackTrace) {
+        debugPrint('❌ Campaign 파싱 실패!');
+        debugPrint('   에러: $e');
+        debugPrint('   스택트레이스: $stackTrace');
+        debugPrint('   newRecord: $newRecord');
+        return;
       }
 
       final event = CampaignRealtimeEvent(

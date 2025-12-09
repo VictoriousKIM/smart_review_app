@@ -97,7 +97,7 @@ class _AdvertiserReviewerScreenState
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ 리뷰어 목록 로드 실패: $e');
+      debugPrint('❌ 리뷰어 목록 로드 실패: $e');
       setState(() {
         _isLoading = false;
       });
@@ -117,11 +117,18 @@ class _AdvertiserReviewerScreenState
     try {
       final supabase = Supabase.instance.client;
       
+      // Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
+      }
+      
       await supabase.rpc(
         'approve_reviewer_role',
         params: {
           'p_company_id': reviewer['company_id'],
           'p_user_id': reviewer['user_id'],
+          'p_current_user_id': userId,
         },
       );
 
@@ -135,7 +142,7 @@ class _AdvertiserReviewerScreenState
         _loadReviewers();
       }
     } catch (e) {
-      print('❌ 리뷰어 승인 실패: $e');
+      debugPrint('❌ 리뷰어 승인 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -151,11 +158,18 @@ class _AdvertiserReviewerScreenState
     try {
       final supabase = Supabase.instance.client;
       
+      // Custom JWT 세션 지원을 위해 p_current_user_id 파라미터 전달
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
+      }
+      
       await supabase.rpc(
         'reject_reviewer_role',
         params: {
           'p_company_id': reviewer['company_id'],
           'p_user_id': reviewer['user_id'],
+          'p_current_user_id': userId,
         },
       );
 
@@ -169,7 +183,7 @@ class _AdvertiserReviewerScreenState
         _loadReviewers();
       }
     } catch (e) {
-      print('❌ 리뷰어 거절 실패: $e');
+      debugPrint('❌ 리뷰어 거절 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -230,7 +244,7 @@ class _AdvertiserReviewerScreenState
         _loadReviewers();
       }
     } catch (e) {
-      print('❌ 리뷰어 비활성화 실패: $e');
+      debugPrint('❌ 리뷰어 비활성화 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -270,7 +284,7 @@ class _AdvertiserReviewerScreenState
         _loadReviewers();
       }
     } catch (e) {
-      print('❌ 리뷰어 활성화 실패: $e');
+      debugPrint('❌ 리뷰어 활성화 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

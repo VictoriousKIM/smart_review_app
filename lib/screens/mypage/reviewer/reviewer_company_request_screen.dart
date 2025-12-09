@@ -31,7 +31,6 @@ class _ReviewerCompanyRequestScreenState
   List<Map<String, dynamic>> _foundCompanies = [];
   String? _errorMessage;
   Timer? _countdownTimer;
-  int _currentFailureCount = 0;
 
   // 검색 실패 제한 관련
   static const String _searchFailureCountKey = 'reviewer_search_failure_count';
@@ -68,9 +67,7 @@ class _ReviewerCompanyRequestScreenState
       final timestamp = prefs.getInt(_searchFailureTimestampKey);
 
       if (mounted) {
-        setState(() {
-          _currentFailureCount = count;
-        });
+        setState(() {});
 
         // 차단 중이면 카운트다운 시작
         if (count >= _maxFailureCount && timestamp != null) {
@@ -85,7 +82,7 @@ class _ReviewerCompanyRequestScreenState
         }
       }
     } catch (e) {
-      print('⚠️ 실패 횟수 로드 실패: $e');
+      debugPrint('⚠️ 실패 횟수 로드 실패: $e');
     }
   }
 
@@ -121,7 +118,7 @@ class _ReviewerCompanyRequestScreenState
             if (mounted) {
               setState(() {
                 _errorMessage =
-                    '검색이 5번 연속 실패하여 5분간 차단되었습니다. ${remainingMinutes}분 ${remainingSecs}초 후에 다시 시도해주세요.';
+                    '검색이 5번 연속 실패하여 5분간 차단되었습니다. $remainingMinutes분 $remainingSecs초 후에 다시 시도해주세요.';
               });
             }
           } else {
@@ -131,7 +128,6 @@ class _ReviewerCompanyRequestScreenState
             if (mounted) {
               setState(() {
                 _errorMessage = null;
-                _currentFailureCount = 0;
               });
             }
           }
@@ -139,7 +135,7 @@ class _ReviewerCompanyRequestScreenState
           timer.cancel();
         }
       } catch (e) {
-        print('⚠️ 카운트다운 업데이트 실패: $e');
+        debugPrint('⚠️ 카운트다운 업데이트 실패: $e');
         timer.cancel();
       }
     });
@@ -168,7 +164,7 @@ class _ReviewerCompanyRequestScreenState
       }
       return false;
     } catch (e) {
-      print('⚠️ 검색 차단 확인 실패: $e');
+      debugPrint('⚠️ 검색 차단 확인 실패: $e');
       return false;
     }
   }
@@ -182,9 +178,7 @@ class _ReviewerCompanyRequestScreenState
 
       await prefs.setInt(_searchFailureCountKey, newCount);
 
-      setState(() {
-        _currentFailureCount = newCount;
-      });
+      setState(() {});
 
       if (newCount >= _maxFailureCount) {
         // 5번 실패 시 타임스탬프 저장 및 카운트다운 시작
@@ -195,7 +189,7 @@ class _ReviewerCompanyRequestScreenState
         _startCountdown();
       }
     } catch (e) {
-      print('⚠️ 검색 실패 횟수 증가 실패: $e');
+      debugPrint('⚠️ 검색 실패 횟수 증가 실패: $e');
     }
   }
 
@@ -207,12 +201,10 @@ class _ReviewerCompanyRequestScreenState
       await prefs.remove(_searchFailureCountKey);
       await prefs.remove(_searchFailureTimestampKey);
       if (mounted) {
-        setState(() {
-          _currentFailureCount = 0;
-        });
+        setState(() {});
       }
     } catch (e) {
-      print('⚠️ 검색 실패 횟수 리셋 실패: $e');
+      debugPrint('⚠️ 검색 실패 횟수 리셋 실패: $e');
     }
   }
 
@@ -277,7 +269,7 @@ class _ReviewerCompanyRequestScreenState
         });
       }
     } catch (e) {
-      print('❌ 광고사 검색 실패: $e');
+      debugPrint('❌ 광고사 검색 실패: $e');
 
       // 검색 실패 (에러 발생)
       await _incrementSearchFailureCount();
@@ -320,7 +312,7 @@ class _ReviewerCompanyRequestScreenState
       final customJwtToken = prefs.getString('custom_jwt_token');
 
       // 디버그: 리뷰어 요청 전 정보 확인
-      print('📤 리뷰어 요청 시작 - companyId: $companyId, userId: $userId');
+      debugPrint('📤 리뷰어 요청 시작 - companyId: $companyId, userId: $userId');
 
       // RPC 함수 호출 (리뷰어 요청)
       if (customJwtToken != null) {
@@ -328,7 +320,7 @@ class _ReviewerCompanyRequestScreenState
         final supabaseUrl = SupabaseConfig.supabaseUrl;
         final url = Uri.parse('$supabaseUrl/rest/v1/rpc/request_reviewer_role');
 
-        print('📤 Custom JWT로 리뷰어 요청 RPC 호출 - URL: $url');
+        debugPrint('📤 Custom JWT로 리뷰어 요청 RPC 호출 - URL: $url');
 
         final response = await http.post(
           url,
@@ -341,7 +333,7 @@ class _ReviewerCompanyRequestScreenState
           body: jsonEncode({'p_company_id': companyId, 'p_user_id': userId}),
         );
 
-        print(
+        debugPrint(
           '📥 Custom JWT 응답 - statusCode: ${response.statusCode}, body: ${response.body}',
         );
 
@@ -353,41 +345,70 @@ class _ReviewerCompanyRequestScreenState
         }
 
         final responseData = jsonDecode(response.body);
-        print('✅ Custom JWT로 리뷰어 요청 RPC 호출 성공 - 응답: $responseData');
+        debugPrint('✅ Custom JWT로 리뷰어 요청 RPC 호출 성공 - 응답: $responseData');
+
+        // 응답에서 메시지 추출
+        final message = responseData is Map
+            ? (responseData['message'] ?? '리뷰어 요청이 완료되었습니다.')
+            : '리뷰어 요청이 완료되었습니다.';
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          // 성공 후 초기화 및 신청 내역 새로고침
+          setState(() {
+            _foundCompanies = [];
+            _searchController.clear();
+            _isSubmitting = false;
+          });
+
+          // 신청 내역 탭으로 전환하고 새로고침
+          _tabController.animateTo(1);
+          _loadReviewerRequests();
+        }
       } else {
         // 일반 RPC 함수 호출
-        print('📤 일반 RPC로 리뷰어 요청 호출');
+        debugPrint('📤 일반 RPC로 리뷰어 요청 호출');
         final result = await supabase.rpc(
           'request_reviewer_role',
           params: {'p_company_id': companyId, 'p_user_id': userId},
         );
-        print('✅ 일반 RPC 호출 성공 - 응답: $result');
-      }
+        debugPrint('✅ 일반 RPC 호출 성공 - 응답: $result');
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${company['business_name']} 광고사 리뷰어 요청이 완료되었습니다. 승인 대기 중입니다.',
+        // 응답에서 메시지 추출
+        final message = result is Map
+            ? (result['message'] ?? '리뷰어 요청이 완료되었습니다.')
+            : '리뷰어 요청이 완료되었습니다.';
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+          );
 
-        // 성공 후 초기화 및 신청 내역 새로고침
-        setState(() {
-          _foundCompanies = [];
-          _searchController.clear();
-          _isSubmitting = false;
-        });
+          // 성공 후 초기화 및 신청 내역 새로고침
+          setState(() {
+            _foundCompanies = [];
+            _searchController.clear();
+            _isSubmitting = false;
+          });
 
-        // 신청 내역 탭으로 전환하고 새로고침
-        _tabController.animateTo(1);
-        _loadReviewerRequests();
+          // 신청 내역 탭으로 전환하고 새로고침
+          _tabController.animateTo(1);
+          _loadReviewerRequests();
+        }
       }
     } catch (e) {
-      print('❌ 리뷰어 요청 실패: $e');
+      debugPrint('❌ 리뷰어 요청 실패: $e');
 
       String errorMessage = '요청 실패: $e';
       if (e.toString().contains('이미 요청')) {
@@ -413,31 +434,31 @@ class _ReviewerCompanyRequestScreenState
 
   // 신청 내역 탭 관련 메서드
   Future<void> _loadReviewerRequests() async {
-    print('🔄 리뷰어 요청 목록 로드 시작');
+    debugPrint('🔄 리뷰어 요청 목록 로드 시작');
     setState(() {
       _isLoadingRequests = true;
     });
 
     try {
       final requests = await CompanyService.getUserReviewerRequests();
-      print('✅ 리뷰어 요청 목록 로드 완료 - 개수: ${requests.length}');
+      debugPrint('✅ 리뷰어 요청 목록 로드 완료 - 개수: ${requests.length}');
       if (requests.isNotEmpty) {
-        print('📋 조회된 신청 내역:');
+        debugPrint('📋 조회된 신청 내역:');
         for (var request in requests) {
-          print(
+          debugPrint(
             '  - 회사명: ${request['company_name']}, 상태: ${request['status']}, 회사ID: ${request['company_id']}',
           );
         }
       } else {
-        print('⚠️ 조회된 신청 내역이 없습니다.');
+        debugPrint('⚠️ 조회된 신청 내역이 없습니다.');
       }
       setState(() {
         _reviewerRequests = requests;
         _isLoadingRequests = false;
       });
     } catch (e) {
-      print('❌ 리뷰어 요청 목록 로드 실패: $e');
-      print('❌ 에러 스택: ${StackTrace.current}');
+      debugPrint('❌ 리뷰어 요청 목록 로드 실패: $e');
+      debugPrint('❌ 에러 스택: ${StackTrace.current}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -702,7 +723,7 @@ class _ReviewerCompanyRequestScreenState
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: statusInfo['color']?.withOpacity(0.1),
+                  color: statusInfo['color']?.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: statusInfo['color'] ?? Colors.grey,

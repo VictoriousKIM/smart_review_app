@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../config/supabase_config.dart';
 import '../../services/wallet_service.dart';
 import '../../services/auth_service.dart';
@@ -177,13 +176,11 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
           _email = user.email;
 
           // OAuth에서 가져온 이름 설정
-          if (_displayName == null) {
-            _displayName =
-                metadata['full_name'] ??
-                metadata['name'] ??
-                metadata['display_name'] ??
-                (user.email != null ? user.email!.split('@')[0] : null);
-          }
+          _displayName ??=
+              metadata['full_name'] ??
+              metadata['name'] ??
+              metadata['display_name'] ??
+              (user.email != null ? user.email!.split('@')[0] : null);
         });
       }
     } catch (e) {
@@ -413,6 +410,7 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
               await _saveData(); // 단계 변경 시 데이터 저장
             } else {
               await _saveData(); // 뒤로가기 전 데이터 저장
+              if (!mounted) return;
               context.pop();
             }
           },
@@ -446,7 +444,7 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -501,7 +499,7 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
         // SingleChildScrollView로 감싸지 않음
         formWidget = ReviewerSignupProfileForm(
           key: ValueKey(
-            'profile_${_email}_${_displayName}',
+            'profile_$_email$_displayName',
           ), // email이나 displayName이 변경되면 위젯 재생성
           initialDisplayName: _displayName,
           initialEmail: _email,

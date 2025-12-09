@@ -524,6 +524,7 @@ class _AdvertiserCampaignDetailScreenState
         _hasChanges = true; // 변경사항 있음 표시
       });
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(isActive ? '캠페인이 활성화되었습니다' : '캠페인이 비활성화되었습니다'),
@@ -531,6 +532,7 @@ class _AdvertiserCampaignDetailScreenState
         ),
       );
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.error ?? '상태 업데이트에 실패했습니다'),
@@ -586,6 +588,7 @@ class _AdvertiserCampaignDetailScreenState
       // 환불 금액이 있는 경우 메시지에 포함
       final refundMessage = result.message ?? '캠페인이 삭제되었습니다';
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(refundMessage),
@@ -595,8 +598,10 @@ class _AdvertiserCampaignDetailScreenState
       );
 
       // 목록 화면으로 이동하면서 새로고침 트리거
+      if (!mounted) return;
       context.pop(true); // true를 반환하여 새로고침 필요함을 알림
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.error ?? '캠페인 삭제에 실패했습니다'),

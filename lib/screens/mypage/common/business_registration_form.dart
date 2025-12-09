@@ -1,10 +1,9 @@
-import 'dart:typed_data';
 import 'dart:convert';
 import 'dart:io' show File;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -200,7 +199,7 @@ class _BusinessRegistrationFormState
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, -2),
                     ),
@@ -510,7 +509,7 @@ class _BusinessRegistrationFormState
                         }
 
                         if (snapshot.hasError || !snapshot.hasData) {
-                          print('❌ Presigned URL 생성 실패: ${snapshot.error}');
+                          debugPrint('❌ Presigned URL 생성 실패: ${snapshot.error}');
                           return Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -545,7 +544,7 @@ class _BusinessRegistrationFormState
                             ),
                           ),
                           errorWidget: (context, url, error) {
-                            print('❌ 이미지 로드 오류: $error');
+                            debugPrint('❌ 이미지 로드 오류: $error');
                             return Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -738,7 +737,7 @@ class _BusinessRegistrationFormState
 
     // 디버그: 화면에 표시되는 사업자등록번호 확인
     if (!isEmpty) {
-      print('🖥️ 화면에 표시되는 사업자등록번호: $businessNumber');
+      debugPrint('🖥️ 화면에 표시되는 사업자등록번호: $businessNumber');
     }
 
     return Container(
@@ -924,18 +923,18 @@ class _BusinessRegistrationFormState
 
     try {
       // 웹 환경에서 파일 선택이 제대로 작동하지 않는 경우를 위한 디버그 로그
-      print('🔍 파일 선택 시작 - 플랫폼: ${Theme.of(context).platform}');
+      debugPrint('🔍 파일 선택 시작 - 플랫폼: ${Theme.of(context).platform}');
 
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
       );
 
-      print('🔍 파일 선택 결과: ${result?.files.length ?? 0}개 파일');
+      debugPrint('🔍 파일 선택 결과: ${result?.files.length ?? 0}개 파일');
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        print('🔍 선택된 파일: ${file.name}, 크기: ${file.size} bytes');
+        debugPrint('🔍 선택된 파일: ${file.name}, 크기: ${file.size} bytes');
 
         // 파일 확장자 검증 (이미지 파일만 허용)
         final fileName = file.name.toLowerCase();
@@ -973,18 +972,18 @@ class _BusinessRegistrationFormState
 
         // 파일을 바이트로 읽기
         Uint8List? bytes = file.bytes;
-        print('🔍 파일 바이트 (file.bytes): ${bytes?.length ?? 0} bytes');
+        debugPrint('🔍 파일 바이트 (file.bytes): ${bytes?.length ?? 0} bytes');
 
         // Android/iOS에서 file.bytes가 null인 경우 file.path를 사용하여 파일 읽기
         if (bytes == null || bytes.isEmpty) {
           if (!kIsWeb && file.path != null) {
-            print('🔍 file.path를 사용하여 파일 읽기: ${file.path}');
+            debugPrint('🔍 file.path를 사용하여 파일 읽기: ${file.path}');
             try {
               final fileData = File(file.path!);
               bytes = await fileData.readAsBytes();
-              print('✅ 파일 경로에서 읽기 성공: ${bytes.length} bytes');
+              debugPrint('✅ 파일 경로에서 읽기 성공: ${bytes.length} bytes');
             } catch (e) {
-              print('❌ 파일 경로에서 읽기 실패: $e');
+              debugPrint('❌ 파일 경로에서 읽기 실패: $e');
               bytes = null;
             }
           }
@@ -997,10 +996,10 @@ class _BusinessRegistrationFormState
             _extractedData = null; // 새 파일 선택 시 이전 데이터 초기화
           });
 
-          print('✅ 파일 선택 완료 - 검증하기 버튼 표시');
+          debugPrint('✅ 파일 선택 완료 - 검증하기 버튼 표시');
         } else {
           // 파일을 읽을 수 없는 경우
-          print('❌ 파일 바이트가 null이거나 비어있습니다');
+          debugPrint('❌ 파일 바이트가 null이거나 비어있습니다');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -1011,10 +1010,10 @@ class _BusinessRegistrationFormState
           }
         }
       } else {
-        print('❌ 파일이 선택되지 않았습니다');
+        debugPrint('❌ 파일이 선택되지 않았습니다');
       }
     } catch (e) {
-      print('❌ 파일 선택 중 오류 발생: $e');
+      debugPrint('❌ 파일 선택 중 오류 발생: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1050,7 +1049,7 @@ class _BusinessRegistrationFormState
       // 현재 사용자 ID 가져오기 (Custom JWT 세션 지원)
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        print('❌ 사용자가 로그인되지 않았습니다.');
+        debugPrint('❌ 사용자가 로그인되지 않았습니다.');
         return;
       }
 
@@ -1077,16 +1076,16 @@ class _BusinessRegistrationFormState
               companyData['registration_file_url'].toString().isNotEmpty) {
             // 이미지 URL을 로드하여 표시할 수 있도록 처리
             _existingImageUrl = companyData['registration_file_url'].toString();
-            print('📸 등록된 이미지 URL: $_existingImageUrl');
+            debugPrint('📸 등록된 이미지 URL: $_existingImageUrl');
           }
         });
 
-        print('✅ 기존 회사 정보 로드 완료: ${companyData['business_name']}');
+        debugPrint('✅ 기존 회사 정보 로드 완료: ${companyData['business_name']}');
       } else {
-        print('ℹ️ 등록된 회사 정보가 없습니다.');
+        debugPrint('ℹ️ 등록된 회사 정보가 없습니다.');
       }
     } catch (e) {
-      print('❌ 기존 회사 정보 로드 실패: $e');
+      debugPrint('❌ 기존 회사 정보 로드 실패: $e');
     } finally {
       setState(() {
         _isLoadingExistingData = false;
@@ -1175,7 +1174,7 @@ class _BusinessRegistrationFormState
 
     try {
       // 통합 Workers API 호출 (AI 추출 + 검증 + 등록)
-      print('🔄 통합 검증 및 등록 프로세스 시작');
+      debugPrint('🔄 통합 검증 및 등록 프로세스 시작');
 
       // 이미지를 base64로 인코딩
       final base64Image = base64Encode(_selectedFileBytes!);
@@ -1211,13 +1210,13 @@ class _BusinessRegistrationFormState
           responseData['extractedData'] as Map<String, dynamic>?;
       if (extractedData != null) {
         // 디버그: Workers에서 받은 사업자등록번호 확인
-        print('📥 Workers에서 받은 extractedData: $extractedData');
-        print('📥 사업자등록번호 (Workers 응답): ${extractedData['business_number']}');
+        debugPrint('📥 Workers에서 받은 extractedData: $extractedData');
+        debugPrint('📥 사업자등록번호 (Workers 응답): ${extractedData['business_number']}');
         setState(() {
           _extractedData = extractedData;
         });
         // 디버그: 상태에 저장된 사업자등록번호 확인
-        print('💾 상태에 저장된 사업자등록번호: ${_extractedData?['business_number']}');
+        debugPrint('💾 상태에 저장된 사업자등록번호: ${_extractedData?['business_number']}');
       }
 
       // 검증 결과 설정
@@ -1248,7 +1247,7 @@ class _BusinessRegistrationFormState
           try {
             if (widget.isSignupMode) {
               // 회원가입 모드: 파일만 업로드하고 DB 저장은 하지 않음 (나중에 create_advertiser_profile_with_company에서 처리)
-              print('📤 회원가입 모드: 파일 업로드 시작');
+              debugPrint('📤 회원가입 모드: 파일 업로드 시작');
               // 파일 확장자에 따른 Content-Type 결정
               String contentType = 'image/png';
               final fileName = _selectedFileName?.toLowerCase() ?? '';
@@ -1268,7 +1267,7 @@ class _BusinessRegistrationFormState
                 throw Exception('파일 업로드 실패: ${uploadResponse.statusCode}');
               }
 
-              print('✅ 파일 업로드 완료: $publicUrl');
+              debugPrint('✅ 파일 업로드 완료: $publicUrl');
 
               // 성공: 검증 완료 상태로 설정 (DB 저장은 하지 않음)
               // publicUrl을 상태에 저장하여 _handleNext에서 사용
@@ -1292,7 +1291,7 @@ class _BusinessRegistrationFormState
             } else {
               // 프로필 모드: 기존 로직 (DB 저장)
               // 1단계: DB 저장 먼저 시도 (중복 체크 포함)
-              print('💾 DB 저장 시작 (파일 업로드 전)');
+              debugPrint('💾 DB 저장 시작 (파일 업로드 전)');
               String? savedCompanyId;
 
               try {
@@ -1301,14 +1300,14 @@ class _BusinessRegistrationFormState
                   validationResult: validationResult,
                   fileUrl: publicUrl,
                 );
-                print('✅ DB 저장 완료: $savedCompanyId');
+                debugPrint('✅ DB 저장 완료: $savedCompanyId');
               } catch (dbError) {
                 // DB 저장 실패 시 파일 업로드하지 않음
                 throw Exception('DB 저장 실패: $dbError');
               }
 
               // 2단계: DB 저장 성공 후 파일 업로드
-              print('📤 Presigned URL로 파일 업로드 시작');
+              debugPrint('📤 Presigned URL로 파일 업로드 시작');
               // 파일 확장자에 따른 Content-Type 결정
               String contentType = 'image/png';
               final fileName = _selectedFileName?.toLowerCase() ?? '';
@@ -1326,17 +1325,17 @@ class _BusinessRegistrationFormState
 
               if (uploadResponse.statusCode != 200) {
                 // 파일 업로드 실패 → DB 롤백
-                print('❌ 파일 업로드 실패, DB 롤백 시작');
+                debugPrint('❌ 파일 업로드 실패, DB 롤백 시작');
                 try {
                   await _deleteCompanyFromDatabase(savedCompanyId);
-                  print('✅ DB 롤백 완료');
+                  debugPrint('✅ DB 롤백 완료');
                 } catch (rollbackError) {
-                  print('⚠️ DB 롤백 실패: $rollbackError');
+                  debugPrint('⚠️ DB 롤백 실패: $rollbackError');
                 }
                 throw Exception('파일 업로드 실패: ${uploadResponse.statusCode}');
               }
 
-              print('✅ 파일 업로드 완료: $publicUrl');
+              debugPrint('✅ 파일 업로드 완료: $publicUrl');
 
               // 성공: 회사 등록 완료
               setState(() {
@@ -1358,17 +1357,17 @@ class _BusinessRegistrationFormState
               await _loadExistingCompanyData();
 
               // 부모 스크린에 알림 (사업자 인증 완료)
-              print('🔄 검증 완료 - onVerificationComplete 콜백 호출 시작');
+              debugPrint('🔄 검증 완료 - onVerificationComplete 콜백 호출 시작');
               if (widget.onVerificationComplete != null) {
                 await widget.onVerificationComplete!();
-                print('✅ 검증 완료 - onVerificationComplete 콜백 호출 완료');
+                debugPrint('✅ 검증 완료 - onVerificationComplete 콜백 호출 완료');
               } else {
-                print('⚠️ 검증 완료 - onVerificationComplete 콜백이 null입니다');
+                debugPrint('⚠️ 검증 완료 - onVerificationComplete 콜백이 null입니다');
               }
             }
           } catch (error) {
             // 에러 발생 시 처리
-            print('❌ 처리 실패: $error');
+            debugPrint('❌ 처리 실패: $error');
             final userFriendlyMessage = _getUserFriendlyErrorMessage(error);
 
             setState(() {
@@ -1443,7 +1442,7 @@ class _BusinessRegistrationFormState
         }
       }
     } catch (e) {
-      print('❌ 검증 및 등록 실패: $e');
+      debugPrint('❌ 검증 및 등록 실패: $e');
       final userFriendlyMessage = _getUserFriendlyErrorMessage(e);
 
       setState(() {
@@ -1481,8 +1480,8 @@ class _BusinessRegistrationFormState
 
     // 디버그: DB 저장 전 사업자등록번호 확인
     final businessNumber = extractedData['business_number'] ?? '';
-    print('💾 DB 저장 전 사업자등록번호: $businessNumber');
-    print('💾 DB 저장 전 extractedData: $extractedData');
+    debugPrint('💾 DB 저장 전 사업자등록번호: $businessNumber');
+    debugPrint('💾 DB 저장 전 extractedData: $extractedData');
 
     // RPC 함수 호출 (중복 체크 및 트랜잭션 포함)
     final result = await supabase.rpc(
@@ -1500,7 +1499,7 @@ class _BusinessRegistrationFormState
     );
 
     // 디버그: DB 저장 후 반환된 사업자등록번호 확인
-    print('✅ DB 저장 후 반환된 사업자등록번호: ${result['business_number']}');
+    debugPrint('✅ DB 저장 후 반환된 사업자등록번호: ${result['business_number']}');
 
     if (result == null) {
       throw Exception('회사 등록 실패: 응답이 없습니다.');
@@ -1511,7 +1510,7 @@ class _BusinessRegistrationFormState
       throw Exception('회사 등록 실패: company_id가 없습니다.');
     }
 
-    print('✅ 회사 정보 저장 완료: $companyId');
+    debugPrint('✅ 회사 정보 저장 완료: $companyId');
     return companyId;
   }
 
@@ -1529,9 +1528,9 @@ class _BusinessRegistrationFormState
         throw Exception('회사 삭제 실패');
       }
 
-      print('✅ 회사 정보 삭제 완료: $companyId');
+      debugPrint('✅ 회사 정보 삭제 완료: $companyId');
     } catch (e) {
-      print('❌ 회사 삭제 중 오류: $e');
+      debugPrint('❌ 회사 삭제 중 오류: $e');
       rethrow;
     }
   }
@@ -1651,7 +1650,7 @@ class _BusinessRegistrationFormState
 
     // 디버그: 회원가입 완료 시 전달되는 사업자등록번호 확인
     final businessNumberForSignup = _extractedData!['business_number'] ?? '';
-    print('📤 회원가입 완료 시 전달되는 사업자등록번호: $businessNumberForSignup');
+    debugPrint('📤 회원가입 완료 시 전달되는 사업자등록번호: $businessNumberForSignup');
 
     // onComplete 콜백 호출
     if (widget.onComplete != null) {

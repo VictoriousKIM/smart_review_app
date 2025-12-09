@@ -10,7 +10,6 @@ import '../../services/campaign_default_schedule_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
-import '../../config/supabase_config.dart';
 import '../../utils/date_time_utils.dart';
 import '../../utils/keyword_utils.dart';
 import '../../models/campaign.dart';
@@ -86,11 +85,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   // 선택 필드
   String _campaignType = 'store';
   String _platform = 'coupang';
-  String _paymentType = 'direct';
+  final String _paymentType = 'direct';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
   String _productProvisionType = 'delivery'; // ✅ 필수, 초기값: 실배송
-  String _productProvisionOther = '';
-  bool _onlyAllowedReviewers = true;
+  final bool _onlyAllowedReviewers = true;
   String _reviewType = 'star_only';
   DateTime? _applyStartDateTime; // 신청 시작일시
   DateTime? _applyEndDateTime; // 신청 종료일시
@@ -111,7 +109,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
   // ✅ 5. 비용 계산 디바운싱
   Timer? _costCalculationTimer;
-  bool _ignoreCostListeners = false;
+  // bool _ignoreCostListeners = false; // 편집 화면에서는 비용 계산 제거로 인해 사용하지 않음
 
   // DateTime 컨트롤러
   late final TextEditingController _applyStartDateTimeController;
@@ -121,8 +119,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
   // ✅ 5. 포맷팅 캐싱
   String? _cachedFormattedBalance;
-  String? _cachedFormattedTotalCost;
-  String? _cachedFormattedRemaining;
 
   // ✅ 1. initState 최적화 - 단계별 초기화
   @override
@@ -157,16 +153,16 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         _originalCampaign = campaign;
 
         // ✅ [중요] 데이터 세팅 중에는 리스너가 반응하지 않도록 플래그 설정
-        _ignoreCostListeners = true;
+        // _ignoreCostListeners = true; // 편집 화면에서는 비용 계산 제거로 인해 사용하지 않음
 
         // 기존 캠페인 데이터로 필드 초기화
-        _productNameController.text = campaign.productName ?? campaign.title;
+        _productNameController.text = campaign.productName;
         _keywordController.text = campaign.keyword ?? '';
         _optionController.text = campaign.option ?? '';
         _quantityController.text = campaign.quantity.toString();
-        _sellerController.text = campaign.seller ?? '';
+        _sellerController.text = campaign.seller;
         _productNumberController.text = campaign.productNumber ?? '';
-        _paymentAmountController.text = (campaign.productPrice ?? 0).toString();
+        _paymentAmountController.text = campaign.productPrice.toString();
         _campaignRewardController.text = campaign.campaignReward.toString();
         _maxParticipantsController.text =
             campaign.maxParticipants?.toString() ?? '10';
@@ -197,7 +193,8 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         }
 
         // 리뷰 키워드 로드
-        if (campaign.reviewKeywords != null && campaign.reviewKeywords!.isNotEmpty) {
+        if (campaign.reviewKeywords != null &&
+            campaign.reviewKeywords!.isNotEmpty) {
           _useReviewKeywords = true;
           _reviewKeywordsController.text = campaign.reviewKeywords!;
         } else {
@@ -206,7 +203,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         }
 
         // ✅ [중요] 데이터 세팅 완료 후 플래그 해제
-        _ignoreCostListeners = false;
+        // _ignoreCostListeners = false; // 편집 화면에서는 비용 계산 제거로 인해 사용하지 않음
         _updateDateTimeControllers();
         // 편집 화면에서는 비용 계산 제거 (추가 비용 변동 없음)
         // _calculateCost(); // 여기서 딱 한 번만 계산
@@ -300,13 +297,13 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
   // ✅ 5. 디바운싱된 비용 계산
   // 편집 화면에서는 비용 계산 제거 (추가 비용 변동 없음)
-  void _calculateCostDebounced() {
-    // if (_ignoreCostListeners) return;
-    // _costCalculationTimer?.cancel();
-    // _costCalculationTimer = Timer(const Duration(milliseconds: 500), () {
-    //   if (mounted) _calculateCost();
-    // });
-  }
+  // void _calculateCostDebounced() {
+  //   // if (_ignoreCostListeners) return;
+  //   // _costCalculationTimer?.cancel();
+  //   // _costCalculationTimer = Timer(const Duration(milliseconds: 500), () {
+  //   //   if (mounted) _calculateCost();
+  //   // });
+  // }
 
   Future<void> _loadCompanyBalance() async {
     // 즉시 로딩 상태만 표시
@@ -342,7 +339,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           if (pendingBalance != null) {
             _currentBalance = pendingBalance;
             _cachedFormattedBalance = null; // 캐시 무효화
-            _cachedFormattedRemaining = null;
           }
           if (pendingErrorMessage != null) {
             _errorMessage = pendingErrorMessage;
@@ -353,32 +349,33 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   }
 
   // ✅ 5. 비용 계산 최적화 (값 변경 시만 setState)
-  void _calculateCost() {
-    final paymentAmount = int.tryParse(_paymentAmountController.text) ?? 0;
-    final campaignReward = int.tryParse(_campaignRewardController.text) ?? 0;
-    final maxParticipants = int.tryParse(_maxParticipantsController.text) ?? 1;
-
-    int cost = 0;
-    if (_paymentType == 'platform') {
-      cost = (paymentAmount + campaignReward + 500) * maxParticipants;
-    } else {
-      cost = 500 * maxParticipants;
-    }
-
-    // ✅ 값이 변경되었을 때만 setState
-    if (_totalCost != cost) {
-      _totalCost = cost;
-
-      // ✅ 포맷팅 캐싱 (매번 계산하지 않음)
-      _cachedFormattedBalance = _formatNumber(_currentBalance);
-      _cachedFormattedTotalCost = _formatNumber(_totalCost);
-      _cachedFormattedRemaining = _formatNumber(_currentBalance - _totalCost);
-
-      if (mounted) {
-        setState(() {}); // 빈 setState (UI만 갱신)
-      }
-    }
-  }
+  // 편집 화면에서는 비용 계산 제거 (추가 비용 변동 없음)
+  // void _calculateCost() {
+  //   final paymentAmount = int.tryParse(_paymentAmountController.text) ?? 0;
+  //   final campaignReward = int.tryParse(_campaignRewardController.text) ?? 0;
+  //   final maxParticipants = int.tryParse(_maxParticipantsController.text) ?? 1;
+  //
+  //   int cost = 0;
+  //   if (_paymentType == 'platform') {
+  //     cost = (paymentAmount + campaignReward + 500) * maxParticipants;
+  //   } else {
+  //     cost = 500 * maxParticipants;
+  //   }
+  //
+  //   // ✅ 값이 변경되었을 때만 setState
+  //   if (_totalCost != cost) {
+  //     _totalCost = cost;
+  //
+  //     // ✅ 포맷팅 캐싱 (매번 계산하지 않음)
+  //     _cachedFormattedBalance = _formatNumber(_currentBalance);
+  //     _cachedFormattedTotalCost = _formatNumber(_totalCost);
+  //     _cachedFormattedRemaining = _formatNumber(_currentBalance - _totalCost);
+  //
+  //     if (mounted) {
+  //       setState(() {}); // 빈 setState (UI만 갱신)
+  //     }
+  //   }
+  // }
 
   String _formatNumber(int number) {
     return number.toString().replaceAllMapped(
@@ -389,10 +386,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
   String get _formattedBalance =>
       _cachedFormattedBalance ?? _formatNumber(_currentBalance);
-  String get _formattedTotalCost =>
-      _cachedFormattedTotalCost ?? _formatNumber(_totalCost);
-  String get _formattedRemaining =>
-      _cachedFormattedRemaining ?? _formatNumber(_currentBalance - _totalCost);
+  // String get _formattedTotalCost =>
+  //     _cachedFormattedTotalCost ?? _formatNumber(_totalCost);
+  // String get _formattedRemaining =>
+  //     _cachedFormattedRemaining ?? _formatNumber(_currentBalance - _totalCost);
 
   Future<void> _updateCampaign() async {
     // ✅ 즉시 체크 (setState 전에) - 중복 호출 방지
@@ -615,7 +612,8 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         productName: _productNameController.text.trim().isEmpty
             ? throw Exception('상품명을 입력해주세요.')
             : _productNameController.text.trim(),
-        productPrice: int.tryParse(_paymentAmountController.text) ??
+        productPrice:
+            int.tryParse(_paymentAmountController.text) ??
             (throw Exception('상품 가격을 입력해주세요.')),
         reviewType: _reviewType,
         reviewTextLength: reviewTextLength,
@@ -625,11 +623,14 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         duplicatePreventDays:
             int.tryParse(_duplicateCheckDaysController.text) ?? 0,
         paymentMethod: _paymentType,
-        productImageUrl: finalImageUrl ?? 
-            (throw Exception('상품 이미지가 필요합니다.')),
+        productImageUrl: finalImageUrl ?? (throw Exception('상품 이미지가 필요합니다.')),
         purchaseMethod: _purchaseMethod,
-        reviewKeywords: _useReviewKeywords && _reviewKeywordsController.text.trim().isNotEmpty
-            ? KeywordUtils.normalizeKeywords(_reviewKeywordsController.text.trim())
+        reviewKeywords:
+            _useReviewKeywords &&
+                _reviewKeywordsController.text.trim().isNotEmpty
+            ? KeywordUtils.normalizeKeywords(
+                _reviewKeywordsController.text.trim(),
+              )
             : null,
       );
 
@@ -815,7 +816,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _campaignType,
+              initialValue: _campaignType,
               decoration: const InputDecoration(
                 labelText: '캠페인 타입 *',
                 border: OutlineInputBorder(),
@@ -827,7 +828,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _platform,
+              initialValue: _platform,
               decoration: const InputDecoration(
                 labelText: '플랫폼 *',
                 border: OutlineInputBorder(),
@@ -835,13 +836,13 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               items: const [
                 DropdownMenuItem(
                   value: 'coupang',
-                  child: Text('쿠팡'),
                   enabled: true,
+                  child: Text('쿠팡'),
                 ),
                 DropdownMenuItem(
                   value: 'naver',
-                  child: Text('네이버 쇼핑 (추가예정)'),
                   enabled: false,
+                  child: Text('네이버 쇼핑 (추가예정)'),
                 ),
               ],
               onChanged: (value) {
@@ -964,7 +965,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _purchaseMethod,
+              initialValue: _purchaseMethod,
               decoration: const InputDecoration(
                 labelText: '구매방법 *',
                 border: OutlineInputBorder(),
@@ -1006,7 +1007,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _productProvisionType,
+              initialValue: _productProvisionType,
               decoration: const InputDecoration(
                 labelText: '상품제공여부 *',
                 border: OutlineInputBorder(),
@@ -1020,9 +1021,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               onChanged: (value) {
                 setState(() {
                   _productProvisionType = value!;
-                  if (value != 'other') {
-                    _productProvisionOther = '';
-                  }
                 });
               },
               validator: (value) {
@@ -1040,9 +1038,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 hintText: '상품제공 방법을 입력하세요',
                 maxLines: 2,
                 onChanged: (value) {
-                  setState(() {
-                    _productProvisionOther = value;
-                  });
+                  setState(() {});
                 },
               ),
             ],
@@ -1073,7 +1069,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _reviewType,
+              initialValue: _reviewType,
               decoration: const InputDecoration(
                 labelText: '리뷰 타입 *',
                 border: OutlineInputBorder(),
@@ -1166,11 +1162,16 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                   helperText: '키워드 3개 이내 20자 이내',
                   border: const OutlineInputBorder(),
                   suffixText: () {
-                    if (!_useReviewKeywords || _reviewKeywordsController.text.trim().isEmpty) {
+                    if (!_useReviewKeywords ||
+                        _reviewKeywordsController.text.trim().isEmpty) {
                       return null;
                     }
-                    final keywordCount = KeywordUtils.countKeywords(_reviewKeywordsController.text);
-                    final textLength = KeywordUtils.getKeywordTextLength(_reviewKeywordsController.text);
+                    final keywordCount = KeywordUtils.countKeywords(
+                      _reviewKeywordsController.text,
+                    );
+                    final textLength = KeywordUtils.getKeywordTextLength(
+                      _reviewKeywordsController.text,
+                    );
                     return '$keywordCount/3, $textLength/20';
                   }(),
                 ),
@@ -1183,7 +1184,8 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return '키워드를 입력해주세요';
                     }
-                    final (isValid, errorMessage) = KeywordUtils.validateKeywords(value);
+                    final (isValid, errorMessage) =
+                        KeywordUtils.validateKeywords(value);
                     if (!isValid) {
                       return errorMessage;
                     }
@@ -1399,6 +1401,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     );
 
     if (date != null) {
+      if (!mounted) return;
       final time = await showTimePicker(
         context: context,
         initialTime: _applyStartDateTime != null
@@ -1408,6 +1411,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       );
 
       if (time != null) {
+        if (!mounted) return;
         // 한국 시간(KST)으로 DateTime 생성
         final dateTime = DateTimeUtils.nowKST().copyWith(
           year: date.year,
@@ -1421,15 +1425,14 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
         // 생성일자 이후인지 검증
         if (dateTime.isBefore(createdAt)) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('신청 시작일시는 캠페인 생성일자 이후여야 합니다'),
-                backgroundColor: Colors.orange,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 시작일시는 캠페인 생성일자 이후여야 합니다'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
           return;
         }
 
@@ -1462,6 +1465,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     );
 
     if (date != null) {
+      if (!mounted) return;
       final time = await showTimePicker(
         context: context,
         initialTime: _applyEndDateTime != null
@@ -1511,6 +1515,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     );
 
     if (date != null) {
+      if (!mounted) return;
       final time = await showTimePicker(
         context: context,
         initialTime: _reviewStartDateTime != null
@@ -1520,6 +1525,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       );
 
       if (time != null) {
+        if (!mounted) return;
         // 한국 시간(KST)으로 DateTime 생성
         final dateTime = DateTimeUtils.nowKST().copyWith(
           year: date.year,
@@ -1533,15 +1539,14 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
         // 생성일자 이후인지 검증
         if (dateTime.isBefore(createdAt)) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('리뷰 시작일시는 캠페인 생성일자 이후여야 합니다'),
-                backgroundColor: Colors.orange,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시는 캠페인 생성일자 이후여야 합니다'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
           return;
         }
 
@@ -1577,6 +1582,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
     if (date == null) return;
 
+    if (!mounted) return;
     final time = await showTimePicker(
       context: context,
       initialTime: _reviewEndDateTime != null
@@ -1639,6 +1645,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     );
     final reviewEndTimeController = TextEditingController(text: reviewEndTime);
 
+    if (!mounted) return;
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1815,7 +1822,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 return;
               }
 
-              final applyStartDays = int.tryParse(applyStartDaysController.text);
+              final applyStartDays = int.tryParse(
+                applyStartDaysController.text,
+              );
               final applyEndDays = int.tryParse(applyEndDaysController.text);
               final reviewStartDays = int.tryParse(
                 reviewStartDaysController.text,

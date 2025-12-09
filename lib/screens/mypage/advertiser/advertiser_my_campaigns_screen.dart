@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -53,7 +52,7 @@ class _AdvertiserMyCampaignsScreenState
   bool _shouldRefreshOnRestore = false; // 화면 복원 시 새로고침 플래그
 
   // Pull-to-Refresh 충돌 방지용 큐
-  List<CampaignRealtimeEvent> _pendingRealtimeEvents = [];
+  final List<CampaignRealtimeEvent> _pendingRealtimeEvents = [];
 
   // 디바운싱/스로틀링용 타이머
   Timer? _updateTimer;
@@ -419,6 +418,9 @@ class _AdvertiserMyCampaignsScreenState
   }
 
   /// 생성된 캠페인을 폴링 방식으로 조회 (2단계: fallback)
+  // TODO: 향후 폴링 기능 구현 시 사용 예정
+  // ignore: unused_element
+  /*
   Future<void> _addCampaignByIdWithPolling(String campaignId) async {
     if (!mounted) return;
 
@@ -455,7 +457,7 @@ class _AdvertiserMyCampaignsScreenState
                 _updateFilteredCampaigns();
                 _isLoading = false;
               });
-              debugPrint('✅ 캠페인 조회 성공 (시도 ${attempt + 1}/${maxAttempts})');
+              debugPrint('✅ 캠페인 조회 성공 (시도 ${attempt + 1}/$maxAttempts)');
               return; // 성공 시 종료
             }
           } else {
@@ -469,7 +471,7 @@ class _AdvertiserMyCampaignsScreenState
           }
         }
       } catch (e) {
-        debugPrint('⚠️ 캠페인 조회 실패 (시도 ${attempt + 1}/${maxAttempts}): $e');
+        debugPrint('⚠️ 캠페인 조회 실패 (시도 ${attempt + 1}/$maxAttempts): $e');
       }
     }
 
@@ -479,6 +481,7 @@ class _AdvertiserMyCampaignsScreenState
       _loadCampaigns();
     }
   }
+  */
 
   // ============================================
   // 폴링 관련 메서드 (더 이상 사용하지 않음, 참고용으로 유지)
@@ -486,7 +489,9 @@ class _AdvertiserMyCampaignsScreenState
   // ============================================
 
   /// 새로고침 처리 (폴링 및 직접 조회) - 사용하지 않음
+  // ignore: unused_element
   @Deprecated('push().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  /*
   Future<void> _handleRefresh(String? campaignId) async {
     debugPrint('🔄 PostFrameCallback 실행 - campaignId: $campaignId');
 
@@ -530,7 +535,7 @@ class _AdvertiserMyCampaignsScreenState
       });
     }
   }
-
+  */
   Future<void> _loadCampaigns({bool forceRefresh = false}) async {
     if (!mounted) return;
 
@@ -672,7 +677,7 @@ class _AdvertiserMyCampaignsScreenState
         }
       }
     } catch (e) {
-      print('❌ 캠페인 로드 실패: $e');
+      debugPrint('❌ 캠페인 로드 실패: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -691,7 +696,9 @@ class _AdvertiserMyCampaignsScreenState
   }
 
   /// 폴링 방식으로 캠페인 조회 (생성된 캠페인이 나타날 때까지 재시도) - 사용하지 않음
+  // ignore: unused_element
   @Deprecated('push().then() 패턴으로 변경하여 더 이상 사용하지 않음')
+  /*
   Future<void> _loadCampaignsWithPolling({
     required String expectedCampaignId,
     int maxAttempts = 5,
@@ -741,54 +748,7 @@ class _AdvertiserMyCampaignsScreenState
       }
     }
   }
-
-  /// 생성된 캠페인을 직접 조회하여 목록에 추가 - 사용하지 않음
-  /// Returns: 성공 여부 (true: 추가 성공, false: 실패)
-  @Deprecated('push().then() 패턴으로 변경하여 더 이상 사용하지 않음')
-  Future<bool> _addCampaignById(String campaignId) async {
-    if (!mounted) return false;
-
-    debugPrint('🔍 캠페인 직접 조회 시작 - campaignId: $campaignId');
-
-    try {
-      final result = await _campaignService.getCampaignById(campaignId);
-      debugPrint(
-        '📥 캠페인 조회 결과 - success: ${result.success}, data: ${result.data != null}',
-      );
-
-      if (result.success && result.data != null && mounted) {
-        final campaign = result.data!;
-
-        // 중복 체크
-        if (!_allCampaigns.any((c) => c.id == campaignId)) {
-          debugPrint('➕ 캠페인을 목록에 추가 - ${campaign.title}');
-          _allCampaigns.insert(0, campaign);
-          _updateFilteredCampaigns();
-
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-            debugPrint('✅ UI 업데이트 완료 - 총 캠페인 수: ${_allCampaigns.length}');
-          }
-
-          debugPrint('✅ 생성된 캠페인을 직접 조회하여 추가했습니다: ${campaign.title}');
-          return true;
-        } else {
-          debugPrint('ℹ️ 캠페인이 이미 목록에 있습니다: $campaignId');
-          return true; // 이미 있으면 성공으로 간주
-        }
-      } else {
-        debugPrint('⚠️ 캠페인을 찾을 수 없습니다: $campaignId - error: ${result.error}');
-        return false;
-      }
-    } catch (e, stackTrace) {
-      debugPrint('❌ 캠페인 직접 조회 실패: $e');
-      debugPrint('❌ Stack trace: $stackTrace');
-      return false;
-    }
-  }
-
+  */
   /// 다음 상태 전환 시간에 맞춰 정확한 타이밍에 필터링 실행
   void _scheduleNextCampaignOpen() {
     _preciseTimer?.cancel(); // 기존 예약 취소 (타이머 누적 방지)
@@ -847,7 +807,7 @@ class _AdvertiserMyCampaignsScreenState
 
       if (!duration.isNegative) {
         debugPrint(
-          '💰 [나의 캠페인] 다음 상태 전환 예약: ${duration.inSeconds}초 후 (${nearestTransitionTime})',
+          '💰 [나의 캠페인] 다음 상태 전환 예약: ${duration.inSeconds}초 후 ($nearestTransitionTime)',
         );
         _preciseTimer = Timer(duration, () {
           if (mounted) {

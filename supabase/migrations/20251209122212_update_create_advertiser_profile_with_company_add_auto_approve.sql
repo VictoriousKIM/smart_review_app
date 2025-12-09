@@ -3340,7 +3340,7 @@ $$;
 ALTER FUNCTION "public"."delete_sns_connection"("p_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text" DEFAULT NULL::"text", "p_related_entity_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text" DEFAULT NULL::"text", "p_related_entity_id" "uuid" DEFAULT NULL::"uuid", "p_current_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -3350,11 +3350,15 @@ DECLARE
   v_new_balance integer;
   v_log_id uuid;
   v_result jsonb;
+  v_current_user_id uuid;
 BEGIN
+  -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+  v_current_user_id := COALESCE(p_current_user_id, (SELECT auth.uid()));
+  
   -- 권한 확인: 관리자만 포인트 적립 가능
-  IF NOT EXISTS (
+  IF v_current_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.users 
-    WHERE id = (select auth.uid()) AND user_type = 'admin'
+    WHERE id = v_current_user_id AND user_type = 'admin'
   ) THEN
     RAISE EXCEPTION 'Only admins can award points';
   END IF;
@@ -3408,10 +3412,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid", "p_current_user_id" "uuid") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") IS '포인트 적립과 로그 생성을 원자적으로 처리합니다. 에러 발생 시 모든 작업이 롤백됩니다.';
+COMMENT ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid", "p_current_user_id" "uuid") IS '포인트 적립과 로그 생성을 원자적으로 처리합니다. 에러 발생 시 모든 작업이 롤백됩니다.';
 
 
 
@@ -3733,11 +3737,12 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: Must be logged in';
   END IF;
 
-  -- 모든 역할(owner, manager, reviewer)의 활성 회사 ID 조회
+  -- owner 또는 manager 역할의 활성 회사 ID 조회 (reviewer 제외)
   SELECT cu.company_id INTO v_company_id
   FROM public.company_users cu
   WHERE cu.user_id = v_user_id
     AND cu.status = 'active'
+    AND cu.company_role IN ('owner', 'manager')
   LIMIT 1;
 
   IF v_company_id IS NULL THEN
@@ -3820,16 +3825,25 @@ $$;
 ALTER FUNCTION "public"."get_company_managers"("p_company_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer DEFAULT 50, "p_offset" integer DEFAULT 0) RETURNS TABLE("log_id" "uuid", "transaction_type" "text", "amount" integer, "description" "text", "related_entity_type" "text", "related_entity_id" "uuid", "created_by_user_id" "uuid", "created_by_user_name" "text", "created_at" timestamp with time zone)
+CREATE OR REPLACE FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer DEFAULT 50, "p_offset" integer DEFAULT 0, "p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS TABLE("log_id" "uuid", "transaction_type" "text", "amount" integer, "description" "text", "related_entity_type" "text", "related_entity_id" "uuid", "created_by_user_id" "uuid", "created_by_user_name" "text", "created_at" timestamp with time zone)
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
+DECLARE
+  v_user_id uuid;
 BEGIN
+  -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+  v_user_id := COALESCE(p_user_id, (SELECT auth.uid()));
+  
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Must be logged in';
+  END IF;
+  
   -- 권한 확인: 회사 멤버만 조회 가능
   IF NOT EXISTS (
     SELECT 1 FROM public.company_users cu
     WHERE cu.company_id = p_company_id
-      AND cu.user_id = (SELECT auth.uid())
+      AND cu.user_id = v_user_id
       AND cu.status = 'active'
   ) THEN
     RAISE EXCEPTION 'Unauthorized: Not a company member';
@@ -3858,7 +3872,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer, "p_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_company_point_history_unified"("p_company_id" "uuid", "p_user_id" "uuid" DEFAULT NULL::"uuid", "p_limit" integer DEFAULT 50, "p_offset" integer DEFAULT 0) RETURNS "jsonb"
@@ -4150,7 +4164,7 @@ $$;
 ALTER FUNCTION "public"."get_company_wallets_safe"("p_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_pending_cash_transactions"("p_status" "text" DEFAULT 'pending'::"text", "p_transaction_type" "text" DEFAULT NULL::"text", "p_user_type" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT 50, "p_offset" integer DEFAULT 0) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."get_pending_cash_transactions"("p_status" "text" DEFAULT 'pending'::"text", "p_transaction_type" "text" DEFAULT NULL::"text", "p_user_type" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT 50, "p_offset" integer DEFAULT 0, "p_current_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -4159,8 +4173,8 @@ DECLARE
     v_user_id UUID;
     v_user_type TEXT;
 BEGIN
-    -- 권한 확인: 관리자만 조회 가능
-    v_user_id := auth.uid();
+    -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+    v_user_id := COALESCE(p_current_user_id, (SELECT auth.uid()));
     IF v_user_id IS NULL THEN
         RAISE EXCEPTION 'Unauthorized';
     END IF;
@@ -4277,10 +4291,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) IS '관리자용: 대기중인 현금 거래 목록 조회 (필터링 지원)';
+COMMENT ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") IS '관리자용: 대기중인 현금 거래 목록 조회 (필터링 지원)';
 
 
 
@@ -4462,7 +4476,7 @@ $$;
 ALTER FUNCTION "public"."get_user_campaign_logs_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text" DEFAULT 'all'::"text", "p_limit" integer DEFAULT 20, "p_offset" integer DEFAULT 0) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text" DEFAULT 'all'::"text", "p_limit" integer DEFAULT 20, "p_offset" integer DEFAULT 0, "p_current_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -4472,20 +4486,25 @@ DECLARE
   v_result jsonb;
   v_company_ids uuid[];
   v_status_filter text;
+  v_current_user_id uuid;
 BEGIN
   -- 파라미터 검증
   IF p_user_id IS NULL THEN
     RAISE EXCEPTION 'p_user_id cannot be NULL';
   END IF;
   
+  -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+  v_current_user_id := COALESCE(p_current_user_id, (SELECT auth.uid()));
+  
   -- NULL 체크 및 기본값 설정
   v_status_filter := COALESCE(NULLIF(p_status, ''), 'all');
   
   -- 권한 확인: 자신의 캠페인이거나 관리자
-  IF p_user_id != (SELECT auth.uid()) AND 
+  -- Custom JWT 세션인 경우 (p_current_user_id가 전달되고 auth.uid()가 NULL) 권한 체크 건너뛰기
+  IF v_current_user_id IS NOT NULL AND p_user_id != v_current_user_id AND 
      NOT EXISTS (
        SELECT 1 FROM public.users 
-       WHERE id = (SELECT auth.uid()) AND user_type = 'admin'
+       WHERE id = v_current_user_id AND user_type = 'admin'
      ) THEN
     RAISE EXCEPTION 'You can only view your own campaigns';
   END IF;
@@ -4545,7 +4564,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_user_company_id_safe"("p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "uuid"
@@ -5014,7 +5033,7 @@ $$;
 ALTER FUNCTION "public"."get_user_point_logs_safe"("p_user_id" "uuid", "p_transaction_type" "text", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid" DEFAULT NULL::"uuid", "p_current_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -5026,8 +5045,8 @@ DECLARE
   v_company_role text;
   v_company_id uuid;
 BEGIN
-  -- 기본값은 현재 사용자
-  v_current_user_id := (select auth.uid());
+  -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+  v_current_user_id := COALESCE(p_current_user_id, (SELECT auth.uid()));
   v_target_user_id := COALESCE(p_user_id, v_current_user_id);
   
   -- v_target_user_id가 NULL이면 에러
@@ -5097,7 +5116,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid", "p_current_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_user_reviewer_requests"("p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS TABLE("company_id" "uuid", "company_name" "text", "business_number" "text", "status" "text", "created_at" timestamp with time zone)
@@ -5703,7 +5722,7 @@ $$;
 ALTER FUNCTION "public"."get_wallet_logs"("p_wallet_id" "uuid", "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."has_deletion_request_safe"() RETURNS boolean
+CREATE OR REPLACE FUNCTION "public"."has_deletion_request_safe"("p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS boolean
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -5711,8 +5730,8 @@ DECLARE
     v_user_id UUID;
     v_has_request boolean;
 BEGIN
-    -- 권한 확인
-    v_user_id := auth.uid();
+    -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+    v_user_id := COALESCE(p_user_id, (SELECT auth.uid()));
     IF v_user_id IS NULL THEN
         RETURN false;
     END IF;
@@ -5728,10 +5747,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."has_deletion_request_safe"() OWNER TO "postgres";
+ALTER FUNCTION "public"."has_deletion_request_safe"("p_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."is_account_deleted_safe"() RETURNS boolean
+CREATE OR REPLACE FUNCTION "public"."is_account_deleted_safe"("p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS boolean
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -5739,8 +5758,8 @@ DECLARE
     v_user_id UUID;
     v_deleted boolean;
 BEGIN
-    -- 권한 확인
-    v_user_id := auth.uid();
+    -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+    v_user_id := COALESCE(p_user_id, (SELECT auth.uid()));
     IF v_user_id IS NULL THEN
         RETURN false;
     END IF;
@@ -5756,7 +5775,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."is_account_deleted_safe"() OWNER TO "postgres";
+ALTER FUNCTION "public"."is_account_deleted_safe"("p_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."is_user_in_company_safe"() RETURNS boolean
@@ -6270,7 +6289,7 @@ $$;
 ALTER FUNCTION "public"."reject_manager"("p_company_id" "uuid", "p_user_id" "uuid", "p_current_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid", "p_current_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -6278,8 +6297,8 @@ DECLARE
   v_current_user_id uuid;
   v_result jsonb;
 BEGIN
-  -- 현재 사용자 ID 가져오기
-  v_current_user_id := (SELECT auth.uid());
+  -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+  v_current_user_id := COALESCE(p_current_user_id, (SELECT auth.uid()));
   
   IF v_current_user_id IS NULL THEN
     RAISE EXCEPTION 'Unauthorized: Must be logged in';
@@ -6329,14 +6348,14 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid", "p_current_user_id" "uuid") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") IS '리뷰어 거절';
+COMMENT ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid", "p_current_user_id" "uuid") IS '리뷰어 거절';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text", "p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -6346,8 +6365,8 @@ DECLARE
   v_result jsonb;
   v_cleaned_business_number text;
 BEGIN
-  -- 현재 사용자 ID 가져오기
-  v_user_id := (SELECT auth.uid());
+  -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+  v_user_id := COALESCE(p_user_id, (SELECT auth.uid()));
   
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Unauthorized: Must be logged in';
@@ -6416,7 +6435,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text", "p_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."request_point_charge"("p_user_id" "uuid", "p_amount" integer, "p_cash_amount" double precision, "p_payment_method" "text" DEFAULT '신용카드'::"text") RETURNS "jsonb"
@@ -6521,6 +6540,7 @@ CREATE OR REPLACE FUNCTION "public"."request_reviewer_role"("p_company_id" "uuid
 DECLARE
   v_user_id uuid;
   v_result jsonb;
+  v_auto_approve boolean;
 BEGIN
   -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
   v_user_id := COALESCE(p_user_id, (SELECT auth.uid()));
@@ -6529,13 +6549,17 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: Must be logged in';
   END IF;
 
-  -- 회사 존재 여부 확인
-  IF NOT EXISTS (
-    SELECT 1 FROM public.companies
-    WHERE id = p_company_id
-  ) THEN
+  -- 회사 존재 여부 확인 및 auto_approve_reviewers 설정 확인
+  SELECT auto_approve_reviewers INTO v_auto_approve
+  FROM public.companies
+  WHERE id = p_company_id;
+  
+  IF NOT FOUND THEN
     RAISE EXCEPTION '회사를 찾을 수 없습니다.';
   END IF;
+  
+  -- auto_approve_reviewers가 NULL이면 false로 처리
+  v_auto_approve := COALESCE(v_auto_approve, false);
 
   -- 이미 등록된 관계가 있는지 확인
   IF EXISTS (
@@ -6548,8 +6572,8 @@ BEGIN
     RAISE EXCEPTION '이미 등록된 리뷰어입니다.';
   END IF;
 
-  -- 이미 pending 요청이 있는지 확인
-  IF EXISTS (
+  -- 이미 pending 요청이 있는지 확인 (자동 승인이 아닌 경우에만)
+  IF NOT v_auto_approve AND EXISTS (
     SELECT 1 FROM public.company_users
     WHERE company_id = p_company_id
       AND user_id = v_user_id
@@ -6559,41 +6583,49 @@ BEGIN
     RAISE EXCEPTION '이미 요청한 광고사입니다. 승인 대기 중입니다.';
   END IF;
 
-  -- 기존 요청이 있으면 status를 pending으로 업데이트
+  -- 기존 요청이 있으면 status를 pending 또는 active로 업데이트
   IF EXISTS (
     SELECT 1 FROM public.company_users
     WHERE company_id = p_company_id
       AND user_id = v_user_id
       AND company_role = 'reviewer'
   ) THEN
+    -- 자동 승인이 활성화되어 있으면 active, 아니면 pending
     UPDATE public.company_users
-    SET status = 'pending',
-        created_at = NOW()
+    SET status = CASE WHEN v_auto_approve THEN 'active' ELSE 'pending' END,
+        created_at = NOW(),
+        updated_at = CASE WHEN v_auto_approve THEN NOW() ELSE updated_at END
     WHERE company_id = p_company_id
       AND user_id = v_user_id
       AND company_role = 'reviewer';
   ELSE
-    -- 없으면 새로 추가
+    -- 없으면 새로 추가 (자동 승인 여부에 따라 status 결정)
     INSERT INTO public.company_users (
       company_id,
       user_id,
       company_role,
       status,
-      created_at
+      created_at,
+      updated_at
     ) VALUES (
       p_company_id,
       v_user_id,
       'reviewer',
-      'pending',
-      NOW()
+      CASE WHEN v_auto_approve THEN 'active' ELSE 'pending' END,
+      NOW(),
+      CASE WHEN v_auto_approve THEN NOW() ELSE NULL END
     );
   END IF;
 
-  -- 결과 반환
+  -- 결과 반환 (자동 승인 여부에 따라 메시지 변경)
   SELECT jsonb_build_object(
     'success', true,
     'company_id', p_company_id,
-    'message', '리뷰어 등록 요청이 완료되었습니다. 승인 대기 중입니다.'
+    'auto_approved', v_auto_approve,
+    'message', CASE 
+      WHEN v_auto_approve THEN '리뷰어가 자동으로 승인되었습니다.'
+      ELSE '리뷰어 등록 요청이 완료되었습니다. 승인 대기 중입니다.'
+    END
   ) INTO v_result;
 
   RETURN v_result;
@@ -7015,7 +7047,7 @@ $$;
 ALTER FUNCTION "public"."update_application_status_safe"("p_application_id" "uuid", "p_status" "text", "p_rejection_reason" "text", "p_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text", "p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -7025,8 +7057,8 @@ DECLARE
   v_campaign_company_id UUID;
   v_current_participants INTEGER;
 BEGIN
-  -- 1. 현재 사용자 확인
-  v_user_id := auth.uid();
+  -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+  v_user_id := COALESCE(p_user_id, (SELECT auth.uid()));
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
@@ -7077,10 +7109,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text", "p_user_id" "uuid") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text") IS '캠페인 상태 업데이트 (active/inactive)';
+COMMENT ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text", "p_user_id" "uuid") IS '캠페인 상태 업데이트 (active/inactive)';
 
 
 
@@ -10133,9 +10165,9 @@ GRANT ALL ON FUNCTION "public"."delete_sns_connection"("p_id" "uuid", "p_user_id
 
 
 
-GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid", "p_current_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid", "p_current_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."earn_points"("p_user_id" "uuid", "p_amount" integer, "p_description" "text", "p_related_entity_type" "text", "p_related_entity_id" "uuid", "p_current_user_id" "uuid") TO "service_role";
 
 
 
@@ -10187,9 +10219,9 @@ GRANT ALL ON FUNCTION "public"."get_company_managers"("p_company_id" "uuid", "p_
 
 
 
-GRANT ALL ON FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer, "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer, "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_company_point_history"("p_company_id" "uuid", "p_limit" integer, "p_offset" integer, "p_user_id" "uuid") TO "service_role";
 
 
 
@@ -10217,9 +10249,9 @@ GRANT ALL ON FUNCTION "public"."get_company_wallets_safe"("p_user_id" "uuid") TO
 
 
 
-GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_pending_cash_transactions"("p_status" "text", "p_transaction_type" "text", "p_user_type" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") TO "service_role";
 
 
 
@@ -10241,9 +10273,9 @@ GRANT ALL ON FUNCTION "public"."get_user_campaign_logs_safe"("p_user_id" "uuid",
 
 
 
-GRANT ALL ON FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_user_campaigns_safe"("p_user_id" "uuid", "p_status" "text", "p_limit" integer, "p_offset" integer, "p_current_user_id" "uuid") TO "service_role";
 
 
 
@@ -10301,9 +10333,9 @@ GRANT ALL ON FUNCTION "public"."get_user_point_logs_safe"("p_user_id" "uuid", "p
 
 
 
-GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid", "p_current_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid", "p_current_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_user_profile_safe"("p_user_id" "uuid", "p_current_user_id" "uuid") TO "service_role";
 
 
 
@@ -10391,15 +10423,15 @@ GRANT ALL ON FUNCTION "public"."get_wallet_logs"("p_wallet_id" "uuid", "p_limit"
 
 
 
-GRANT ALL ON FUNCTION "public"."has_deletion_request_safe"() TO "anon";
-GRANT ALL ON FUNCTION "public"."has_deletion_request_safe"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."has_deletion_request_safe"() TO "service_role";
+GRANT ALL ON FUNCTION "public"."has_deletion_request_safe"("p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."has_deletion_request_safe"("p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."has_deletion_request_safe"("p_user_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."is_account_deleted_safe"() TO "anon";
-GRANT ALL ON FUNCTION "public"."is_account_deleted_safe"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."is_account_deleted_safe"() TO "service_role";
+GRANT ALL ON FUNCTION "public"."is_account_deleted_safe"("p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."is_account_deleted_safe"("p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."is_account_deleted_safe"("p_user_id" "uuid") TO "service_role";
 
 
 
@@ -10463,15 +10495,15 @@ GRANT ALL ON FUNCTION "public"."reject_manager"("p_company_id" "uuid", "p_user_i
 
 
 
-GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid", "p_current_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid", "p_current_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."reject_reviewer_role"("p_company_id" "uuid", "p_user_id" "uuid", "p_current_user_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."request_manager_role"("p_business_name" "text", "p_business_number" "text", "p_user_id" "uuid") TO "service_role";
 
 
 
@@ -10523,9 +10555,9 @@ GRANT ALL ON FUNCTION "public"."update_application_status_safe"("p_application_i
 
 
 
-GRANT ALL ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p_status" "text", "p_user_id" "uuid") TO "service_role";
 
 
 

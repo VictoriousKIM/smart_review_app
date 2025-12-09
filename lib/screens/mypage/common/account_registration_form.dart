@@ -83,7 +83,7 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
 
     if (userWalletChanged || companyWalletChanged) {
       if (!_isEditing) {
-        print('🔄 지갑 데이터 변경 감지, 계좌정보 다시 로드');
+        debugPrint('🔄 지갑 데이터 변경 감지, 계좌정보 다시 로드');
         _loadAccountData();
       }
     }
@@ -107,7 +107,7 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
       final bankName = widget.companyWallet?.withdrawBankName ?? '';
       final accountNumber = widget.companyWallet?.withdrawAccountNumber ?? '';
       final accountHolder = widget.companyWallet?.withdrawAccountHolder ?? '';
-      print(
+      debugPrint(
         '📝 회사 지갑 계좌정보 로드: 은행=$bankName, 계좌=$accountNumber, 예금주=$accountHolder',
       );
       setState(() {
@@ -121,7 +121,7 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
         final bankName = widget.userWallet?.withdrawBankName ?? '';
         final accountNumber = widget.userWallet?.withdrawAccountNumber ?? '';
         final accountHolder = widget.userWallet?.withdrawAccountHolder ?? '';
-        print(
+        debugPrint(
           '📝 개인 지갑 계좌정보 로드: 은행=$bankName, 계좌=$accountNumber, 예금주=$accountHolder',
         );
         setState(() {
@@ -318,13 +318,13 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
                     children: [
                       TextButton(
                         onPressed: _cancelEdit,
-                        child: const Text('취소'),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4,
                           ),
                         ),
+                        child: const Text('취소'),
                       ),
                       const SizedBox(width: 4),
                       TextButton(

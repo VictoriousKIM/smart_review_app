@@ -32,7 +32,22 @@ npx supabase db diff -f <migration_name>
 npx supabase db diff --local --schema public -f supabase/migrations/YYYYMMDDHHMMSS_description.sql
 ```
 
+### 마이그레이션 적용
+
+### ✅ 올바른 방법 (데이터 유지하며 마이그레이션 적용)
+```bash
+npx supabase migration up --local
+```
+
+### ❌ 잘못된 방법 (데이터 삭제됨)
+```bash
+npx supabase db reset --local  # ❌ 모든 데이터가 삭제되고 처음부터 다시 적용됨
+```
+
 **중요:**
+- 마이그레이션을 적용할 때는 **반드시** `migration up` 명령어를 사용해야 합니다
+- `db reset`은 데이터베이스를 완전히 초기화하고 모든 데이터를 삭제합니다
+- `migration up`은 기존 데이터를 유지하면서 새로운 마이그레이션만 적용합니다
 - 로컬 Supabase를 사용하므로 항상 `--local` 플래그를 사용해야 합니다
 - `seed.sql`은 로컬 개발용 테스트 데이터입니다
 - 로컬 환경에서만 작업하므로 원격 DB와의 동기화 문제가 없습니다

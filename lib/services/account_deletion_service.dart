@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_service.dart';
 
@@ -21,7 +22,7 @@ class AccountDeletionService {
         params: {'p_user_id': userId, 'p_reason': reason},
       );
     } catch (e) {
-      print('Error requesting account deletion: $e');
+      debugPrint('Error requesting account deletion: $e');
       rethrow;
     }
   }
@@ -45,7 +46,7 @@ class AccountDeletionService {
 
       return response;
     } catch (e) {
-      print('Error checking deletion eligibility: $e');
+      debugPrint('Error checking deletion eligibility: $e');
       return {
         'canDelete': false,
         'errors': ['삭제 가능 여부를 확인할 수 없습니다: $e'],
@@ -71,7 +72,7 @@ class AccountDeletionService {
 
       return response;
     } catch (e) {
-      print('Error backing up user data: $e');
+      debugPrint('Error backing up user data: $e');
       rethrow;
     }
   }
@@ -88,12 +89,17 @@ class AccountDeletionService {
         return false;
       }
 
-      // RPC 함수 호출
-      final response = await _supabase.rpc('is_account_deleted_safe') as bool;
+      // RPC 함수 호출 (Custom JWT 세션 지원)
+      final response =
+          await _supabase.rpc(
+                'is_account_deleted_safe',
+                params: {'p_user_id': userId},
+              )
+              as bool;
 
       return response;
     } catch (e) {
-      print('Error checking account deletion status: $e');
+      debugPrint('Error checking account deletion status: $e');
       return false;
     }
   }
@@ -111,7 +117,7 @@ class AccountDeletionService {
 
       return response;
     } catch (e) {
-      print('Error checking deletion request status: $e');
+      debugPrint('Error checking deletion request status: $e');
       return false;
     }
   }
@@ -131,7 +137,7 @@ class AccountDeletionService {
       // RPC 함수 호출
       await _supabase.rpc('cancel_deletion_request_safe');
     } catch (e) {
-      print('Error canceling deletion request: $e');
+      debugPrint('Error canceling deletion request: $e');
       rethrow;
     }
   }
@@ -141,14 +147,18 @@ class AccountDeletionService {
   // ===========================================
 
   /// 삭제된 사용자 ID 목록 가져오기
+  // TODO: 향후 삭제된 사용자 조회 기능 구현 시 사용 예정
+  // ignore: unused_element
+  /*
   static Future<List<String>> _getDeletedUserIds() async {
     try {
       final response = await _supabase.from('deleted_users').select('id');
 
       return response.map((user) => user['id'] as String).toList();
     } catch (e) {
-      print('Error getting deleted user IDs: $e');
+      debugPrint('Error getting deleted user IDs: $e');
       return [];
     }
   }
+  */
 }

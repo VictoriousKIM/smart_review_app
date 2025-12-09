@@ -66,9 +66,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               debugPrint('로그아웃 중 에러 발생: $e');
             }
             // 로그인 화면으로 이동
-            if (mounted) {
+            if (!mounted) return;
               context.go('/login');
-            }
           },
         ),
       ),
@@ -199,7 +198,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),

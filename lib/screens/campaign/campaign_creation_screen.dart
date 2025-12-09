@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, compute;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -106,13 +105,12 @@ class _CampaignCreationScreenState
   final _productProvisionOtherController = TextEditingController();
 
   // 선택 필드
-  String _campaignType = 'store';
+  final String _campaignType = 'store';
   String _platform = 'coupang';
   String _paymentType = 'direct';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
   String _productProvisionType = 'delivery'; // ✅ 필수, 초기값: 실배송
-  String _productProvisionOther = '';
-  bool _onlyAllowedReviewers = true;
+  final bool _onlyAllowedReviewers = true;
   String _reviewType = 'star_only';
   DateTime? _applyStartDateTime; // 신청 시작일시
   DateTime? _applyEndDateTime; // 신청 종료일시
@@ -409,9 +407,9 @@ class _CampaignCreationScreenState
               pendingImageBytes = await _getCachedOrResizeImage(bytes);
 
               // ✅ 리사이징 완료 후 업데이트
-              if (mounted && pendingImageBytes != null) {
+              if (mounted) {
                 setState(() {
-                  _capturedImage = pendingImageBytes; // 리사이징된 이미지로 교체
+                  _capturedImage = pendingImageBytes!; // 리사이징된 이미지로 교체
                 });
               }
               return; // 리사이징 완료 후 종료
@@ -452,11 +450,11 @@ class _CampaignCreationScreenState
     final key = '${originalBytes.lengthInBytes}_${originalBytes.hashCode}';
 
     if (_imageCache.containsKey(key)) {
-      print('✅ 캐시된 이미지 사용');
+      debugPrint('✅ 캐시된 이미지 사용');
       return _imageCache[key]!;
     }
 
-    print('🔄 이미지 리사이징 시작...');
+    debugPrint('🔄 이미지 리사이징 시작...');
     final resized = await compute(
       _resizeImageInIsolate,
       _ResizeImageParams(
@@ -608,7 +606,7 @@ class _CampaignCreationScreenState
         );
       }
     } catch (e) {
-      print('⚠️ 백그라운드 크롭 처리 실패: $e');
+      debugPrint('⚠️ 백그라운드 크롭 처리 실패: $e');
       if (mounted) {
         setState(() => _productImage = _capturedImage);
       }
@@ -667,7 +665,7 @@ class _CampaignCreationScreenState
         'cropHeight': cropHeight,
       };
     } catch (e) {
-      print('❌ 웹 크롭 실패: $e');
+      debugPrint('❌ 웹 크롭 실패: $e');
       return null;
     }
   }
@@ -680,7 +678,7 @@ class _CampaignCreationScreenState
     int height,
   ) async {
     try {
-      print('🔧 크롭 작업 시작: x=$x, y=$y, w=$width, h=$height');
+      debugPrint('🔧 크롭 작업 시작: x=$x, y=$y, w=$width, h=$height');
 
       final cropResult = kIsWeb
           ? await _cropImageDirect(imageBytes, x, y, width, height)
@@ -696,7 +694,7 @@ class _CampaignCreationScreenState
             );
 
       if (cropResult == null) {
-        print('❌ 이미지 크롭 실패');
+        debugPrint('❌ 이미지 크롭 실패');
         if (mounted) {
           setState(() {
             _errorMessage = '이미지를 처리할 수 없습니다.';
@@ -712,7 +710,7 @@ class _CampaignCreationScreenState
       final cropWidth = cropResult['cropWidth'] as int;
       final cropHeight = cropResult['cropHeight'] as int;
 
-      print('✅ 크롭 완료: ${cropWidth}x${cropHeight}');
+      debugPrint('✅ 크롭 완료: ${cropWidth}x$cropHeight');
 
       if (mounted) {
         setState(() {
@@ -727,7 +725,7 @@ class _CampaignCreationScreenState
         });
       }
     } catch (e, stackTrace) {
-      print('❌ 크롭 실패: $e\n$stackTrace');
+      debugPrint('❌ 크롭 실패: $e\n$stackTrace');
       if (mounted) {
         setState(() {
           _productImage = imageBytes;
@@ -772,7 +770,7 @@ class _CampaignCreationScreenState
         'cropHeight': cropHeight,
       };
     } catch (e) {
-      print('❌ Isolate 크롭 실패: $e');
+      debugPrint('❌ Isolate 크롭 실패: $e');
       return null;
     }
   }
@@ -798,7 +796,7 @@ class _CampaignCreationScreenState
         'normalizedHeight': h.clamp(1, image.height - y),
       };
     } catch (e) {
-      print('❌ 크롭 좌표 정규화 실패: $e');
+      debugPrint('❌ 크롭 좌표 정규화 실패: $e');
       return null;
     }
   }
@@ -825,7 +823,7 @@ class _CampaignCreationScreenState
         'normalizedHeight': normalizedHeight,
       };
     } catch (e) {
-      print('❌ 크롭 좌표 정규화 실패: $e');
+      debugPrint('❌ 크롭 좌표 정규화 실패: $e');
       return null;
     }
   }
@@ -906,11 +904,11 @@ class _CampaignCreationScreenState
               await tempFile.delete();
             }
           } catch (e) {
-            print('⚠️ 임시 파일 삭제 실패: $e');
+            debugPrint('⚠️ 임시 파일 삭제 실패: $e');
           }
         }
       } catch (e) {
-        print('❌ 이미지 크롭 실패: $e');
+        debugPrint('❌ 이미지 크롭 실패: $e');
         pendingErrorMessage = '이미지 편집 실패: $e';
 
         if (kIsWeb && !webDialogShown) {
@@ -965,7 +963,7 @@ class _CampaignCreationScreenState
         originalImage = await compute(_decodeImageInIsolate, _capturedImage!);
       }
     } catch (e) {
-      print('❌ 이미지 디코딩 실패: $e');
+      debugPrint('❌ 이미지 디코딩 실패: $e');
       if (mounted) {
         setState(() {
           _isEditingImage = false;
@@ -997,6 +995,7 @@ class _CampaignCreationScreenState
       setState(() => _isEditingImage = false);
     }
 
+    if (!mounted) return;
     final result = await showDialog<Map<String, int>>(
       context: context,
       builder: (context) => ImageCropEditor(
@@ -1332,8 +1331,7 @@ class _CampaignCreationScreenState
 
     if (_totalCost > _currentBalance) {
       setState(() {
-        _errorMessage =
-            '잔액이 부족합니다. 필요: ${_totalCost}P, 현재: ${_currentBalance}P';
+        _errorMessage = '잔액이 부족합니다. 필요: ${_totalCost}P, 현재: $_currentBalance P';
       });
       return;
     }
@@ -2018,7 +2016,7 @@ class _CampaignCreationScreenState
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _campaignType,
+              initialValue: _campaignType,
               decoration: const InputDecoration(
                 labelText: '캠페인 타입 *',
                 border: OutlineInputBorder(),
@@ -2030,7 +2028,7 @@ class _CampaignCreationScreenState
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _platform,
+              initialValue: _platform,
               decoration: const InputDecoration(
                 labelText: '플랫폼 *',
                 border: OutlineInputBorder(),
@@ -2038,13 +2036,13 @@ class _CampaignCreationScreenState
               items: const [
                 DropdownMenuItem(
                   value: 'coupang',
-                  child: Text('쿠팡'),
                   enabled: true,
+                  child: Text('쿠팡'),
                 ),
                 DropdownMenuItem(
                   value: 'naver',
-                  child: Text('네이버 쇼핑 (추가예정)'),
                   enabled: false,
+                  child: Text('네이버 쇼핑 (추가예정)'),
                 ),
               ],
               onChanged: (value) {
@@ -2166,7 +2164,7 @@ class _CampaignCreationScreenState
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _purchaseMethod,
+              initialValue: _purchaseMethod,
               decoration: const InputDecoration(
                 labelText: '구매방법 *',
                 border: OutlineInputBorder(),
@@ -2208,7 +2206,7 @@ class _CampaignCreationScreenState
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _productProvisionType,
+              initialValue: _productProvisionType,
               decoration: const InputDecoration(
                 labelText: '상품제공여부 *',
                 border: OutlineInputBorder(),
@@ -2222,9 +2220,6 @@ class _CampaignCreationScreenState
               onChanged: (value) {
                 setState(() {
                   _productProvisionType = value!;
-                  if (value != 'other') {
-                    _productProvisionOther = '';
-                  }
                 });
               },
               validator: (value) {
@@ -2242,9 +2237,7 @@ class _CampaignCreationScreenState
                 hintText: '상품제공 방법을 입력하세요',
                 maxLines: 2,
                 onChanged: (value) {
-                  setState(() {
-                    _productProvisionOther = value;
-                  });
+                  setState(() {});
                 },
               ),
             ],
@@ -2275,7 +2268,7 @@ class _CampaignCreationScreenState
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _reviewType,
+              initialValue: _reviewType,
               decoration: const InputDecoration(
                 labelText: '리뷰 타입 *',
                 border: OutlineInputBorder(),
@@ -2606,6 +2599,7 @@ class _CampaignCreationScreenState
     );
 
     if (date != null) {
+      if (!mounted) return;
       final time = await showTimePicker(
         context: context,
         initialTime: _applyStartDateTime != null
@@ -2615,6 +2609,7 @@ class _CampaignCreationScreenState
       );
 
       if (time != null) {
+        if (!mounted) return;
         // 한국 시간(KST)으로 DateTime 생성
         final dateTime = DateTimeUtils.nowKST().copyWith(
           year: date.year,
@@ -2628,14 +2623,13 @@ class _CampaignCreationScreenState
 
         // 현재 시간보다 나중인지 검증
         if (dateTime.isBefore(nowKST) || dateTime.isAtSameMomentAs(nowKST)) {
-          if (mounted) {
+          if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('신청 시작일시는 현재 시간보다 나중이어야 합니다'),
                 backgroundColor: Colors.orange,
               ),
             );
-          }
           return;
         }
 
@@ -2657,6 +2651,7 @@ class _CampaignCreationScreenState
     );
 
     if (date != null) {
+      if (!mounted) return;
       final time = await showTimePicker(
         context: context,
         initialTime: _applyEndDateTime != null
@@ -2695,6 +2690,7 @@ class _CampaignCreationScreenState
     );
 
     if (date != null) {
+      if (!mounted) return;
       final time = await showTimePicker(
         context: context,
         initialTime: _reviewStartDateTime != null
@@ -2704,6 +2700,7 @@ class _CampaignCreationScreenState
       );
 
       if (time != null) {
+        if (!mounted) return;
         // 한국 시간(KST)으로 DateTime 생성
         final dateTime = DateTimeUtils.nowKST().copyWith(
           year: date.year,
@@ -2717,14 +2714,13 @@ class _CampaignCreationScreenState
 
         // 현재 시간보다 나중인지 검증
         if (dateTime.isBefore(nowKST) || dateTime.isAtSameMomentAs(nowKST)) {
-          if (mounted) {
+          if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('리뷰 시작일시는 현재 시간보다 나중이어야 합니다'),
                 backgroundColor: Colors.orange,
               ),
             );
-          }
           return;
         }
 
@@ -2749,6 +2745,7 @@ class _CampaignCreationScreenState
 
     if (date == null) return;
 
+    if (!mounted) return;
     final time = await showTimePicker(
       context: context,
       initialTime: _reviewEndDateTime != null
@@ -2899,7 +2896,7 @@ class _CampaignCreationScreenState
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _paymentType,
+              initialValue: _paymentType,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: '비용 지급 방법 *',
@@ -2934,6 +2931,7 @@ class _CampaignCreationScreenState
               items: [
                 DropdownMenuItem(
                   value: 'direct',
+                  enabled: true,
                   child: Builder(
                     builder: (context) {
                       final maxParticipants =
@@ -2948,10 +2946,10 @@ class _CampaignCreationScreenState
                       );
                     },
                   ),
-                  enabled: true,
                 ),
                 DropdownMenuItem(
                   value: 'platform',
+                  enabled: false,
                   child: Builder(
                     builder: (context) {
                       final maxParticipants =
@@ -2974,7 +2972,6 @@ class _CampaignCreationScreenState
                       );
                     },
                   ),
-                  enabled: false,
                 ),
               ],
               onChanged: (value) {
@@ -3139,6 +3136,7 @@ class _CampaignCreationScreenState
     int reviewEndDays = currentSchedule.reviewEndDays;
     TimeOfDay reviewEndTime = parseTime(currentSchedule.reviewEndTime);
 
+    if (!mounted) return;
     await showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -3426,7 +3424,7 @@ class _CampaignCreationScreenState
       elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: color.withOpacity(0.3), width: 1),
+        side: BorderSide(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -3452,73 +3450,6 @@ class _CampaignCreationScreenState
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTimeSelector(
-    BuildContext context,
-    String label,
-    TimeOfDay currentTime,
-    Function(TimeOfDay) onTimeSelected,
-    String preview,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 8),
-        InkWell(
-          onTap: () async {
-            final time = await showTimePicker(
-              context: context,
-              initialTime: currentTime,
-              initialEntryMode: TimePickerEntryMode.input,
-            );
-            if (time != null) {
-              onTimeSelected(time);
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.access_time, color: Colors.blue[700], size: 20),
-                const SizedBox(width: 12),
-                Text(
-                  '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                Icon(Icons.chevron_right, color: Colors.grey[400]),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '미리보기: $preview',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ],
     );
   }
 
@@ -3692,7 +3623,7 @@ class _CampaignCreationScreenState
     try {
       return img.decodeImage(imageBytes);
     } catch (e) {
-      print('❌ Isolate 이미지 디코딩 실패: $e');
+      debugPrint('❌ Isolate 이미지 디코딩 실패: $e');
       return null;
     }
   }
@@ -3711,7 +3642,7 @@ class _CampaignCreationScreenState
       image = await Future.microtask(() => img.decodeImage(bytes));
 
       if (image == null) {
-        print('❌ 이미지 디코딩 실패, 원본 반환');
+        debugPrint('❌ 이미지 디코딩 실패, 원본 반환');
         return bytes;
       }
 
@@ -3742,13 +3673,13 @@ class _CampaignCreationScreenState
         () => Uint8List.fromList(img.encodeJpg(resized, quality: quality)),
       );
 
-      print(
+      debugPrint(
         '✅ 이미지 리사이징 (웹): ${image.width}x${image.height} -> ${resized.width}x${resized.height}',
       );
 
       return resizedBytes;
     } catch (e) {
-      print('❌ 리사이징 실패: $e, 원본 반환');
+      debugPrint('❌ 리사이징 실패: $e, 원본 반환');
       return bytes;
     }
   }
@@ -3757,7 +3688,7 @@ class _CampaignCreationScreenState
     try {
       final originalImage = img.decodeImage(params.imageBytes);
       if (originalImage == null) {
-        print('❌ 이미지 디코딩 실패, 원본 반환');
+        debugPrint('❌ 이미지 디코딩 실패, 원본 반환');
         return params.imageBytes;
       }
 
@@ -3794,13 +3725,13 @@ class _CampaignCreationScreenState
         img.encodeJpg(resizedImage, quality: params.quality),
       );
 
-      print(
-        '✅ 이미지 리사이징: ${originalWidth}x${originalHeight} -> ${newWidth}x${newHeight}',
+      debugPrint(
+        '✅ 이미지 리사이징: ${originalWidth}x$originalHeight -> ${newWidth}x$newHeight',
       );
 
       return resizedBytes;
     } catch (e) {
-      print('❌ 리사이징 실패: $e, 원본 반환');
+      debugPrint('❌ 리사이징 실패: $e, 원본 반환');
       return params.imageBytes;
     }
   }

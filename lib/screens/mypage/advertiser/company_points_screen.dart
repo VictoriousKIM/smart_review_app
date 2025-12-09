@@ -266,7 +266,7 @@ class _CompanyPointsScreenState extends State<CompanyPointsScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha:0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -287,7 +287,7 @@ class _CompanyPointsScreenState extends State<CompanyPointsScreen> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: color.withOpacity(0.1),
+                              color: color.withValues(alpha:0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(

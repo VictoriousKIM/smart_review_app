@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
@@ -248,7 +248,7 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
             top: 0,
             width: left,
             height: displayHeight,
-            child: Container(color: Colors.black.withOpacity(0.5)),
+            child: Container(color: Colors.black.withValues(alpha: 0.5)),
           ),
         // 오른쪽
         if (left + width < displayWidth)
@@ -257,7 +257,7 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
             top: 0,
             width: displayWidth - (left + width),
             height: displayHeight,
-            child: Container(color: Colors.black.withOpacity(0.5)),
+            child: Container(color: Colors.black.withValues(alpha: 0.5)),
           ),
         // 위쪽
         if (top > 0)
@@ -266,7 +266,7 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
             top: 0,
             width: width,
             height: top,
-            child: Container(color: Colors.black.withOpacity(0.5)),
+            child: Container(color: Colors.black.withValues(alpha: 0.5)),
           ),
         // 아래쪽
         if (top + height < displayHeight)
@@ -275,7 +275,7 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
             top: top + height,
             width: width,
             height: displayHeight - (top + height),
-            child: Container(color: Colors.black.withOpacity(0.5)),
+            child: Container(color: Colors.black.withValues(alpha: 0.5)),
           ),
       ],
     );
@@ -356,7 +356,7 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
@@ -419,7 +419,7 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
       _dragMode = 'none';
     }
 
-    print('🎯 드래그 모드: $_dragMode');
+    debugPrint('🎯 드래그 모드: $_dragMode');
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
@@ -508,7 +508,7 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
     _dragStart = null;
     _dragStartRect = null;
     _dragMode = 'none';
-    print('✅ 최종 크롭: ${_cropRect}');
+    debugPrint('✅ 최종 크롭: $_cropRect');
   }
 }
 
@@ -517,7 +517,7 @@ class GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
+      ..color = Colors.white.withValues(alpha: 0.5)
       ..strokeWidth = 1;
 
     // 세로선

@@ -1,6 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show compute, kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image/image.dart' as img;
@@ -18,7 +17,7 @@ class CampaignImageService {
   /// Returns: 추출된 캠페인 정보 또는 null
   Future<Map<String, dynamic>?> extractFromImage(Uint8List imageBytes) async {
     try {
-      print('🔍 이미지 분석 시작...');
+      debugPrint('🔍 이미지 분석 시작...');
 
       // ✅ Phase 2.2: 분석용 저해상도 이미지 사용 (1024px 이하)
       // 큰 이미지는 분석에 불필요하고 디코딩 시간만 늘림
@@ -26,7 +25,7 @@ class CampaignImageService {
         imageBytes,
         maxSize: 1024,
       );
-      print('📏 분석용 이미지 크기: ${analysisBytes.lengthInBytes} bytes');
+      debugPrint('📏 분석용 이미지 크기: ${analysisBytes.lengthInBytes} bytes');
 
       // ✅ 웹에서는 직접 디코딩, 네이티브에서는 isolate 사용
       Map<String, int>? imageInfo;
@@ -43,15 +42,15 @@ class CampaignImageService {
       }
 
       if (imageInfo == null) {
-        print('❌ 이미지 디코딩 실패');
+        debugPrint('❌ 이미지 디코딩 실패');
         return null;
       }
 
       final imageWidth = imageInfo['width'] as int;
       final imageHeight = imageInfo['height'] as int;
-      print('📏 분석용 이미지 크기: ${imageWidth}x${imageHeight}');
+      debugPrint('📏 분석용 이미지 크기: ${imageWidth}x$imageHeight');
 
-      print('📤 Workers API 호출 중 (multipart/form-data)...');
+      debugPrint('📤 Workers API 호출 중 (multipart/form-data)...');
 
       // multipart/form-data로 분석용 이미지 파일 전송 (원본 대신 저해상도 이미지)
       final request = http.MultipartRequest(
@@ -97,26 +96,26 @@ class CampaignImageService {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('📥 응답 상태: ${response.statusCode}');
+      debugPrint('📥 응답 상태: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
 
         if (result['success'] == true) {
           final model = result['model'] ?? 'unknown';
-          print('✅ 이미지 분석 성공 (모델: $model)');
-          print('📋 추출된 데이터: ${result['data']}');
+          debugPrint('✅ 이미지 분석 성공 (모델: $model)');
+          debugPrint('📋 추출된 데이터: ${result['data']}');
           return result['data'];
         } else {
-          print('❌ 이미지 분석 실패: ${result['error']}');
+          debugPrint('❌ 이미지 분석 실패: ${result['error']}');
           return null;
         }
       } else {
-        print('❌ HTTP 에러: ${response.statusCode} - ${response.body}');
+        debugPrint('❌ HTTP 에러: ${response.statusCode} - ${response.body}');
         return null;
       }
     } catch (e) {
-      print('❌ 이미지 분석 실패: $e');
+      debugPrint('❌ 이미지 분석 실패: $e');
       return null;
     }
   }
@@ -163,7 +162,7 @@ class CampaignImageService {
       }
 
       if (image == null) {
-        print('⚠️ 이미지 디코딩 실패, 원본 반환');
+        debugPrint('⚠️ 이미지 디코딩 실패, 원본 반환');
         return bytes;
       }
 
@@ -223,12 +222,12 @@ class CampaignImageService {
         () => Uint8List.fromList(img.encodeJpg(resizedImage, quality: 85)),
       );
 
-      print(
-        '✅ 분석용 이미지 준비: ${decodedImage.width}x${decodedImage.height} -> ${newWidth}x${newHeight}',
+      debugPrint(
+        '✅ 분석용 이미지 준비: ${decodedImage.width}x${decodedImage.height} -> ${newWidth}x$newHeight',
       );
       return resizedBytes;
     } catch (e) {
-      print('⚠️ 분석용 이미지 준비 실패: $e, 원본 반환');
+      debugPrint('⚠️ 분석용 이미지 준비 실패: $e, 원본 반환');
       return bytes;
     }
   }
@@ -242,7 +241,7 @@ class CampaignImageService {
       }
       return {'width': image.width, 'height': image.height};
     } catch (e) {
-      print('❌ Isolate에서 이미지 디코딩 실패: $e');
+      debugPrint('❌ Isolate에서 이미지 디코딩 실패: $e');
       return null;
     }
   }
@@ -252,7 +251,7 @@ class CampaignImageService {
     try {
       return img.decodeImage(imageBytes);
     } catch (e) {
-      print('❌ Isolate에서 이미지 디코딩 실패: $e');
+      debugPrint('❌ Isolate에서 이미지 디코딩 실패: $e');
       return null;
     }
   }

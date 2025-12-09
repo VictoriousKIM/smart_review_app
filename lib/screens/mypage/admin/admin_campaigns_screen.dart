@@ -139,7 +139,7 @@ class _AdminCampaignsScreenState extends ConsumerState<AdminCampaignsScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
-                  value: _statusFilter,
+                  initialValue: _statusFilter,
                   decoration: InputDecoration(
                     labelText: '상태',
                     border: OutlineInputBorder(
