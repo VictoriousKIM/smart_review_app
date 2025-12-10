@@ -2891,15 +2891,19 @@ class _CampaignCreationScreenState
                 String previewText;
                 if (days == 0) {
                   previewText = '미리보기: 중복 방지 비활성화';
+                } else if (_applyStartDateTime == null) {
+                  previewText = '미리보기: 캠페인 시작일을 먼저 설정해주세요';
                 } else {
-                  final now = DateTimeUtils.nowKST();
-                  final startDate = now;
-                  final endDate = now.add(Duration(days: days));
+                  // 캠페인 시작일 이전 X일 동안 중복 참여 방지
+                  final campaignStartDate = _applyStartDateTime!;
+                  final endDate = campaignStartDate.subtract(const Duration(days: 1)); // 시작일 전날까지
+                  final startDate = endDate.subtract(Duration(days: days - 1)); // X일 전부터
                   final startDateStr =
                       '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
                   final endDateStr =
                       '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
-                  previewText = '미리보기: $startDateStr ~ $endDateStr ($days일 내 중복 금지)';
+                  previewText =
+                      '미리보기: $startDateStr ~ $endDateStr (캠페인 시작일 이전 $days일 내 중복 금지)';
                 }
                 return Text(
                   previewText,
@@ -3658,23 +3662,39 @@ class _CampaignCreationScreenState
                               if (days == 0) {
                                 previewText = '미리보기: 중복 방지 비활성화';
                               } else {
+                                // 기본 설정 다이얼로그에서는 현재 날짜를 기준으로 예시 표시
+                                // 실제 캠페인 생성 시에는 캠페인 시작일 기준으로 계산됨
                                 final now = DateTimeUtils.nowKST();
-                                final startDate = now;
-                                final endDate = now.add(Duration(days: days));
+                                final endDate = now.subtract(const Duration(days: 1)); // 시작일 전날까지
+                                final startDate = endDate.subtract(Duration(days: days - 1)); // X일 전부터
                                 final startDateStr =
                                     '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
                                 final endDateStr =
                                     '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
                                 previewText =
-                                    '미리보기: $startDateStr ~ $endDateStr ($days일 내 중복 금지)';
+                                    '미리보기: $startDateStr ~ $endDateStr (캠페인 시작일 이전 $days일 내 중복 금지)';
                               }
-                              return Text(
-                                previewText,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                  fontStyle: FontStyle.italic,
-                                ),
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    previewText,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                  if (days > 0)
+                                    Text(
+                                      '* 실제 캠페인 생성 시 캠페인 시작일 기준으로 계산됩니다',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey[500],
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                ],
                               );
                             },
                           ),
