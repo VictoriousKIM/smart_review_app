@@ -4,79 +4,64 @@ import 'auth_service.dart';
 
 /// 회사 정보 관리 서비스
 class CompanyService {
-  /// 광고주 회사 정보 조회 (기존 RPC 함수 조합 사용)
+  /// 광고주 회사 정보 조회 (RPC 함수 사용)
   /// owner, manager 역할만 조회 (광고주 전용 기능용)
+  /// 데이터베이스 레벨에서 필터링되므로 안전
   static Future<Map<String, dynamic>?> getAdvertiserCompanyByUserId(
     String userId,
   ) async {
     try {
       final supabase = Supabase.instance.client;
 
-      // 1. 사용자 역할 확인 (기존 작동하는 RPC 사용)
-      final companyRole =
-          await supabase.rpc(
-                'get_user_company_role_safe',
-                params: {'p_user_id': userId},
-              )
-              as String?;
+      // get_advertiser_company_by_user_id RPC 함수 직접 사용
+      // 이 함수는 owner/manager 역할만 반환하도록 데이터베이스 레벨에서 구현되어 있음
+      final response = await supabase.rpc(
+        'get_advertiser_company_by_user_id',
+        params: {'p_user_id': userId},
+      );
 
-      // owner 또는 manager가 아니면 null 반환
-      if (companyRole != 'owner' && companyRole != 'manager') {
+      if (response == null) {
         return null;
       }
 
-      // 2. 회사 ID 조회 (기존 작동하는 RPC 사용)
-      final companyId =
-          await supabase.rpc(
-                'get_user_company_id_safe',
-                params: {'p_user_id': userId},
-              )
-              as String?;
-
-      if (companyId == null) {
+      // RPC 함수는 TABLE을 반환하므로 첫 번째 행을 반환
+      final companyList = response as List;
+      if (companyList.isEmpty) {
         return null;
       }
 
-      // 3. 회사 정보 조회 (RLS 정책이 있으므로 안전)
-      final companyData = await supabase
-          .from('companies')
-          .select()
-          .eq('id', companyId)
-          .maybeSingle();
-
-      return companyData;
+      return companyList[0] as Map<String, dynamic>;
     } catch (e) {
       debugPrint('❌ 광고주 회사 정보 조회 실패: $e');
       return null;
     }
   }
 
-  /// 사용자 ID로 회사 정보 조회 (기존 RPC 함수 조합 사용)
-  /// 리뷰어도 광고주로 등록할 수 있도록 모든 역할의 회사 정보 반환
+  /// 사용자 ID로 회사 정보 조회 (RPC 함수 사용)
+  /// owner/manager 역할만 조회 (reviewer 제외)
+  /// RLS 정책과 RPC 함수에서 필터링되므로 안전
   static Future<Map<String, dynamic>?> getCompanyByUserId(String userId) async {
     try {
       final supabase = Supabase.instance.client;
 
-      // 1. 회사 ID 조회 (기존 작동하는 RPC 사용)
-      final companyId =
-          await supabase.rpc(
-                'get_user_company_id_safe',
-                params: {'p_user_id': userId},
-              )
-              as String?;
+      // get_advertiser_company_by_user_id RPC 함수 사용
+      // 이 함수는 owner/manager 역할만 반환하도록 구현되어 있음
+      final response = await supabase.rpc(
+        'get_advertiser_company_by_user_id',
+        params: {'p_user_id': userId},
+      );
 
-      if (companyId == null) {
+      if (response == null) {
         return null;
       }
 
-      // 2. 회사 정보 조회 (RLS 정책이 있으므로 안전)
-      final companyData = await supabase
-          .from('companies')
-          .select()
-          .eq('id', companyId)
-          .maybeSingle();
+      // RPC 함수는 TABLE을 반환하므로 첫 번째 행을 반환
+      final companyList = response as List;
+      if (companyList.isEmpty) {
+        return null;
+      }
 
-      return companyData;
+      return companyList[0] as Map<String, dynamic>;
     } catch (e) {
       debugPrint('❌ 사용자 회사 정보 조회 실패: $e');
       return null;
@@ -118,48 +103,40 @@ class CompanyService {
     }
   }
 
-  /// 매니저 등록 요청 상태 조회 (기존 RPC 함수 조합 사용)
+  /// 매니저 등록 요청 상태 조회 (RPC 함수 사용)
   /// pending 또는 rejected 상태
+  /// 데이터베이스 레벨에서 필터링되므로 안전
   static Future<Map<String, dynamic>?> getPendingManagerRequest(
     String userId,
   ) async {
     try {
       final supabase = Supabase.instance.client;
 
-      // company_users 테이블에서 pending 또는 rejected 상태의 manager 역할 조회
-      // RLS 정책이 있으므로 안전
-      final companyUserResponse = await supabase
-          .from('company_users')
-          .select('company_id, status, created_at')
-          .eq('user_id', userId)
-          .inFilter('status', ['pending', 'rejected'])
-          .eq('company_role', 'manager')
-          .maybeSingle();
+      // RPC 함수 호출 (TABLE 반환)
+      final response = await supabase.rpc(
+        'get_pending_manager_request_safe',
+        params: {'p_user_id': userId},
+      );
 
-      if (companyUserResponse == null) {
+      if (response == null) {
         return null;
       }
 
-      final companyId = companyUserResponse['company_id'] as String?;
-      if (companyId == null) {
+      // TABLE 반환이므로 첫 번째 행을 반환
+      final resultList = response as List;
+      if (resultList.isEmpty) {
         return null;
       }
 
-      // 회사 정보 조회 (RLS 정책이 있으므로 안전)
-      final companyData = await supabase
-          .from('companies')
-          .select()
-          .eq('id', companyId)
-          .maybeSingle();
+      final firstRow = resultList[0] as Map<String, dynamic>;
 
-      if (companyData == null) {
-        return null;
-      }
-
+      // 기존 형식과 호환되도록 변환
       return {
-        ...companyData,
-        'status': companyUserResponse['status'],
-        'requested_at': companyUserResponse['created_at'],
+        'id': firstRow['company_id'],
+        'business_name': firstRow['business_name'],
+        'business_number': firstRow['business_number'],
+        'status': firstRow['status'],
+        'requested_at': firstRow['requested_at'],
       };
     } catch (e) {
       debugPrint('❌ 매니저 등록 요청 상태 조회 실패: $e');
@@ -167,19 +144,22 @@ class CompanyService {
     }
   }
 
-  /// 매니저 등록 요청 삭제 (RLS 정책 활용)
+  /// 매니저 등록 요청 삭제 (RPC 함수 사용)
+  /// 데이터베이스 레벨에서 권한 체크 및 삭제 수행
   static Future<void> cancelManagerRequest(String userId) async {
     try {
       final supabase = Supabase.instance.client;
 
-      // pending 상태의 manager 역할 삭제
-      // RLS 정책이 있으므로 안전 (사용자 본인의 요청만 삭제 가능)
-      await supabase
-          .from('company_users')
-          .delete()
-          .eq('user_id', userId)
-          .eq('status', 'pending')
-          .eq('company_role', 'manager');
+      // RPC 함수 호출 (jsonb 반환)
+      final response = await supabase.rpc(
+        'cancel_manager_request_safe',
+        params: {'p_user_id': userId},
+      );
+
+      // 응답 확인 (기존 함수는 jsonb를 반환)
+      if (response == null) {
+        throw Exception('매니저 등록 요청 삭제 실패: 응답이 없습니다.');
+      }
     } catch (e) {
       debugPrint('❌ 매니저 등록 요청 삭제 실패: $e');
       rethrow;
@@ -220,6 +200,34 @@ class CompanyService {
     } catch (e) {
       debugPrint('❌ 리뷰어 요청 목록 조회 실패: $e');
       rethrow;
+    }
+  }
+
+  /// 사업자명으로 회사 검색 (RPC 함수 사용)
+  /// 데이터베이스 레벨에서 검색 수행
+  static Future<List<Map<String, dynamic>>> searchCompaniesByName(
+    String businessName,
+  ) async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      // RPC 함수 호출
+      final response = await supabase.rpc(
+        'search_companies_by_name',
+        params: {
+          'p_business_name': businessName.trim(),
+        },
+      );
+
+      if (response == null) {
+        return [];
+      }
+
+      // TABLE 반환이므로 List로 변환
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      debugPrint('❌ 회사 검색 실패: $e');
+      return [];
     }
   }
 

@@ -9,7 +9,6 @@ import '../../../services/campaign_service.dart';
 import '../../../services/campaign_realtime_manager.dart';
 import '../../../services/company_user_service.dart';
 import '../../../services/auth_service.dart';
-import '../../../config/supabase_config.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../utils/date_time_utils.dart';
 
@@ -595,48 +594,13 @@ class _AdvertiserMyCampaignsScreenState
         }
       } else {
         debugPrint('❌ getUserCampaigns 실패 - error: ${result.error}');
-      }
-
-      // RPC 실패 또는 결과가 비어있으면 대체 로직 실행
-      if (loadedCampaigns.isEmpty) {
-        debugPrint('⚠️ RPC 결과가 비어있거나 실패. 대체 로직 실행...');
-        try {
-          // 1. 사용자의 회사 ID 조회
-          final companyResult = await SupabaseConfig.client
-              .from('company_users')
-              .select('company_id')
-              .eq('user_id', userId)
-              .eq('status', 'active')
-              .maybeSingle();
-
-          if (companyResult != null) {
-            final companyId = companyResult['company_id'] as String;
-
-            // 2. 회사의 캠페인 조회
-            final directResult = await SupabaseConfig.client
-                .from('campaigns')
-                .select()
-                .eq('company_id', companyId)
-                .order('created_at', ascending: false);
-
-            loadedCampaigns = (directResult as List)
-                .map((json) => Campaign.fromJson(json))
-                .toList();
-
-            debugPrint('✅ 대체 로직으로 ${loadedCampaigns.length}개 캠페인 조회 성공');
-          } else {
-            debugPrint('⚠️ 사용자가 활성 회사에 소속되지 않음');
-          }
-        } catch (e) {
-          debugPrint('❌ 대체 조회 실패: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('캠페인을 불러오는데 실패했습니다: $e'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('캠페인을 불러오는데 실패했습니다: ${result.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
 

@@ -1040,6 +1040,7 @@ class _BusinessRegistrationFormState
   }
 
   /// 기존 회사 정보 로드
+  /// reviewer 역할인 경우 회사 정보를 로드하지 않음 (owner/manager만 조회)
   Future<void> _loadExistingCompanyData() async {
     try {
       setState(() {
@@ -1053,8 +1054,9 @@ class _BusinessRegistrationFormState
         return;
       }
 
-      // 사용자의 회사 정보 조회
-      final companyData = await CompanyService.getCompanyByUserId(userId);
+      // reviewer 역할인 경우 회사 정보를 로드하지 않음
+      // owner/manager 역할만 회사 정보 조회
+      final companyData = await CompanyService.getAdvertiserCompanyByUserId(userId);
 
       if (companyData != null) {
         setState(() {

@@ -1619,15 +1619,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             });
 
             try {
-              final supabase = SupabaseConfig.client;
-
-              // 여러 결과 반환 (maybeSingle() 대신 select() 사용)
-              final response = await supabase
-                  .from('companies')
-                  .select(
-                    'id, business_name, business_number, representative_name, address',
-                  )
-                  .eq('business_name', businessName);
+              // RPC 함수 사용 (데이터베이스 레벨에서 검색)
+              final response = await CompanyService.searchCompaniesByName(businessName);
 
               if (response.isNotEmpty) {
                 // 검색 성공 시 실패 횟수 리셋

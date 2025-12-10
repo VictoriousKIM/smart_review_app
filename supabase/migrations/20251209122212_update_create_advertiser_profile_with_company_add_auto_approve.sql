@@ -685,6 +685,7 @@ ALTER FUNCTION "public"."backup_user_data_safe"("p_user_id" "uuid") OWNER TO "po
 
 CREATE OR REPLACE FUNCTION "public"."calculate_campaign_cost"("p_payment_method" "text", "p_payment_amount" integer, "p_campaign_reward" integer, "p_max_participants" integer) RETURNS integer
     LANGUAGE "plpgsql"
+    SET "search_path" TO ''
     AS $$
 BEGIN
   IF p_payment_method = 'platform' THEN
@@ -3479,6 +3480,7 @@ ALTER FUNCTION "public"."ensure_user_wallet"("p_user_id" "uuid") OWNER TO "postg
 
 CREATE OR REPLACE FUNCTION "public"."get_active_campaigns_optimized"() RETURNS "public"."campaign_response"
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
     AS $$
 DECLARE
   result campaign_response;
@@ -3510,7 +3512,7 @@ BEGIN
       'company_id', company_id
     )
   ) INTO result.campaigns
-  FROM campaigns
+  FROM public.campaigns
   WHERE status = 'active'
     AND apply_start_date <= now_ts
     AND apply_end_date > now_ts
@@ -3519,7 +3521,7 @@ BEGIN
 
   -- 2. 가장 가까운 "오픈 예정" 시간 계산 (데이터는 안 가져옴, 시간만!)
   SELECT MIN(apply_start_date) INTO result.next_open_at
-  FROM campaigns
+  FROM public.campaigns
   WHERE status = 'active'
     AND apply_start_date > now_ts;
 
@@ -5573,6 +5575,7 @@ ALTER FUNCTION "public"."get_user_wallets"("p_user_id" "uuid") OWNER TO "postgre
 
 CREATE OR REPLACE FUNCTION "public"."get_wallet_by_company_id"("p_company_id" "uuid") RETURNS TABLE("id" "uuid", "company_id" "uuid", "user_id" "uuid", "current_points" integer, "withdraw_bank_name" "text", "withdraw_account_number" "text", "withdraw_account_holder" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone)
     LANGUAGE "plpgsql" STABLE
+    SET "search_path" TO ''
     AS $$
 BEGIN
     RETURN QUERY
@@ -5597,6 +5600,7 @@ ALTER FUNCTION "public"."get_wallet_by_company_id"("p_company_id" "uuid") OWNER 
 
 CREATE OR REPLACE FUNCTION "public"."get_wallet_by_user_id"("p_user_id" "uuid") RETURNS TABLE("id" "uuid", "company_id" "uuid", "user_id" "uuid", "current_points" integer, "withdraw_bank_name" "text", "withdraw_account_number" "text", "withdraw_account_holder" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone)
     LANGUAGE "plpgsql" STABLE
+    SET "search_path" TO ''
     AS $$
 BEGIN
     RETURN QUERY
@@ -7584,6 +7588,7 @@ ALTER FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uui
 
 CREATE OR REPLACE FUNCTION "public"."update_company_users_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
+    SET "search_path" TO ''
     AS $$
 BEGIN
     NEW."updated_at" = now();
@@ -7894,6 +7899,7 @@ ALTER FUNCTION "public"."update_sns_connection"("p_id" "uuid", "p_user_id" "uuid
 
 CREATE OR REPLACE FUNCTION "public"."update_sns_connections_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
+    SET "search_path" TO ''
     AS $$
 BEGIN
     NEW."updated_at" = now();
@@ -7907,6 +7913,7 @@ ALTER FUNCTION "public"."update_sns_connections_updated_at"() OWNER TO "postgres
 
 CREATE OR REPLACE FUNCTION "public"."update_sns_platform_connections_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
+    SET "search_path" TO ''
     AS $$
 BEGIN
     NEW."updated_at" = now();
@@ -7920,6 +7927,7 @@ ALTER FUNCTION "public"."update_sns_platform_connections_updated_at"() OWNER TO 
 
 CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
     LANGUAGE "plpgsql"
+    SET "search_path" TO ''
     AS $$
 BEGIN
   NEW.updated_at = NOW();
@@ -8155,6 +8163,7 @@ ALTER FUNCTION "public"."update_wallet_balance_on_transaction"() OWNER TO "postg
 
 CREATE OR REPLACE FUNCTION "public"."update_wallets_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
+    SET "search_path" TO ''
     AS $$
 BEGIN
     NEW.updated_at = NOW();

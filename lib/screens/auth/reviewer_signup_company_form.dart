@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../../config/supabase_config.dart';
+import '../../services/company_service.dart';
 
 /// 리뷰어 회원가입 - 회사 선택 폼
 class ReviewerSignupCompanyForm extends StatefulWidget {
@@ -226,12 +227,8 @@ class _ReviewerSignupCompanyFormState extends State<ReviewerSignupCompanyForm> {
     });
 
     try {
-      final response = await SupabaseConfig.client
-          .from('companies')
-          .select(
-            'id, business_name, business_number, representative_name, address',
-          )
-          .eq('business_name', businessName);
+      // RPC 함수 사용 (데이터베이스 레벨에서 검색)
+      final response = await CompanyService.searchCompaniesByName(businessName);
 
       if (mounted) {
         if (response.isNotEmpty) {

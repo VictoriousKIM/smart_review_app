@@ -331,3 +331,75 @@ final userId = session?.user.id;
 - 새로운 서비스 메서드를 추가할 때는 **반드시** `AuthService.getCurrentUserId()`를 사용해야 합니다
 - 기존 코드를 수정할 때도 `_supabase.auth.currentUser`를 사용하는 부분이 있다면 수정해야 합니다
 - Custom JWT 세션은 네이버 로그인에서만 사용되며, 다른 OAuth 제공자(Google, Kakao)는 Supabase 세션을 사용합니다
+
+## 🔒 보안 및 데이터 접근 제어 원칙
+
+**핵심 원칙:**
+- ❌ **프론트엔드에서 보안/필터링 로직 하드코딩 금지** - 우회 가능
+- ✅ **데이터베이스 레벨에서 보안 처리** - RLS + RPC 함수 이중 보안
+- ✅ **역할 기반 필터링은 RPC 함수에서 수행**
+
+### ✅ 올바른 방법
+
+```dart
+// ❌ 잘못: 프론트엔드에서 역할 체크 후 데이터 접근
+if (role != 'owner') return null;
+final data = await supabase.from('table').select();
+
+// ✅ 올바름: RPC 함수 사용 (데이터베이스 레벨 필터링)
+final data = await Service.getDataByUserId(userId);
+```
+
+### ❌ 금지 사항
+
+1. 프론트엔드에서 역할 체크 후 데이터 접근
+2. 직접 쿼리로 복잡한 필터링 (`.eq('role', 'manager')` 등)
+3. RPC 실패 시 직접 쿼리로 대체 (Fallback)
+4. 프론트엔드에서 권한 체크 후 직접 쿼리
+
+### 📋 RPC 함수 생성 규칙
+
+**필수 사항:**
+```sql
+CREATE OR REPLACE FUNCTION "public"."function_name"(
+    "p_user_id" "uuid" DEFAULT NULL::"uuid"  -- Custom JWT 세션 지원
+)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''  -- ✅ 필수: 보안 강화
+    AS $$
+DECLARE
+    v_user_id UUID := COALESCE(p_user_id, auth.uid());
+    v_role TEXT;
+BEGIN
+    -- 권한 체크는 함수 내부에서 수행
+    SELECT company_role INTO v_role FROM public.company_users ...;
+    IF v_role NOT IN ('owner', 'manager') THEN RETURN; END IF;
+    
+    -- 데이터 반환
+    RETURN QUERY SELECT ...;
+END;
+$$;
+```
+
+### 📋 개발 체크리스트
+
+1. ✅ 프론트엔드에서 역할 체크 후 데이터 접근? → RPC 함수로 이동
+2. ✅ 직접 쿼리로 필터링? → RPC 함수로 이동
+3. ✅ RPC 함수에 `SET search_path = ''` 적용?
+4. ✅ `SECURITY DEFINER` 사용?
+5. ✅ Custom JWT 세션 지원? (`p_user_id` 파라미터)
+6. ✅ 권한 체크는 데이터베이스 레벨에서?
+7. ✅ 대체 로직(Fallback) 제거?
+
+### ✅ 허용 가능한 프론트엔드 체크
+
+**UI/UX 목적만 허용:**
+```dart
+// ✅ 허용: UI 표시 제어만
+if (_isOwner) return OwnerOnlyWidget();
+
+// ✅ 허용: 버튼 활성화/비활성화만
+if (!_isOwner) return DisabledButton();
+```
+
+**중요:** UI 제어는 허용되지만, **실제 데이터 접근은 반드시 데이터베이스 레벨에서 제어**되어야 함

@@ -827,14 +827,21 @@ class _AdvertiserManagerScreenState
 
     try {
       final supabase = Supabase.instance.client;
+      final currentUserId = await AuthService.getCurrentUserId();
+      
+      if (currentUserId == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
 
-      // company_users 테이블에서 레코드 삭제 (복합 키 사용)
-      await supabase
-          .from('company_users')
-          .delete()
-          .eq('company_id', manager['company_id'])
-          .eq('user_id', manager['user_id'])
-          .eq('company_role', 'manager');
+      // RPC 함수 호출 (데이터베이스 레벨에서 권한 체크 및 삭제 수행)
+      await supabase.rpc(
+        'remove_manager_safe',
+        params: {
+          'p_company_id': manager['company_id'],
+          'p_manager_user_id': manager['user_id'],
+          'p_current_user_id': currentUserId,
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -236,15 +236,8 @@ class _ReviewerCompanyRequestScreenState
     });
 
     try {
-      final supabase = SupabaseConfig.client;
-
-      // companies 테이블에서 정확히 일치하는 사업자명 검색 (여러 결과 반환)
-      final response = await supabase
-          .from('companies')
-          .select(
-            'id, business_name, business_number, representative_name, address',
-          )
-          .eq('business_name', businessName);
+      // RPC 함수 사용 (데이터베이스 레벨에서 검색)
+      final response = await CompanyService.searchCompaniesByName(businessName);
 
       if (response.isNotEmpty) {
         // 검색 성공 시 실패 횟수 리셋
