@@ -474,6 +474,9 @@ body: ResponsiveScreen(
 - 로그인 화면 ResponsiveBuilder 적용 완료
 - 가이드 화면 ResponsiveBuilder 적용 완료
 
+⚠️ **주의사항:**
+- `signup_screen.dart`는 구조적 문제로 인해 추가 검토 필요
+
 ❌ **남은 작업:**
 - Phase 3: 나머지 인증, 관리자, 기타 화면들 (~18개)
 
