@@ -3174,9 +3174,7 @@ class _CampaignCreationScreenState
     await showDialog(
       context: context,
       builder: (dialogContext) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.9,
@@ -3204,7 +3202,7 @@ class _CampaignCreationScreenState
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
                   ),
                 ],
               ),
@@ -3221,25 +3219,33 @@ class _CampaignCreationScreenState
                     children: [
                       // 일정 설정
                       ListTile(
-                        leading: Icon(Icons.calendar_today, color: Colors.teal[600]),
+                        leading: Icon(
+                          Icons.calendar_today,
+                          color: Colors.teal[600],
+                        ),
                         title: const Text('일정 설정'),
                         subtitle: const Text('신청 기간 및 리뷰 기간 기본값'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          Navigator.of(context).pop();
-                          _showDefaultScheduleSettingsDialog(context);
+                          // 전체 다이얼로그를 닫지 않고 세부 다이얼로그를 그 위에 표시
+                          // 세부 다이얼로그를 닫으면 자동으로 전체 다이얼로그가 다시 보임
+                          _showDefaultScheduleSettingsDialog(dialogContext);
                         },
                       ),
                       const Divider(),
                       // 리뷰 설정
                       ListTile(
-                        leading: Icon(Icons.rate_review, color: Colors.purple[600]),
+                        leading: Icon(
+                          Icons.rate_review,
+                          color: Colors.purple[600],
+                        ),
                         title: const Text('리뷰 설정'),
                         subtitle: const Text('리뷰 타입 및 리뷰비 기본값'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          Navigator.of(context).pop();
-                          _showDefaultReviewSettingsDialog(context);
+                          // 전체 다이얼로그를 닫지 않고 세부 다이얼로그를 그 위에 표시
+                          // 세부 다이얼로그를 닫으면 자동으로 전체 다이얼로그가 다시 보임
+                          _showDefaultReviewSettingsDialog(dialogContext);
                         },
                       ),
                       const Divider(),
@@ -3250,8 +3256,9 @@ class _CampaignCreationScreenState
                         subtitle: const Text('중복 참여 방지 기본값'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          Navigator.of(context).pop();
-                          _showDefaultDuplicateSettingsDialog(context);
+                          // 전체 다이얼로그를 닫지 않고 세부 다이얼로그를 그 위에 표시
+                          // 세부 다이얼로그를 닫으면 자동으로 전체 다이얼로그가 다시 보임
+                          _showDefaultDuplicateSettingsDialog(dialogContext);
                         },
                       ),
                     ],
@@ -3277,14 +3284,18 @@ class _CampaignCreationScreenState
     bool useReviewKeywords = currentSettings.useReviewKeywords;
     String reviewKeywords = currentSettings.reviewKeywords;
 
-    final reviewTextLengthController =
-        TextEditingController(text: reviewTextLength.toString());
-    final reviewImageCountController =
-        TextEditingController(text: reviewImageCount.toString());
-    final campaignRewardController =
-        TextEditingController(text: campaignReward.toString());
-    final reviewKeywordsController =
-        TextEditingController(text: reviewKeywords);
+    final reviewTextLengthController = TextEditingController(
+      text: reviewTextLength.toString(),
+    );
+    final reviewImageCountController = TextEditingController(
+      text: reviewImageCount.toString(),
+    );
+    final campaignRewardController = TextEditingController(
+      text: campaignReward.toString(),
+    );
+    final reviewKeywordsController = TextEditingController(
+      text: reviewKeywords,
+    );
 
     if (!mounted) return;
     await showDialog(
@@ -3309,7 +3320,11 @@ class _CampaignCreationScreenState
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.rate_review, color: Colors.purple[700], size: 28),
+                      Icon(
+                        Icons.rate_review,
+                        color: Colors.purple[700],
+                        size: 28,
+                      ),
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Text(
@@ -3371,7 +3386,7 @@ class _CampaignCreationScreenState
                               ),
                               keyboardType: TextInputType.number,
                               inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly
+                                FilteringTextInputFormatter.digitsOnly,
                               ],
                             ),
                           ],
@@ -3385,7 +3400,7 @@ class _CampaignCreationScreenState
                               ),
                               keyboardType: TextInputType.number,
                               inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly
+                                FilteringTextInputFormatter.digitsOnly,
                               ],
                             ),
                           ],
@@ -3399,7 +3414,7 @@ class _CampaignCreationScreenState
                             ),
                             keyboardType: TextInputType.number,
                             inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
+                              FilteringTextInputFormatter.digitsOnly,
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -3445,24 +3460,24 @@ class _CampaignCreationScreenState
                         onPressed: () async {
                           final settings = CampaignDefaultReviewSettings(
                             reviewType: reviewType,
-                            reviewTextLength: int.tryParse(
-                                  reviewTextLengthController.text,
-                                ) ??
+                            reviewTextLength:
+                                int.tryParse(reviewTextLengthController.text) ??
                                 100,
-                            reviewImageCount: int.tryParse(
-                                  reviewImageCountController.text,
-                                ) ??
+                            reviewImageCount:
+                                int.tryParse(reviewImageCountController.text) ??
                                 1,
-                            campaignReward: int.tryParse(
-                                  campaignRewardController.text,
-                                ) ??
+                            campaignReward:
+                                int.tryParse(campaignRewardController.text) ??
                                 0,
                             useReviewKeywords: useReviewKeywords,
-                            reviewKeywords: reviewKeywordsController.text.trim(),
+                            reviewKeywords: reviewKeywordsController.text
+                                .trim(),
                           );
 
-                          final success = await CampaignDefaultScheduleService
-                              .saveDefaultReviewSettings(settings);
+                          final success =
+                              await CampaignDefaultScheduleService.saveDefaultReviewSettings(
+                                settings,
+                              );
 
                           if (context.mounted) {
                             Navigator.of(context).pop();
@@ -3514,8 +3529,9 @@ class _CampaignCreationScreenState
     bool preventStoreDuplicate = currentSettings.preventStoreDuplicate;
     int duplicatePreventDays = currentSettings.duplicatePreventDays;
 
-    final duplicatePreventDaysController =
-        TextEditingController(text: duplicatePreventDays.toString());
+    final duplicatePreventDaysController = TextEditingController(
+      text: duplicatePreventDays.toString(),
+    );
 
     if (!mounted) return;
     await showDialog(
@@ -3596,7 +3612,7 @@ class _CampaignCreationScreenState
                             ),
                             keyboardType: TextInputType.number,
                             inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
+                              FilteringTextInputFormatter.digitsOnly,
                             ],
                           ),
                         ],
@@ -3617,14 +3633,17 @@ class _CampaignCreationScreenState
                           final settings = CampaignDefaultDuplicateSettings(
                             preventProductDuplicate: preventProductDuplicate,
                             preventStoreDuplicate: preventStoreDuplicate,
-                            duplicatePreventDays: int.tryParse(
+                            duplicatePreventDays:
+                                int.tryParse(
                                   duplicatePreventDaysController.text,
                                 ) ??
                                 0,
                           );
 
-                          final success = await CampaignDefaultScheduleService
-                              .saveDefaultDuplicateSettings(settings);
+                          final success =
+                              await CampaignDefaultScheduleService.saveDefaultDuplicateSettings(
+                                settings,
+                              );
 
                           if (context.mounted) {
                             Navigator.of(context).pop();
@@ -3675,12 +3694,12 @@ class _CampaignCreationScreenState
       if (mounted) {
         setState(() {
           _reviewType = defaultSettings.reviewType;
-          _reviewTextLengthController.text =
-              defaultSettings.reviewTextLength.toString();
-          _reviewImageCountController.text =
-              defaultSettings.reviewImageCount.toString();
-          _campaignRewardController.text =
-              defaultSettings.campaignReward.toString();
+          _reviewTextLengthController.text = defaultSettings.reviewTextLength
+              .toString();
+          _reviewImageCountController.text = defaultSettings.reviewImageCount
+              .toString();
+          _campaignRewardController.text = defaultSettings.campaignReward
+              .toString();
           _useReviewKeywords = defaultSettings.useReviewKeywords;
           _reviewKeywordsController.text = defaultSettings.reviewKeywords;
         });
@@ -3699,8 +3718,9 @@ class _CampaignCreationScreenState
         setState(() {
           _preventProductDuplicate = defaultSettings.preventProductDuplicate;
           _preventStoreDuplicate = defaultSettings.preventStoreDuplicate;
-          _duplicateCheckDaysController.text =
-              defaultSettings.duplicatePreventDays.toString();
+          _duplicateCheckDaysController.text = defaultSettings
+              .duplicatePreventDays
+              .toString();
         });
       }
     } catch (e) {
