@@ -2888,9 +2888,19 @@ class _CampaignCreationScreenState
               valueListenable: _duplicateCheckDaysController,
               builder: (context, value, child) {
                 final days = int.tryParse(value.text) ?? 0;
-                final previewText = days == 0
-                    ? '미리보기: 중복 방지 비활성화'
-                    : '미리보기: $days일 내 중복 금지';
+                String previewText;
+                if (days == 0) {
+                  previewText = '미리보기: 중복 방지 비활성화';
+                } else {
+                  final now = DateTimeUtils.nowKST();
+                  final startDate = now;
+                  final endDate = now.add(Duration(days: days));
+                  final startDateStr =
+                      '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
+                  final endDateStr =
+                      '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+                  previewText = '미리보기: $startDateStr ~ $endDateStr ($days일 내 중복 금지)';
+                }
                 return Text(
                   previewText,
                   style: TextStyle(
@@ -3639,13 +3649,25 @@ class _CampaignCreationScreenState
                           const SizedBox(height: 4),
                           Builder(
                             builder: (context) {
-                              final days = int.tryParse(
+                              final days =
+                                  int.tryParse(
                                     duplicatePreventDaysController.text,
                                   ) ??
                                   0;
-                              final previewText = days == 0
-                                  ? '미리보기: 중복 방지 비활성화'
-                                  : '미리보기: $days일 내 중복 금지';
+                              String previewText;
+                              if (days == 0) {
+                                previewText = '미리보기: 중복 방지 비활성화';
+                              } else {
+                                final now = DateTimeUtils.nowKST();
+                                final startDate = now;
+                                final endDate = now.add(Duration(days: days));
+                                final startDateStr =
+                                    '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
+                                final endDateStr =
+                                    '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+                                previewText =
+                                    '미리보기: $startDateStr ~ $endDateStr ($days일 내 중복 금지)';
+                              }
                               return Text(
                                 previewText,
                                 style: TextStyle(
