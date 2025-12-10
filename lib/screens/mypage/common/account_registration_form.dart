@@ -10,6 +10,7 @@ class AccountRegistrationForm extends StatefulWidget {
   final CompanyWallet? companyWallet;
   final VoidCallback? onSaved;
   final bool isBusinessTab; // 사업자 탭인지 구분
+  final bool readOnly; // 읽기 전용 모드 (매니저 등)
 
   const AccountRegistrationForm({
     super.key,
@@ -17,6 +18,7 @@ class AccountRegistrationForm extends StatefulWidget {
     this.companyWallet,
     this.onSaved,
     this.isBusinessTab = false,
+    this.readOnly = false,
   });
 
   @override
@@ -44,9 +46,13 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
   }
 
   /// 편집 권한 확인
+  /// - readOnly가 true이면 편집 불가
   /// - 회사 지갑인 경우: company_role이 'owner'인 경우만 편집 가능
   /// - 개인 지갑인 경우: 항상 편집 가능
   bool get _canEdit {
+    if (widget.readOnly) {
+      return false; // 읽기 전용 모드
+    }
     if (!_isCompanyWallet) {
       return true; // 개인 지갑은 항상 편집 가능
     }
@@ -176,12 +182,12 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(
-          content: Text('계좌정보가 저장되었습니다'),
-          duration: Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('계좌정보가 저장되었습니다'),
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
 
       // 콜백 호출
@@ -191,9 +197,7 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
         _isSaving = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
             backgroundColor: Colors.red,
@@ -396,7 +400,7 @@ class _AccountRegistrationFormState extends State<AccountRegistrationForm> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  '계좌정보는 회사 소유자만 수정할 수 있습니다.',
+                  '계좌정보는 대표만 수정할 수 있습니다.',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],

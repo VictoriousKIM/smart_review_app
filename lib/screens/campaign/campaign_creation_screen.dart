@@ -23,6 +23,7 @@ import '../../config/supabase_config.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/date_time_utils.dart';
 import '../../utils/keyword_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 /// 리뷰 키워드 입력 제한 Formatter
 /// 키워드 3개 이내, 총 20자 이내로 제한
@@ -1693,115 +1694,136 @@ class _CampaignCreationScreenState
         autovalidateMode: kIsWeb
             ? AutovalidateMode.disabled
             : AutovalidateMode.onUserInteraction,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    border: Border.all(color: Colors.red[200]!),
-                    borderRadius: BorderRadius.circular(8),
+        child: ResponsiveBuilder(
+          builder: (context, sizingInformation) {
+            return SingleChildScrollView(
+              padding: getValueForScreenType<EdgeInsets>(
+                context: context,
+                mobile: const EdgeInsets.all(16),
+                tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 30),
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: getValueForScreenType<double>(
+                      context: context,
+                      mobile: double.infinity,
+                      tablet: 700,
+                      desktop: 900,
+                    ),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(Icons.error_outline, color: Colors.red[600]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _errorMessage!,
-                          style: TextStyle(color: Colors.red[800]),
+                      if (_errorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            border: Border.all(color: Colors.red[200]!),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.red[600]),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: TextStyle(color: Colors.red[800]),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => setState(() => _errorMessage = null),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => setState(() => _errorMessage = null),
+                        const SizedBox(height: 16),
+                      ],
+
+                      _buildWithOptionalBoundary(_buildCampaignTypeSection()),
+                      const SizedBox(height: 24),
+
+                      _buildWithOptionalBoundary(_buildImageSection(), alwaysUse: true),
+                      const SizedBox(height: 24),
+
+                      if (_productImage != null || _capturedImage != null) ...[
+                        _buildWithOptionalBoundary(
+                          _buildProductImageSection(),
+                          alwaysUse: true,
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+
+                      _buildWithOptionalBoundary(_buildProductInfoSection()),
+                      const SizedBox(height: 24),
+
+                      _buildWithOptionalBoundary(_buildReviewSettings()),
+                      const SizedBox(height: 24),
+
+                      _buildWithOptionalBoundary(_buildScheduleSection()),
+                      const SizedBox(height: 24),
+
+                      _buildWithOptionalBoundary(_buildDuplicatePreventSection()),
+                      const SizedBox(height: 24),
+
+                      _buildWithOptionalBoundary(_buildCostSection(), alwaysUse: true),
+                      const SizedBox(height: 24),
+
+                      if (_isUploadingImage) ...[
+                        _buildWithOptionalBoundary(
+                          _buildUploadProgressSection(),
+                          alwaysUse: true,
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+
+                      const SizedBox(height: 32),
+
+                      _buildWithOptionalBoundary(
+                        AbsorbPointer(
+                          absorbing:
+                              !_canCreateCampaign() ||
+                              _isCreatingCampaign ||
+                              _isUploadingImage,
+                          child: Opacity(
+                            opacity:
+                                (_canCreateCampaign() &&
+                                    !_isCreatingCampaign &&
+                                    !_isUploadingImage)
+                                ? 1.0
+                                : 0.6,
+                            child: CustomButton(
+                              text: '캠페인 생성하기',
+                              onPressed:
+                                  _canCreateCampaign() &&
+                                      !_isCreatingCampaign &&
+                                      !_isUploadingImage
+                                  ? () {
+                                      // 중복 호출 방지: 즉시 체크
+                                      if (_isCreatingCampaign) {
+                                        debugPrint('⚠️ 캠페인 생성이 이미 진행 중입니다.');
+                                        return;
+                                      }
+                                      _createCampaign();
+                                    }
+                                  : null,
+                              isLoading: _isCreatingCampaign || _isUploadingImage,
+                              backgroundColor: const Color(0xFF137fec),
+                              textColor: Colors.white,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-              ],
-
-              _buildWithOptionalBoundary(_buildCampaignTypeSection()),
-              const SizedBox(height: 24),
-
-              _buildWithOptionalBoundary(_buildImageSection(), alwaysUse: true),
-              const SizedBox(height: 24),
-
-              if (_productImage != null || _capturedImage != null) ...[
-                _buildWithOptionalBoundary(
-                  _buildProductImageSection(),
-                  alwaysUse: true,
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              _buildWithOptionalBoundary(_buildProductInfoSection()),
-              const SizedBox(height: 24),
-
-              _buildWithOptionalBoundary(_buildReviewSettings()),
-              const SizedBox(height: 24),
-
-              _buildWithOptionalBoundary(_buildScheduleSection()),
-              const SizedBox(height: 24),
-
-              _buildWithOptionalBoundary(_buildDuplicatePreventSection()),
-              const SizedBox(height: 24),
-
-              _buildWithOptionalBoundary(_buildCostSection(), alwaysUse: true),
-              const SizedBox(height: 24),
-
-              if (_isUploadingImage) ...[
-                _buildWithOptionalBoundary(
-                  _buildUploadProgressSection(),
-                  alwaysUse: true,
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              const SizedBox(height: 32),
-
-              _buildWithOptionalBoundary(
-                AbsorbPointer(
-                  absorbing:
-                      !_canCreateCampaign() ||
-                      _isCreatingCampaign ||
-                      _isUploadingImage,
-                  child: Opacity(
-                    opacity:
-                        (_canCreateCampaign() &&
-                            !_isCreatingCampaign &&
-                            !_isUploadingImage)
-                        ? 1.0
-                        : 0.6,
-                    child: CustomButton(
-                      text: '캠페인 생성하기',
-                      onPressed:
-                          _canCreateCampaign() &&
-                              !_isCreatingCampaign &&
-                              !_isUploadingImage
-                          ? () {
-                              // 중복 호출 방지: 즉시 체크
-                              if (_isCreatingCampaign) {
-                                debugPrint('⚠️ 캠페인 생성이 이미 진행 중입니다.');
-                                return;
-                              }
-                              _createCampaign();
-                            }
-                          : null,
-                      isLoading: _isCreatingCampaign || _isUploadingImage,
-                      backgroundColor: const Color(0xFF137fec),
-                      textColor: Colors.white,
-                    ),
-                  ),
-                ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

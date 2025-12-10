@@ -81,6 +81,7 @@ dependencies:
   file_picker: ^10.3.3
   app_links: ^6.3.3
   universal_html: ^2.2.4  # 웹/앱 호환 HTML 처리 (Realtime beforeunload 이벤트용)
+  responsive_builder: ^0.7.1
 
 
 dev_dependencies:

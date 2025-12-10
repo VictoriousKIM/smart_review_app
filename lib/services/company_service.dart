@@ -112,7 +112,7 @@ class CompanyService {
     try {
       final supabase = Supabase.instance.client;
 
-      // RPC 함수 호출 (TABLE 반환)
+      // RPC 함수 호출 (jsonb 반환)
       final response = await supabase.rpc(
         'get_pending_manager_request_safe',
         params: {'p_user_id': userId},
@@ -122,21 +122,19 @@ class CompanyService {
         return null;
       }
 
-      // TABLE 반환이므로 첫 번째 행을 반환
-      final resultList = response as List;
-      if (resultList.isEmpty) {
+      // jsonb 반환이므로 Map으로 변환
+      final result = response as Map<String, dynamic>;
+      if (result.isEmpty) {
         return null;
       }
 
-      final firstRow = resultList[0] as Map<String, dynamic>;
-
       // 기존 형식과 호환되도록 변환
       return {
-        'id': firstRow['company_id'],
-        'business_name': firstRow['business_name'],
-        'business_number': firstRow['business_number'],
-        'status': firstRow['status'],
-        'requested_at': firstRow['requested_at'],
+        'id': result['id'],
+        'business_name': result['business_name'],
+        'business_number': result['business_number'],
+        'status': result['status'],
+        'requested_at': result['requested_at'],
       };
     } catch (e) {
       debugPrint('❌ 매니저 등록 요청 상태 조회 실패: $e');
