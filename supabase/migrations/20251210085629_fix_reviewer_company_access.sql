@@ -13,12 +13,12 @@ USING (
     SELECT 1
     FROM public.company_users cu
     WHERE cu.company_id = companies.id
-      AND cu.user_id = auth.uid()
+      AND cu.user_id = (select auth.uid())
       AND cu.company_role IN ('owner', 'manager')
       AND cu.status = 'active'
   )
   -- 또는 회사 소유자 (companies.user_id)인 경우
-  OR companies.user_id = auth.uid()
+  OR companies.user_id = (select auth.uid())
 );
 
 -- 3. get_user_company_id_safe 함수 수정: owner/manager 역할만 반환

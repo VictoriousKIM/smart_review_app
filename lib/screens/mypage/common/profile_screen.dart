@@ -46,6 +46,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   UserWallet? _userWallet;
   CompanyWallet? _companyWallet;
   bool? _isOwner;
+  bool? _isManager;
   bool _isLoadingOwner = false;
 
   late TabController _tabController;
@@ -791,16 +792,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           const SizedBox(height: 24),
           // 광고주등록폼 통합 (모든 사용자에게 표시)
           _buildBusinessRegistrationForm(),
-          // 오너에게만 표시되는 정보
-          if (_isOwner == true && !_isLoadingOwner) ...[
+          // 오너 또는 매니저에게 표시되는 정보 (표시만, 수정은 오너만 가능)
+          if ((_isOwner == true || _isManager == true) && !_isLoadingOwner) ...[
             const SizedBox(height: 24),
-            // 계좌정보 섹션 (오너만)
+            // 계좌정보 섹션 (오너/매니저 표시, 수정은 오너만)
             AccountRegistrationForm(
               companyWallet: _companyWallet,
               onSaved: _loadWalletData,
               isBusinessTab: true,
+              readOnly: _isManager == true, // 매니저는 읽기 전용
             ),
-            // 회사 정보가 있을 때 리뷰어 자동승인 설정 표시 (오너만)
+            // 회사 정보가 있을 때 리뷰어 자동승인 설정 표시 (오너/매니저 표시, 수정은 오너만)
             if (_existingCompanyData != null && !_isLoadingCompanyData) ...[
               const SizedBox(height: 24),
               _buildAutoApproveReviewersToggle(),
@@ -812,24 +814,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const Center(child: CircularProgressIndicator()),
           ],
           // 오너가 아니고 회사 데이터가 없을 때만 메시지 표시
-          if (_isOwner == false &&
-              _existingCompanyData == null &&
-              !_isLoadingOwner &&
-              !_isLoadingCompanyData) ...[
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange[200]!),
-              ),
-              child: const Text(
-                '회사 정보는 오너만 볼 수 있습니다.',
-                style: TextStyle(color: Colors.orange),
-              ),
-            ),
-          ],
           // 광고주 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
           if (_existingCompanyData == null && !_isLoadingCompanyData) ...[
             const SizedBox(height: 24),
@@ -936,7 +920,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   else
                     Switch(
                       value: autoApproveReviewers,
-                      onChanged: companyId != null
+                      onChanged: companyId != null && _isOwner == true
                           ? (value) async {
                               setState(() {
                                 isUpdating = true;
@@ -992,6 +976,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     : '리뷰어 신청 시 승인이 필요합니다.',
                 style: TextStyle(fontSize: 13, color: Colors.grey[600]),
               ),
+              if (_isManager == true) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '리뷰어 자동승인은 대표만 수정할 수 있습니다.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -1017,17 +1012,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
       // owner 또는 manager 역할만 조회 (reviewer 제외)
       final isOwner = await UserTypeHelper.isAdvertiserOwner(userId);
+      final isManager = await UserTypeHelper.isAdvertiserManager(userId);
       // reviewer는 데이터를 받아서 보이지 않도록 항상 getAdvertiserCompanyByUserId 사용
       final companyData = await CompanyService.getAdvertiserCompanyByUserId(
         userId,
       );
 
       debugPrint(
-        '🔍 회사 데이터 로드 - isOwner: $isOwner, companyData: ${companyData != null}',
+        '🔍 회사 데이터 로드 - isOwner: $isOwner, isManager: $isManager, companyData: ${companyData != null}',
       );
 
       setState(() {
         _isOwner = isOwner; // 오너 상태도 함께 업데이트
+        _isManager = isManager; // 매니저 상태도 함께 업데이트
         _existingCompanyData = companyData;
         _isLoadingCompanyData = false;
         _isLoadingOwner = false; // 오너 상태 로딩도 완료로 표시
@@ -1050,26 +1047,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       // 사용자 ID 가져오기 (Custom JWT 세션 지원)
       final userId = await AuthService.getCurrentUserId();
       if (userId == null) {
-        debugPrint('⚠️ 오너 여부 확인: userId가 null입니다');
+        debugPrint('⚠️ 오너/매니저 여부 확인: userId가 null입니다');
         setState(() {
           _isOwner = false;
+          _isManager = false;
           _isLoadingOwner = false;
         });
         return;
       }
 
-      debugPrint('🔍 오너 여부 확인 시작 - userId: $userId');
+      debugPrint('🔍 오너/매니저 여부 확인 시작 - userId: $userId');
       final isOwner = await UserTypeHelper.isAdvertiserOwner(userId);
-      debugPrint('✅ 오너 여부 확인 완료 - isOwner: $isOwner');
+      final isManager = await UserTypeHelper.isAdvertiserManager(userId);
+      debugPrint(
+        '✅ 오너/매니저 여부 확인 완료 - isOwner: $isOwner, isManager: $isManager',
+      );
 
       setState(() {
         _isOwner = isOwner;
+        _isManager = isManager;
         _isLoadingOwner = false;
       });
     } catch (e) {
-      debugPrint('❌ 오너 여부 확인 실패: $e');
+      debugPrint('❌ 오너/매니저 여부 확인 실패: $e');
       setState(() {
         _isOwner = false;
+        _isManager = false;
         _isLoadingOwner = false;
       });
     }
@@ -1620,7 +1623,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
             try {
               // RPC 함수 사용 (데이터베이스 레벨에서 검색)
-              final response = await CompanyService.searchCompaniesByName(businessName);
+              final response = await CompanyService.searchCompaniesByName(
+                businessName,
+              );
 
               if (response.isNotEmpty) {
                 // 검색 성공 시 실패 횟수 리셋
@@ -1678,7 +1683,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               );
 
               if (context.mounted) {
+                // 회사 데이터 및 pending 요청 먼저 로드
+                await _loadCompanyData();
+                await _loadPendingManagerRequest();
+
+                // 다이얼로그 닫기
                 Navigator.pop(dialogContext);
+
+                // 스낵바 표시
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
@@ -1688,9 +1700,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     duration: const Duration(seconds: 2),
                   ),
                 );
-                // 회사 데이터 및 pending 요청 다시 로드
-                await _loadCompanyData();
-                await _loadPendingManagerRequest();
               }
             } catch (e) {
               setDialogState(() {

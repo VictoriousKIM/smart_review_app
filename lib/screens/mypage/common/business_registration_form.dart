@@ -258,8 +258,8 @@ class _BusinessRegistrationFormState
 
   Widget _buildFileUploadSection() {
     return Container(
-      padding: const EdgeInsets.all(20),
-      color: Colors.white,
+      padding: widget.isSignupMode ? const EdgeInsets.all(20) : EdgeInsets.zero,
+      color: widget.isSignupMode ? Colors.white : Colors.transparent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -622,15 +622,15 @@ class _BusinessRegistrationFormState
   Widget _buildBusinessInfoForm() {
     if (_isLoadingExistingData) {
       return Container(
-        padding: const EdgeInsets.all(20),
-        color: Colors.white,
+        padding: widget.isSignupMode ? const EdgeInsets.all(20) : EdgeInsets.zero,
+        color: widget.isSignupMode ? Colors.white : Colors.transparent,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      color: Colors.white,
+      padding: widget.isSignupMode ? const EdgeInsets.all(20) : EdgeInsets.zero,
+      color: widget.isSignupMode ? Colors.white : Colors.transparent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

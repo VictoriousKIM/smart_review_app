@@ -2624,12 +2624,12 @@ class _CampaignCreationScreenState
         // 현재 시간보다 나중인지 검증
         if (dateTime.isBefore(nowKST) || dateTime.isAtSameMomentAs(nowKST)) {
           if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('신청 시작일시는 현재 시간보다 나중이어야 합니다'),
-                backgroundColor: Colors.orange,
-              ),
-            );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 시작일시는 현재 시간보다 나중이어야 합니다'),
+              backgroundColor: Colors.orange,
+            ),
+          );
           return;
         }
 
@@ -2715,12 +2715,12 @@ class _CampaignCreationScreenState
         // 현재 시간보다 나중인지 검증
         if (dateTime.isBefore(nowKST) || dateTime.isAtSameMomentAs(nowKST)) {
           if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('리뷰 시작일시는 현재 시간보다 나중이어야 합니다'),
-                backgroundColor: Colors.orange,
-              ),
-            );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시는 현재 시간보다 나중이어야 합니다'),
+              backgroundColor: Colors.orange,
+            ),
+          );
           return;
         }
 
@@ -3163,8 +3163,13 @@ class _CampaignCreationScreenState
               borderRadius: BorderRadius.circular(16),
             ),
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
-              padding: const EdgeInsets.all(24),
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.9,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              padding: EdgeInsets.all(
+                MediaQuery.of(context).size.width < 400 ? 16 : 24,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3463,6 +3468,10 @@ class _CampaignCreationScreenState
     String preview,
     String dayLabel,
   ) {
+    // 화면 너비 확인 (아이폰12는 약 390px)
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 400;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3475,119 +3484,241 @@ class _CampaignCreationScreenState
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            // 일수 선택
-            Expanded(
-              flex: 2,
-              child: InkWell(
-                onTap: () async {
-                  final days = await showDialog<int>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('일수 선택'),
-                      content: SizedBox(
-                        width: 200,
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: 15, // 0~14일 (14일 제한)
-                          itemBuilder: (context, index) {
-                            final days = index;
-                            final label = days == 0
-                                ? '오늘'
-                                : days == 1
-                                ? '내일'
-                                : '오늘 +$days일';
-                            return ListTile(
-                              title: Text(label),
-                              selected: days == currentDays,
-                              onTap: () => Navigator.of(context).pop(days),
-                            );
-                          },
+        // 작은 화면에서는 세로로 배치
+        if (isSmallScreen) ...[
+          // 일수 선택
+          InkWell(
+            onTap: () async {
+              final days = await showDialog<int>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('일수 선택'),
+                  content: SizedBox(
+                    width: 200,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: 15, // 0~14일 (14일 제한)
+                      itemBuilder: (context, index) {
+                        final days = index;
+                        final label = days == 0
+                            ? '오늘'
+                            : days == 1
+                            ? '내일'
+                            : '오늘 +$days일';
+                        return ListTile(
+                          title: Text(label),
+                          selected: days == currentDays,
+                          onTap: () => Navigator.of(context).pop(days),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              );
+              if (days != null) {
+                onDaysSelected(days);
+              }
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today,
+                    color: Colors.orange[700],
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      dayLabel,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // 시간 선택
+          InkWell(
+            onTap: () async {
+              final time = await showTimePicker(
+                context: context,
+                initialTime: currentTime,
+                initialEntryMode: TimePickerEntryMode.input,
+              );
+              if (time != null) {
+                onTimeSelected(time);
+              }
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.access_time, color: Colors.orange[700], size: 18),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          // 큰 화면에서는 가로로 배치
+          Row(
+            children: [
+              // 일수 선택
+              Expanded(
+                flex: 2,
+                child: InkWell(
+                  onTap: () async {
+                    final days = await showDialog<int>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('일수 선택'),
+                        content: SizedBox(
+                          width: 200,
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: 15, // 0~14일 (14일 제한)
+                            itemBuilder: (context, index) {
+                              final days = index;
+                              final label = days == 0
+                                  ? '오늘'
+                                  : days == 1
+                                  ? '내일'
+                                  : '오늘 +$days일';
+                              return ListTile(
+                                title: Text(label),
+                                selected: days == currentDays,
+                                onTap: () => Navigator.of(context).pop(days),
+                              );
+                            },
+                          ),
                         ),
                       ),
+                    );
+                    if (days != null) {
+                      onDaysSelected(days);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
                     ),
-                  );
-                  if (days != null) {
-                    onDaysSelected(days);
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          color: Colors.orange[700],
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            dayLabel,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: Colors.grey[400],
+                          size: 20,
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        color: Colors.orange[700],
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          dayLabel,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // 시간 선택
+              Expanded(
+                flex: 3,
+                child: InkWell(
+                  onTap: () async {
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: currentTime,
+                      initialEntryMode: TimePickerEntryMode.input,
+                    );
+                    if (time != null) {
+                      onTimeSelected(time);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          color: Colors.orange[700],
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
-                      Icon(Icons.chevron_right, color: Colors.grey[400]),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // 시간 선택
-            Expanded(
-              flex: 3,
-              child: InkWell(
-                onTap: () async {
-                  final time = await showTimePicker(
-                    context: context,
-                    initialTime: currentTime,
-                    initialEntryMode: TimePickerEntryMode.input,
-                  );
-                  if (time != null) {
-                    onTimeSelected(time);
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        color: Colors.orange[700],
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                        const Spacer(),
+                        Icon(
+                          Icons.chevron_right,
+                          color: Colors.grey[400],
+                          size: 20,
                         ),
-                      ),
-                      const Spacer(),
-                      Icon(Icons.chevron_right, color: Colors.grey[400]),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
         const SizedBox(height: 4),
         Text(
           '미리보기: $preview',
@@ -3596,6 +3727,7 @@ class _CampaignCreationScreenState
             color: Colors.grey[600],
             fontStyle: FontStyle.italic,
           ),
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
