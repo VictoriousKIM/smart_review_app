@@ -7,6 +7,7 @@ import '../../../services/campaign_log_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../widgets/custom_button.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class MyCampaignsScreen extends ConsumerStatefulWidget {
   final String? initialTab;
@@ -214,11 +215,32 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
 
     return RefreshIndicator(
       onRefresh: _loadCampaigns,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: campaigns.length,
-        itemBuilder: (context, index) {
-          return _buildCampaignCard(campaigns[index]);
+      child: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 800,
+                  desktop: 1200,
+                ),
+              ),
+              child: ListView.builder(
+                padding: getValueForScreenType<EdgeInsets>(
+                  context: context,
+                  mobile: const EdgeInsets.all(16),
+                  tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 20),
+                ),
+                itemCount: campaigns.length,
+                itemBuilder: (context, index) {
+                  return _buildCampaignCard(campaigns[index]);
+                },
+              ),
+            ),
+          );
         },
       ),
     );
