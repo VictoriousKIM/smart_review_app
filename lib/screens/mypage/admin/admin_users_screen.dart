@@ -7,6 +7,7 @@ import '../../../models/user.dart' as app_user;
 import '../../../services/admin_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../utils/error_message_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -200,23 +201,39 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // 검색 및 필터 섹션
-          _buildSearchAndFilterSection(),
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 1200,
+                  desktop: 1400,
+                ),
+              ),
+              child: Column(
+                children: [
+                  // 검색 및 필터 섹션
+                  _buildSearchAndFilterSection(),
 
-          // 사용자 목록
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _users.isEmpty
-                    ? const Center(child: Text('사용자가 없습니다'))
-                    : _buildUsersList(),
-          ),
+                  // 사용자 목록
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _users.isEmpty
+                            ? const Center(child: Text('사용자가 없습니다'))
+                            : _buildUsersList(),
+                  ),
 
-          // 페이지네이션
-          if (!_isLoading && _users.isNotEmpty) _buildPagination(),
-        ],
+                  // 페이지네이션
+                  if (!_isLoading && _users.isNotEmpty) _buildPagination(),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

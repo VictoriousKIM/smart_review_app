@@ -6,6 +6,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../config/supabase_config.dart';
 import '../../../utils/error_message_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class AdminStatisticsScreen extends ConsumerStatefulWidget {
   const AdminStatisticsScreen({super.key});
@@ -128,13 +129,30 @@ class _AdminStatisticsScreenState extends ConsumerState<AdminStatisticsScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  padding: getValueForScreenType<EdgeInsets>(
+                    context: context,
+                    mobile: const EdgeInsets.all(16),
+                    tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                    desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 30),
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: getValueForScreenType<double>(
+                          context: context,
+                          mobile: double.infinity,
+                          tablet: 1200,
+                          desktop: 1400,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                   const Text(
                     '시스템 통계',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -159,9 +177,13 @@ class _AdminStatisticsScreenState extends ConsumerState<AdminStatisticsScreen> {
                     '차트 기능은 향후 구현 예정입니다',
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
-                ],
-              ),
-            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+        },
+      ),
     );
   }
 

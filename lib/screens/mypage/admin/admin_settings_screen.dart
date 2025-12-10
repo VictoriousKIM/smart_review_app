@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../widgets/drawer/admin_drawer.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
+import 'package:responsive_builder/responsive_builder.dart';
 
 class AdminSettingsScreen extends ConsumerWidget {
   const AdminSettingsScreen({super.key});
@@ -65,11 +66,28 @@ class AdminSettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return SingleChildScrollView(
+            padding: getValueForScreenType<EdgeInsets>(
+              context: context,
+              mobile: const EdgeInsets.all(16),
+              tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 30),
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: getValueForScreenType<double>(
+                    context: context,
+                    mobile: double.infinity,
+                    tablet: 700,
+                    desktop: 900,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
             const Text(
               '시스템 설정',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -130,8 +148,12 @@ class AdminSettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-          ],
-        ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

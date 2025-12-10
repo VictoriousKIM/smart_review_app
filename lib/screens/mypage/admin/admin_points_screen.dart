@@ -6,6 +6,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../services/wallet_service.dart';
 import '../../../utils/error_message_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 import 'widgets/pending_transaction_card.dart';
 import 'widgets/approve_dialog.dart';
 import 'widgets/reject_dialog.dart';
@@ -427,48 +428,65 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // 필터 섹션 (고정)
-          _buildFilterSection(),
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 1200,
+                  desktop: 1400,
+                ),
+              ),
+              child: Column(
+                children: [
+                  // 필터 섹션 (고정)
+                  _buildFilterSection(),
 
-          // TabBar
-          TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(text: '전체'),
-              Tab(text: '대기중'),
-              Tab(text: '승인됨'),
-              Tab(text: '거절됨'),
-            ],
-          ),
+                  // TabBar
+                  TabBar(
+                    controller: _tabController,
+                    tabs: const [
+                      Tab(text: '전체'),
+                      Tab(text: '대기중'),
+                      Tab(text: '승인됨'),
+                      Tab(text: '거절됨'),
+                    ],
+                  ),
 
-          // 카드 리스트
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _loadTransactions,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _transactions.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.inbox, size: 64, color: Colors.grey[400]),
-                          const SizedBox(height: 16),
-                          Text(
-                            '거래 내역이 없습니다',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _transactions.length,
+                  // 카드 리스트
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _loadTransactions,
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _transactions.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.inbox, size: 64, color: Colors.grey[400]),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    '거래 내역이 없습니다',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: getValueForScreenType<EdgeInsets>(
+                                context: context,
+                                mobile: const EdgeInsets.all(16),
+                                tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                                desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 20),
+                              ),
+                              itemCount: _transactions.length,
                       itemBuilder: (context, index) {
                         final transaction = _transactions[index];
                         return PendingTransactionCard(
@@ -480,8 +498,12 @@ class _AdminPointsScreenState extends ConsumerState<AdminPointsScreen>
                       },
                     ),
             ),
-          ),
-        ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

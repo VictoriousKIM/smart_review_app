@@ -6,6 +6,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../config/supabase_config.dart';
 import '../../../utils/error_message_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class AdminReviewsScreen extends ConsumerStatefulWidget {
   const AdminReviewsScreen({super.key});
@@ -108,12 +109,29 @@ class _AdminReviewsScreenState extends ConsumerState<AdminReviewsScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _reviews.isEmpty
-              ? const Center(child: Text('리뷰가 없습니다'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 1200,
+                  desktop: 1400,
+                ),
+              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _reviews.isEmpty
+                      ? const Center(child: Text('리뷰가 없습니다'))
+                      : ListView.builder(
+                          padding: getValueForScreenType<EdgeInsets>(
+                            context: context,
+                            mobile: const EdgeInsets.all(16),
+                            tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                            desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 20),
+                          ),
                   itemCount: _reviews.length,
                   itemBuilder: (context, index) {
                     final review = _reviews[index];
@@ -149,6 +167,10 @@ class _AdminReviewsScreenState extends ConsumerState<AdminReviewsScreen> {
                     );
                   },
                 ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

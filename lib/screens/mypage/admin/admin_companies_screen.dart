@@ -6,6 +6,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../config/supabase_config.dart';
 import '../../../utils/error_message_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class AdminCompaniesScreen extends ConsumerStatefulWidget {
   const AdminCompaniesScreen({super.key});
@@ -118,13 +119,30 @@ class _AdminCompaniesScreenState extends ConsumerState<AdminCompaniesScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // 검색 및 필터
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.white,
-            child: TextField(
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 1200,
+                  desktop: 1400,
+                ),
+              ),
+              child: Column(
+                children: [
+                  // 검색 및 필터
+                  Container(
+                    padding: getValueForScreenType<EdgeInsets>(
+                      context: context,
+                      mobile: const EdgeInsets.all(16),
+                      tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                      desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 20),
+                    ),
+                    color: Colors.white,
+                    child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: '회사명 또는 사업자번호로 검색',
@@ -134,17 +152,22 @@ class _AdminCompaniesScreenState extends ConsumerState<AdminCompaniesScreen> {
                 ),
               ),
               onSubmitted: (_) => _loadCompanies(),
-            ),
-          ),
+                    ),
+                  ),
 
-          // 회사 목록
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _companies.isEmpty
-                    ? const Center(child: Text('등록된 회사가 없습니다'))
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
+                  // 회사 목록
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _companies.isEmpty
+                            ? const Center(child: Text('등록된 회사가 없습니다'))
+                            : ListView.builder(
+                                padding: getValueForScreenType<EdgeInsets>(
+                                  context: context,
+                                  mobile: const EdgeInsets.all(16),
+                                  tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                                  desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 20),
+                                ),
                         itemCount: _companies.length,
                         itemBuilder: (context, index) {
                           final company = _companies[index];
@@ -194,8 +217,12 @@ class _AdminCompaniesScreenState extends ConsumerState<AdminCompaniesScreen> {
                           );
                         },
                       ),
-          ),
-        ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
