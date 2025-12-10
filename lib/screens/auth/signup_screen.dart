@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/user.dart' as app_user;
 import '../../providers/auth_provider.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 /// 회원가입 화면
 /// OAuth 로그인 후 프로필이 없을 때 표시됨
@@ -81,109 +82,131 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   Widget _buildUserTypeSelection() {
     return SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // 상단 섹션
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 32),
-                        // 제목
-                        const Text(
-                          '회원가입',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -1.0,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        // 질문
-                        Text(
-                          '어떤 용도로 사용하시나요?',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                            height: 1.4,
-                            letterSpacing: -0.3,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 64),
-                        // 리뷰어 버튼
-                        ElevatedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () =>
-                                    _onUserTypeSelected(app_user.UserType.user),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEDE7F6), // 연한 보라색
-                            foregroundColor: const Color(0xFF512DA8), // 진한 보라색
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            '리뷰어로 시작하기',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.5,
-                              color: Color(0xFF512DA8), // 진한 보라색
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        // 광고주 버튼
-                        OutlinedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () {
-                                  // 광고주 플로우
-                                  context.push('/signup/advertiser', extra: {'provider': widget.provider});
-                                },
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF512DA8), // 진한 보라색
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: const BorderSide(
-                              color: Color(0xFF512DA8), // 진한 보라색
-                              width: 2.0, // 2px 테두리
-                            ),
-                          ),
-                          child: const Text(
-                            '광고주로 시작하기',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.5,
-                              color: Color(0xFF512DA8), // 진한 보라색
-                            ),
-                          ),
-                        ),
-                      ],
+      child: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: getValueForScreenType<double>(
+                      context: context,
+                      mobile: double.infinity,
+                      tablet: 500,
+                      desktop: 600,
                     ),
-                  ],
+                    minHeight: constraints.maxHeight,
+                  ),
+                  child: SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Padding(
+                        padding: getValueForScreenType<EdgeInsets>(
+                          context: context,
+                          mobile: const EdgeInsets.symmetric(horizontal: 24.0),
+                          tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+                          desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // 상단 섹션
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SizedBox(height: 32),
+                                // 제목
+                                const Text(
+                                  '회원가입',
+                                  style: TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -1.0,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 24),
+                                // 질문
+                                Text(
+                                  '어떤 용도로 사용하시나요?',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
+                                    height: 1.4,
+                                    letterSpacing: -0.3,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 64),
+                                // 리뷰어 버튼
+                                ElevatedButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : () =>
+                                            _onUserTypeSelected(app_user.UserType.user),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFEDE7F6), // 연한 보라색
+                                    foregroundColor: const Color(0xFF512DA8), // 진한 보라색
+                                    padding: const EdgeInsets.symmetric(vertical: 20),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: const Text(
+                                    '리뷰어로 시작하기',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.5,
+                                      color: Color(0xFF512DA8), // 진한 보라색
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                // 광고주 버튼
+                                OutlinedButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : () {
+                                          // 광고주 플로우
+                                          context.push('/signup/advertiser', extra: {'provider': widget.provider});
+                                        },
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: const Color(0xFF512DA8), // 진한 보라색
+                                    padding: const EdgeInsets.symmetric(vertical: 20),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    side: const BorderSide(
+                                      color: Color(0xFF512DA8), // 진한 보라색
+                                      width: 2.0, // 2px 테두리
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    '광고주로 시작하기',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.5,
+                                      color: Color(0xFF512DA8), // 진한 보라색
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
