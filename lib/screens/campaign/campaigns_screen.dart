@@ -8,6 +8,7 @@ import '../../services/campaign_service.dart';
 import '../../services/campaign_realtime_manager.dart';
 import '../../widgets/campaign_card.dart';
 import '../../utils/date_time_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class CampaignsScreen extends ConsumerStatefulWidget {
   const CampaignsScreen({super.key});
@@ -360,23 +361,39 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F8),
-      body: Column(
-        children: [
-          // 헤더
-          _buildHeader(),
-          // 검색바 (검색 모드일 때만 표시)
-          if (_isSearchVisible) _buildSearchBar(),
-          // 카테고리 필터
-          _buildCategoryFilter(),
-          // 캠페인 목록
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _recruitingCampaigns.isEmpty
-                ? _buildEmptyState()
-                : _buildCampaignList(),
-          ),
-        ],
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return Column(
+            children: [
+              // 헤더
+              _buildHeader(),
+              // 검색바 (검색 모드일 때만 표시)
+              if (_isSearchVisible) _buildSearchBar(),
+              // 카테고리 필터
+              _buildCategoryFilter(),
+              // 캠페인 목록
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: getValueForScreenType<double>(
+                        context: context,
+                        mobile: double.infinity,
+                        tablet: 800,
+                        desktop: 1200,
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _recruitingCampaigns.isEmpty
+                        ? _buildEmptyState()
+                        : _buildCampaignList(),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -578,20 +595,29 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
   }
 
   Widget _buildCampaignList() {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      itemCount: _recruitingCampaigns.length,
-      itemBuilder: (context, index) {
-        final campaign = _recruitingCampaigns[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: CampaignCard(
-            campaign: campaign,
-            onTap: () {
-              // debugPrint('🔥 Campaign card tapped: ${campaign.id}');
-              context.go('/campaigns/${campaign.id}');
-            },
+    return ResponsiveBuilder(
+      builder: (context, sizingInformation) {
+        return ListView.builder(
+          padding: getValueForScreenType<EdgeInsets>(
+            context: context,
+            mobile: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            tablet: const EdgeInsets.fromLTRB(40, 16, 40, 20),
+            desktop: const EdgeInsets.fromLTRB(60, 20, 60, 24),
           ),
+          itemCount: _recruitingCampaigns.length,
+          itemBuilder: (context, index) {
+            final campaign = _recruitingCampaigns[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: CampaignCard(
+                campaign: campaign,
+                onTap: () {
+                  // debugPrint('🔥 Campaign card tapped: ${campaign.id}');
+                  context.go('/campaigns/${campaign.id}');
+                },
+              ),
+            );
+          },
         );
       },
     );

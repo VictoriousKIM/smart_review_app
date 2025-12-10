@@ -10,6 +10,7 @@ import '../../widgets/campaign_card.dart';
 import '../../services/campaign_service.dart';
 import '../../services/campaign_realtime_manager.dart';
 import '../../utils/date_time_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -381,14 +382,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildHomeTab(AsyncValue<app_user.User?> user) {
     return RefreshIndicator(
       onRefresh: _loadCampaigns,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 헤더
-            Container(
-              padding: const EdgeInsets.all(24),
+      child: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: getValueForScreenType<double>(
+                    context: context,
+                    mobile: double.infinity,
+                    tablet: 800,
+                    desktop: 1200,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 헤더
+                    Container(
+                      padding: getValueForScreenType<EdgeInsets>(
+                        context: context,
+                        mobile: const EdgeInsets.all(24),
+                        tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                        desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 32),
+                      ),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -440,34 +458,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            // 모집중인 캠페인
-            _buildSection(
-              title: '모집중인 캠페인',
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _recruitingCampaigns.isEmpty
-                  ? const Center(child: Text('모집중인 캠페인이 없습니다'))
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _recruitingCampaigns.length,
-                      itemBuilder: (context, index) {
-                        final campaign = _recruitingCampaigns[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: CampaignCard(
-                            campaign: campaign,
-                            onTap: () => _navigateToCampaignDetail(campaign.id),
-                          ),
-                        );
-                      },
+                    // 모집중인 캠페인
+                    _buildSection(
+                      title: '모집중인 캠페인',
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _recruitingCampaigns.isEmpty
+                          ? const Center(child: Text('모집중인 캠페인이 없습니다'))
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _recruitingCampaigns.length,
+                              itemBuilder: (context, index) {
+                                final campaign = _recruitingCampaigns[index];
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  child: CampaignCard(
+                                    campaign: campaign,
+                                    onTap: () => _navigateToCampaignDetail(campaign.id),
+                                  ),
+                                );
+                              },
+                            ),
                     ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

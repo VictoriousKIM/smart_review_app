@@ -304,8 +304,11 @@ body: ResponsiveScreen(
 
 #### 3. 프로필 화면
 - **파일**: `lib/screens/mypage/common/profile_screen.dart`
-- **상태**: ❌ 미적용
-- **예상 작업 시간**: 2-3시간
+- **상태**: ✅ 완료
+- **적용 내용**: 
+  - 리뷰어 탭과 광고주 탭 모두에 ResponsiveBuilder 적용
+  - 반응형 패딩 적용 (Mobile: 16px, Tablet: 40px horizontal, Desktop: 100px horizontal)
+  - 최대 너비 제한 추가 (Tablet: 700px, Desktop: 900px)
 
 #### 4. 포인트 화면
 - **파일**: `lib/screens/mypage/common/points_screen.dart`
@@ -316,13 +319,19 @@ body: ResponsiveScreen(
 
 #### 1. 홈 화면
 - **파일**: `lib/screens/home/home_screen.dart`
-- **상태**: ❌ 미적용
-- **예상 작업 시간**: 2-3시간
+- **상태**: ✅ 완료
+- **적용 내용**: 
+  - ResponsiveBuilder 적용 완료
+  - 반응형 패딩 적용 (헤더: Mobile 24px, Tablet 40px, Desktop 60px)
+  - 최대 너비 제한 추가 (Tablet: 800px, Desktop: 1200px)
 
 #### 2. 캠페인 목록 화면
 - **파일**: `lib/screens/campaign/campaigns_screen.dart`
-- **상태**: ❌ 미적용
-- **예상 작업 시간**: 2-3시간
+- **상태**: ✅ 완료
+- **적용 내용**: 
+  - ResponsiveBuilder 적용 완료
+  - 반응형 패딩 적용 (Mobile: 16px, Tablet: 40px, Desktop: 60px)
+  - 최대 너비 제한 추가 (Tablet: 800px, Desktop: 1200px)
 
 #### 3. 캠페인 상세 화면
 - **파일**: `lib/screens/campaign/campaign_detail_screen.dart`
@@ -372,10 +381,10 @@ body: ResponsiveScreen(
 | 카테고리 | 완료 | 진행 중 | 미완료 | 총계 |
 |---------|------|---------|--------|------|
 | **공통 유틸리티** | 3 | 0 | 0 | 3 (100%) |
-| **Phase 1 (핵심)** | 1 | 0 | 3 | 4 (25%) |
-| **Phase 2 (주요)** | 0 | 0 | 6 | 6 (0%) |
+| **Phase 1 (핵심)** | 2 | 0 | 2 | 4 (50%) |
+| **Phase 2 (주요)** | 2 | 0 | 4 | 6 (33%) |
 | **Phase 3 (기타)** | 0 | 0 | ~20 | ~20 (0%) |
-| **전체** | 4 | 0 | ~29 | ~33 (12%) |
+| **전체** | 7 | 0 | ~26 | ~33 (21%) |
 
 ### 예상 작업 시간
 
@@ -424,10 +433,13 @@ body: ResponsiveScreen(
 - 공통 유틸리티 및 위젯 생성 완료
 - 기본 일정 설정 다이얼로그 반응형 개선 완료
 - 캠페인 생성 화면 ResponsiveBuilder 적용 완료
+- 홈 화면 ResponsiveBuilder 적용 완료
+- 캠페인 목록 화면 ResponsiveBuilder 적용 완료
+- 프로필 화면 ResponsiveBuilder 적용 완료
 
 ❌ **남은 작업:**
-- Phase 1: 캠페인 편집, 프로필, 포인트 화면 (3개)
-- Phase 2: 홈, 캠페인 목록/상세, 마이페이지 화면들 (6개)
+- Phase 1: 캠페인 편집, 포인트 화면 (2개)
+- Phase 2: 캠페인 상세, 마이페이지 화면들 (4개)
 - Phase 3: 인증, 관리자, 기타 화면들 (~20개)
 
 ### 권장사항
@@ -487,12 +499,18 @@ body: ResponsiveScreen(
 
 ---
 
-**보고서 버전**: 1.1  
+**보고서 버전**: 1.2  
 **최종 업데이트**: 2025년 12월 10일
 
 ---
 
 ## 업데이트 내역
+
+### v1.2 (2025년 12월 10일)
+- ✅ 홈 화면 ResponsiveBuilder 적용 완료
+- ✅ 캠페인 목록 화면 ResponsiveBuilder 적용 완료
+- ✅ 프로필 화면 ResponsiveBuilder 적용 완료
+- ✅ 완료율 업데이트: 12% → 21%
 
 ### v1.1 (2025년 12월 10일)
 - ✅ 캠페인 생성 화면 ResponsiveBuilder 적용 완료

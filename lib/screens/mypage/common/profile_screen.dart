@@ -17,6 +17,7 @@ import '../../../widgets/address_form_field.dart';
 import '../../../utils/user_type_helper.dart';
 import 'business_registration_form.dart';
 import 'account_registration_form.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -240,10 +241,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   Widget _buildProfileContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
+    return ResponsiveBuilder(
+      builder: (context, sizingInformation) {
+        return SingleChildScrollView(
+          padding: getValueForScreenType<EdgeInsets>(
+            context: context,
+            mobile: const EdgeInsets.all(16),
+            tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 30),
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 700,
+                  desktop: 900,
+                ),
+              ),
+              child: Column(
+                children: [
           // 프로필 정보 섹션
           _buildProfileInfoSection(),
 
@@ -267,10 +285,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
           const SizedBox(height: 32),
 
-          // 계정 관리 버튼들
-          _buildAccountManagementButtons(),
-        ],
-      ),
+                  // 계정 관리 버튼들
+                  _buildAccountManagementButtons(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -785,10 +807,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       '🔍 _buildBusinessTab - _isOwner: $_isOwner, _isLoadingOwner: $_isLoadingOwner, _existingCompanyData: ${_existingCompanyData != null}',
     );
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
+    return ResponsiveBuilder(
+      builder: (context, sizingInformation) {
+        return SingleChildScrollView(
+          padding: getValueForScreenType<EdgeInsets>(
+            context: context,
+            mobile: const EdgeInsets.all(16),
+            tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 30),
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 700,
+                  desktop: 900,
+                ),
+              ),
+              child: Column(
+                children: [
           const SizedBox(height: 24),
           // 광고주등록폼 통합 (모든 사용자에게 표시)
           _buildBusinessRegistrationForm(),
@@ -813,14 +852,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const SizedBox(height: 24),
             const Center(child: CircularProgressIndicator()),
           ],
-          // 오너가 아니고 회사 데이터가 없을 때만 메시지 표시
-          // 광고주 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
-          if (_existingCompanyData == null && !_isLoadingCompanyData) ...[
-            const SizedBox(height: 24),
-            _buildManagerRequestButton(),
-          ],
-        ],
-      ),
+                  // 오너가 아니고 회사 데이터가 없을 때만 메시지 표시
+                  // 광고주 등록이 없으면 매니저 등록 요청 버튼 표시 (제일 밑)
+                  if (_existingCompanyData == null && !_isLoadingCompanyData) ...[
+                    const SizedBox(height: 24),
+                    _buildManagerRequestButton(),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

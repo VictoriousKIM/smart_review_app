@@ -1700,8 +1700,14 @@ class _CampaignCreationScreenState
               padding: getValueForScreenType<EdgeInsets>(
                 context: context,
                 mobile: const EdgeInsets.all(16),
-                tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 30),
+                tablet: const EdgeInsets.symmetric(
+                  horizontal: 40,
+                  vertical: 20,
+                ),
+                desktop: const EdgeInsets.symmetric(
+                  horizontal: 100,
+                  vertical: 30,
+                ),
               ),
               child: Center(
                 child: ConstrainedBox(
@@ -1736,7 +1742,8 @@ class _CampaignCreationScreenState
                               ),
                               IconButton(
                                 icon: const Icon(Icons.close),
-                                onPressed: () => setState(() => _errorMessage = null),
+                                onPressed: () =>
+                                    setState(() => _errorMessage = null),
                               ),
                             ],
                           ),
@@ -1747,7 +1754,10 @@ class _CampaignCreationScreenState
                       _buildWithOptionalBoundary(_buildCampaignTypeSection()),
                       const SizedBox(height: 24),
 
-                      _buildWithOptionalBoundary(_buildImageSection(), alwaysUse: true),
+                      _buildWithOptionalBoundary(
+                        _buildImageSection(),
+                        alwaysUse: true,
+                      ),
                       const SizedBox(height: 24),
 
                       if (_productImage != null || _capturedImage != null) ...[
@@ -1767,10 +1777,15 @@ class _CampaignCreationScreenState
                       _buildWithOptionalBoundary(_buildScheduleSection()),
                       const SizedBox(height: 24),
 
-                      _buildWithOptionalBoundary(_buildDuplicatePreventSection()),
+                      _buildWithOptionalBoundary(
+                        _buildDuplicatePreventSection(),
+                      ),
                       const SizedBox(height: 24),
 
-                      _buildWithOptionalBoundary(_buildCostSection(), alwaysUse: true),
+                      _buildWithOptionalBoundary(
+                        _buildCostSection(),
+                        alwaysUse: true,
+                      ),
                       const SizedBox(height: 24),
 
                       if (_isUploadingImage) ...[
@@ -1811,7 +1826,8 @@ class _CampaignCreationScreenState
                                       _createCampaign();
                                     }
                                   : null,
-                              isLoading: _isCreatingCampaign || _isUploadingImage,
+                              isLoading:
+                                  _isCreatingCampaign || _isUploadingImage,
                               backgroundColor: const Color(0xFF137fec),
                               textColor: Colors.white,
                             ),
