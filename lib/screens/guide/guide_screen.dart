@@ -89,10 +89,7 @@ class _GuideScreenState extends ConsumerState<GuideScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildGuideSection(
+                  _buildGuideSection(
             title: '리뷰어 가이드',
             subtitle: '캠페인에 참여하고 리뷰를 작성하는 방법을 알아보세요',
             icon: Icons.rate_review,
