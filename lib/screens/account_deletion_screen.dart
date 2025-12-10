@@ -400,11 +400,12 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
                     ),
                   ),
                 ],
-              ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }
