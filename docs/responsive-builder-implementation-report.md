@@ -299,8 +299,11 @@ body: ResponsiveScreen(
 
 #### 2. 캠페인 편집 화면
 - **파일**: `lib/screens/campaign/campaign_edit_screen.dart`
-- **상태**: ❌ 미적용
-- **예상 작업 시간**: 2-3시간
+- **상태**: ✅ 완료
+- **적용 내용**: 
+  - ResponsiveBuilder 적용 완료
+  - 반응형 패딩 적용 (Mobile: 16px, Tablet: 40px, Desktop: 100px)
+  - 최대 너비 제한 추가 (Tablet: 700px, Desktop: 900px)
 
 #### 3. 프로필 화면
 - **파일**: `lib/screens/mypage/common/profile_screen.dart`
@@ -312,8 +315,11 @@ body: ResponsiveScreen(
 
 #### 4. 포인트 화면
 - **파일**: `lib/screens/mypage/common/points_screen.dart`
-- **상태**: ❌ 미적용
-- **예상 작업 시간**: 1-2시간
+- **상태**: ✅ 완료
+- **적용 내용**: 
+  - ResponsiveBuilder 적용 완료
+  - 반응형 패딩 적용 (Mobile: 16px, Tablet: 40px, Desktop: 100px)
+  - 최대 너비 제한 추가 (Tablet: 700px, Desktop: 900px)
 
 ### Phase 2: 주요 화면 (우선순위 중간)
 
