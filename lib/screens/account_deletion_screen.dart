@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 import '../services/account_deletion_service.dart';
 import '../utils/error_message_utils.dart';
 
@@ -335,22 +336,45 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
       ),
       body: _isLoading && _eligibilityData == null
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  // 삭제 가능 여부 정보
-                  _buildEligibilityInfo(),
-                  
-                  // 삭제 요청 상태에 따른 UI
-                  if (_hasDeletionRequest)
-                    _buildDeletionRequestStatus()
-                  else
-                    _buildDeletionRequestForm(),
-                  
-                  // 주의사항
-                  Card(
-                    margin: const EdgeInsets.all(16),
-                    child: Padding(
+          : ResponsiveBuilder(
+              builder: (context, sizingInformation) {
+                return SingleChildScrollView(
+                  padding: getValueForScreenType<EdgeInsets>(
+                    context: context,
+                    mobile: EdgeInsets.zero,
+                    tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                    desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 30),
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: getValueForScreenType<double>(
+                          context: context,
+                          mobile: double.infinity,
+                          tablet: 700,
+                          desktop: 900,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          // 삭제 가능 여부 정보
+                          _buildEligibilityInfo(),
+                          
+                          // 삭제 요청 상태에 따른 UI
+                          if (_hasDeletionRequest)
+                            _buildDeletionRequestStatus()
+                          else
+                            _buildDeletionRequestForm(),
+                          
+                          // 주의사항
+                          Card(
+                            margin: getValueForScreenType<EdgeInsets>(
+                              context: context,
+                              mobile: const EdgeInsets.all(16),
+                              tablet: const EdgeInsets.all(20),
+                              desktop: const EdgeInsets.all(24),
+                            ),
+                            child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,6 +402,9 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
                 ],
               ),
             ),
+          );
+        },
+      ),
     );
   }
 }

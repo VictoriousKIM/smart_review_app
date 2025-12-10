@@ -6,6 +6,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../config/supabase_config.dart';
 import '../../../services/wallet_service.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -147,30 +148,51 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 환영 메시지
-            _buildWelcomeCard(user),
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return SingleChildScrollView(
+            padding: getValueForScreenType<EdgeInsets>(
+              context: context,
+              mobile: const EdgeInsets.all(16),
+              tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 30),
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: getValueForScreenType<double>(
+                    context: context,
+                    mobile: double.infinity,
+                    tablet: 1200,
+                    desktop: 1400,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 환영 메시지
+                    _buildWelcomeCard(user),
 
-            const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-            // 통계 카드 그리드
-            _buildStatisticsGrid(),
+                    // 통계 카드 그리드
+                    _buildStatisticsGrid(),
 
-            const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-            // 빠른 액션 섹션
-            _buildQuickActionsSection(),
+                    // 빠른 액션 섹션
+                    _buildQuickActionsSection(),
 
-            const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-            // 최근 활동 섹션
-            _buildRecentActivitySection(),
-          ],
-        ),
+                    // 최근 활동 섹션
+                    _buildRecentActivitySection(),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
