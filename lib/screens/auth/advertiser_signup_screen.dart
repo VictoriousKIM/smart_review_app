@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../config/supabase_config.dart';
 import '../../utils/error_message_utils.dart';
 import '../../services/auth_service.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 import '../mypage/common/business_registration_form.dart';
 
 /// 광고주 회원가입 화면
@@ -228,7 +229,23 @@ class _AdvertiserSignupScreenState
       ),
       body: (_isLoading || _isLoadingUserData)
           ? const Center(child: CircularProgressIndicator())
-          : _buildStepContent(),
+          : ResponsiveBuilder(
+              builder: (context, sizingInformation) {
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: getValueForScreenType<double>(
+                        context: context,
+                        mobile: double.infinity,
+                        tablet: 700,
+                        desktop: 900,
+                      ),
+                    ),
+                    child: _buildStepContent(),
+                  ),
+                );
+              },
+            ),
     );
   }
 

@@ -45,7 +45,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       );
     } else {
       // 광고주 플로우
-      final providerParam = widget.provider != null ? '?provider=${widget.provider}' : '';
+      final providerParam = widget.provider != null
+          ? '?provider=${widget.provider}'
+          : '';
       context.push('/signup/advertiser$providerParam');
     }
   }
@@ -68,7 +70,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             }
             // 로그인 화면으로 이동
             if (!mounted) return;
-              context.go('/login');
+            context.go('/login');
           },
         ),
       ),
@@ -99,13 +101,21 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   child: SingleChildScrollView(
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
                       child: Padding(
                         padding: getValueForScreenType<EdgeInsets>(
                           context: context,
                           mobile: const EdgeInsets.symmetric(horizontal: 24.0),
-                          tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
-                          desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+                          tablet: const EdgeInsets.symmetric(
+                            horizontal: 40,
+                            vertical: 32,
+                          ),
+                          desktop: const EdgeInsets.symmetric(
+                            horizontal: 60,
+                            vertical: 40,
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -143,12 +153,19 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                 ElevatedButton(
                                   onPressed: _isLoading
                                       ? null
-                                      : () =>
-                                            _onUserTypeSelected(app_user.UserType.user),
+                                      : () => _onUserTypeSelected(
+                                          app_user.UserType.user,
+                                        ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFEDE7F6), // 연한 보라색
-                                    foregroundColor: const Color(0xFF512DA8), // 진한 보라색
-                                    padding: const EdgeInsets.symmetric(vertical: 20),
+                                    backgroundColor: const Color(
+                                      0xFFEDE7F6,
+                                    ), // 연한 보라색
+                                    foregroundColor: const Color(
+                                      0xFF512DA8,
+                                    ), // 진한 보라색
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 20,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -171,12 +188,21 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                       ? null
                                       : () {
                                           // 광고주 플로우
-                                          context.push('/signup/advertiser', extra: {'provider': widget.provider});
+                                          context.push(
+                                            '/signup/advertiser',
+                                            extra: {
+                                              'provider': widget.provider,
+                                            },
+                                          );
                                         },
                                   style: OutlinedButton.styleFrom(
                                     backgroundColor: Colors.white,
-                                    foregroundColor: const Color(0xFF512DA8), // 진한 보라색
-                                    padding: const EdgeInsets.symmetric(vertical: 20),
+                                    foregroundColor: const Color(
+                                      0xFF512DA8,
+                                    ), // 진한 보라색
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 20,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -203,10 +229,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -239,7 +265,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               return Expanded(
                 child: Container(
                   height: 4,
-                  margin: EdgeInsets.only(right: index < totalSteps - 1 ? 4 : 0),
+                  margin: EdgeInsets.only(
+                    right: index < totalSteps - 1 ? 4 : 0,
+                  ),
                   decoration: BoxDecoration(
                     color: isActive || isCurrent
                         ? Theme.of(context).colorScheme.primary

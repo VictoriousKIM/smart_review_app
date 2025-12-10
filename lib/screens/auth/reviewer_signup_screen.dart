@@ -8,6 +8,7 @@ import '../../config/supabase_config.dart';
 import '../../services/wallet_service.dart';
 import '../../services/auth_service.dart';
 import '../../utils/error_message_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 import 'reviewer_signup_profile_form.dart';
 import 'reviewer_signup_sns_form.dart';
 import 'reviewer_signup_company_form.dart';
@@ -418,7 +419,23 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _buildStepContent(),
+          : ResponsiveBuilder(
+              builder: (context, sizingInformation) {
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: getValueForScreenType<double>(
+                        context: context,
+                        mobile: double.infinity,
+                        tablet: 700,
+                        desktop: 900,
+                      ),
+                    ),
+                    child: _buildStepContent(),
+                  ),
+                );
+              },
+            ),
       bottomNavigationBar: _isLoading ? null : _buildProgressIndicator(),
     );
   }
