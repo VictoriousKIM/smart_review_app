@@ -13,6 +13,7 @@ import '../../../services/auth_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../models/campaign.dart';
 import '../../../utils/date_time_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class AdvertiserMyPageScreen extends ConsumerStatefulWidget {
   final app_user.User? user;
@@ -279,9 +280,21 @@ class _AdvertiserMyPageScreenState
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
+      body: ResponsiveBuilder(
+        builder: (context, sizingInformation) {
+          return SingleChildScrollView(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: getValueForScreenType<double>(
+                    context: context,
+                    mobile: double.infinity,
+                    tablet: 800,
+                    desktop: 1200,
+                  ),
+                ),
+                child: Column(
+                  children: [
             // 상단 파란색 카드
             MyPageCommonWidgets.buildTopCard(
               userName: user.displayName ?? '사용자',
@@ -358,19 +371,23 @@ class _AdvertiserMyPageScreenState
 
             const SizedBox(height: 32),
 
-            // 로그아웃 버튼
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: CustomButton(
-                text: '로그아웃',
-                onPressed: () => _showLogoutDialog(context, ref),
-                backgroundColor: Colors.red[50],
-                textColor: Colors.red[700],
-                borderColor: Colors.red[200],
+                    // 로그아웃 버튼
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: CustomButton(
+                        text: '로그아웃',
+                        onPressed: () => _showLogoutDialog(context, ref),
+                        backgroundColor: Colors.red[50],
+                        textColor: Colors.red[700],
+                        borderColor: Colors.red[200],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

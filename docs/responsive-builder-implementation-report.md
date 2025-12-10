@@ -351,8 +351,10 @@ body: ResponsiveScreen(
 - **파일들**:
   - `lib/screens/mypage/reviewer/reviewer_mypage_screen.dart`
   - `lib/screens/mypage/advertiser/advertiser_mypage_screen.dart`
-- **상태**: ❌ 미적용
-- **예상 작업 시간**: 각 1-2시간
+- **상태**: ✅ 완료
+- **적용 내용**: 
+  - 리뷰어 마이페이지와 광고주 마이페이지 모두 ResponsiveBuilder 적용 완료
+  - 최대 너비 제한 추가 (Tablet: 800px, Desktop: 1200px)
 
 ### Phase 3: 나머지 화면 (우선순위 낮음)
 
@@ -391,9 +393,9 @@ body: ResponsiveScreen(
 |---------|------|---------|--------|------|
 | **공통 유틸리티** | 3 | 0 | 0 | 3 (100%) |
 | **Phase 1 (핵심)** | 4 | 0 | 0 | 4 (100%) |
-| **Phase 2 (주요)** | 3 | 0 | 3 | 6 (50%) |
+| **Phase 2 (주요)** | 5 | 0 | 1 | 6 (83%) |
 | **Phase 3 (기타)** | 0 | 0 | ~20 | ~20 (0%) |
-| **전체** | 10 | 0 | ~23 | ~33 (30%) |
+| **전체** | 12 | 0 | ~21 | ~33 (36%) |
 
 ### 예상 작업 시간
 
@@ -448,9 +450,11 @@ body: ResponsiveScreen(
 - 캠페인 편집 화면 ResponsiveBuilder 적용 완료
 - 포인트 화면 ResponsiveBuilder 적용 완료
 - 캠페인 상세 화면 ResponsiveBuilder 적용 완료
+- 리뷰어 마이페이지 ResponsiveBuilder 적용 완료
+- 광고주 마이페이지 ResponsiveBuilder 적용 완료
 
 ❌ **남은 작업:**
-- Phase 2: 마이페이지 화면들 (3개)
+- Phase 2: 마이캠페인 화면 (1개)
 - Phase 3: 인증, 관리자, 기타 화면들 (~20개)
 
 ### 권장사항
@@ -510,12 +514,18 @@ body: ResponsiveScreen(
 
 ---
 
-**보고서 버전**: 1.3  
+**보고서 버전**: 1.4  
 **최종 업데이트**: 2025년 12월 10일
 
 ---
 
 ## 업데이트 내역
+
+### v1.4 (2025년 12월 10일)
+- ✅ 리뷰어 마이페이지 ResponsiveBuilder 적용 완료
+- ✅ 광고주 마이페이지 ResponsiveBuilder 적용 완료
+- ✅ Phase 2 거의 완료 (83%)
+- ✅ 완료율 업데이트: 30% → 36%
 
 ### v1.3 (2025년 12월 10일)
 - ✅ 캠페인 편집 화면 ResponsiveBuilder 적용 완료

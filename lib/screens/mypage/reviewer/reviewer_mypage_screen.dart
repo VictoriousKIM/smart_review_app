@@ -11,6 +11,7 @@ import '../../../services/campaign_log_service.dart';
 import '../../../services/wallet_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../config/supabase_config.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class ReviewerMyPageScreen extends ConsumerStatefulWidget {
   final app_user.User? user;
@@ -195,9 +196,21 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
         builder: (context, snapshot) {
           final canConvert = snapshot.data ?? false;
 
-          return SingleChildScrollView(
-            child: Column(
-              children: [
+          return ResponsiveBuilder(
+            builder: (context, sizingInformation) {
+              return SingleChildScrollView(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: getValueForScreenType<double>(
+                        context: context,
+                        mobile: double.infinity,
+                        tablet: 800,
+                        desktop: 1200,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
                 // 상단 파란색 카드
                 MyPageCommonWidgets.buildTopCard(
                   userName: user.displayName ?? '사용자',
@@ -286,8 +299,12 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
                     borderColor: Colors.red[200],
                   ),
                 ),
-              ],
-            ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
