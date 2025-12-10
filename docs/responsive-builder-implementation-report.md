@@ -370,12 +370,15 @@ body: ResponsiveScreen(
 
 #### 1. 인증 화면들
 - **파일들**:
-  - `lib/screens/auth/login_screen.dart`
+  - `lib/screens/auth/login_screen.dart` ✅ 완료
   - `lib/screens/auth/signup_screen.dart`
   - `lib/screens/auth/reviewer_signup_screen.dart`
   - `lib/screens/auth/advertiser_signup_screen.dart`
-- **상태**: ❌ 미적용
-- **예상 작업 시간**: 각 30분-1시간
+- **상태**: 부분 완료
+- **적용 내용**: 
+  - 로그인 화면 ResponsiveBuilder 적용 완료
+  - 반응형 패딩 적용 (Mobile: 24px, Tablet: 40px, Desktop: 60px)
+  - 최대 너비 제한 추가 (Tablet: 500px, Desktop: 600px)
 
 #### 2. 관리자 화면들
 - **파일들**:
@@ -387,11 +390,14 @@ body: ResponsiveScreen(
 
 #### 3. 기타 화면들
 - **파일들**:
-  - `lib/screens/guide/guide_screen.dart`
+  - `lib/screens/guide/guide_screen.dart` ✅ 완료
   - `lib/screens/account_deletion_screen.dart`
   - 기타 공통 화면들
-- **상태**: ❌ 미적용
-- **예상 작업 시간**: 각 30분-1시간
+- **상태**: 부분 완료
+- **적용 내용**: 
+  - 가이드 화면 ResponsiveBuilder 적용 완료
+  - 반응형 패딩 적용 (Mobile: 24px, Tablet: 40px, Desktop: 100px)
+  - 최대 너비 제한 추가 (Tablet: 800px, Desktop: 1000px)
 
 ---
 
@@ -404,8 +410,8 @@ body: ResponsiveScreen(
 | **공통 유틸리티** | 3 | 0 | 0 | 3 (100%) |
 | **Phase 1 (핵심)** | 4 | 0 | 0 | 4 (100%) |
 | **Phase 2 (주요)** | 6 | 0 | 0 | 6 (100%) |
-| **Phase 3 (기타)** | 0 | 0 | ~20 | ~20 (0%) |
-| **전체** | 13 | 0 | ~20 | ~33 (39%) |
+| **Phase 3 (기타)** | 2 | 0 | ~18 | ~20 (10%) |
+| **전체** | 15 | 0 | ~18 | ~33 (45%) |
 
 ### 예상 작업 시간
 
@@ -465,9 +471,11 @@ body: ResponsiveScreen(
 - 리뷰어 마이캠페인 화면 ResponsiveBuilder 적용 완료
 - 광고주 마이캠페인 화면 ResponsiveBuilder 적용 완료
 - ✅ Phase 2 완료 (100%)
+- 로그인 화면 ResponsiveBuilder 적용 완료
+- 가이드 화면 ResponsiveBuilder 적용 완료
 
 ❌ **남은 작업:**
-- Phase 3: 인증, 관리자, 기타 화면들 (~20개)
+- Phase 3: 나머지 인증, 관리자, 기타 화면들 (~18개)
 
 ### 권장사항
 
@@ -526,12 +534,17 @@ body: ResponsiveScreen(
 
 ---
 
-**보고서 버전**: 1.5  
+**보고서 버전**: 1.6  
 **최종 업데이트**: 2025년 12월 10일
 
 ---
 
 ## 업데이트 내역
+
+### v1.6 (2025년 12월 10일)
+- ✅ 로그인 화면 ResponsiveBuilder 적용 완료
+- ✅ 가이드 화면 ResponsiveBuilder 적용 완료
+- ✅ 완료율 업데이트: 39% → 45%
 
 ### v1.5 (2025년 12월 10일)
 - ✅ 리뷰어 마이캠페인 화면 ResponsiveBuilder 적용 완료

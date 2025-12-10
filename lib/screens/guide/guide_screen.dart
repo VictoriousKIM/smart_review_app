@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class GuideScreen extends ConsumerStatefulWidget {
   const GuideScreen({super.key});
@@ -66,8 +67,28 @@ class _GuideScreenState extends ConsumerState<GuideScreen>
   }
 
   Widget _buildReviewerGuide() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return ResponsiveBuilder(
+      builder: (context, sizingInformation) {
+        return SingleChildScrollView(
+          padding: getValueForScreenType<EdgeInsets>(
+            context: context,
+            mobile: const EdgeInsets.all(24),
+            tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+            desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 40),
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 800,
+                  desktop: 1000,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -113,17 +134,38 @@ class _GuideScreenState extends ConsumerState<GuideScreen>
             description: '리뷰 작성 완료 시 포인트가 자동으로 적립됩니다',
             icon: Icons.stars,
           ),
-        ],
-      ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildAdvertiserGuide() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return ResponsiveBuilder(
+      builder: (context, sizingInformation) {
+        return SingleChildScrollView(
+          padding: getValueForScreenType<EdgeInsets>(
+            context: context,
+            mobile: const EdgeInsets.all(24),
+            tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+            desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 40),
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 800,
+                  desktop: 1000,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
           _buildGuideSection(
             title: '광고주 가이드',
             subtitle: '효과적인 캠페인을 생성하고 관리하는 방법을 알아보세요',
@@ -166,8 +208,12 @@ class _GuideScreenState extends ConsumerState<GuideScreen>
             description: '리뷰 결과와 캠페인 성과를 분석하세요',
             icon: Icons.analytics,
           ),
-        ],
-      ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

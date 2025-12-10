@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../utils/error_message_utils.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/email_login_form.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -121,12 +122,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+        child: ResponsiveBuilder(
+          builder: (context, sizingInformation) {
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: getValueForScreenType<double>(
+                    context: context,
+                    mobile: double.infinity,
+                    tablet: 500,
+                    desktop: 600,
+                  ),
+                ),
+                child: Padding(
+                  padding: getValueForScreenType<EdgeInsets>(
+                    context: context,
+                    mobile: const EdgeInsets.all(24.0),
+                    tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+                    desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
               const Spacer(flex: 2),
               // 로고 및 제목
               Column(
@@ -227,9 +245,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: const Text('이메일로 로그인'),
                 ),
               ],
-              const Spacer(flex: 1),
-            ],
-          ),
+                      const Spacer(flex: 1),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
