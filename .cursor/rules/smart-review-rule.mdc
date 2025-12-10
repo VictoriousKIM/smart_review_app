@@ -403,3 +403,128 @@ if (!_isOwner) return DisabledButton();
 ```
 
 **중요:** UI 제어는 허용되지만, **실제 데이터 접근은 반드시 데이터베이스 레벨에서 제어**되어야 함
+
+## 📱 반응형 디자인 (ResponsiveBuilder)
+
+**핵심 원칙:**
+- 모든 새로운 스크린은 **반드시 ResponsiveBuilder를 사용**하여 개발해야 함
+- 기존 스크린도 필요 시 ResponsiveBuilder로 마이그레이션
+- 일관된 반응형 패턴을 따라야 함
+
+### ✅ 올바른 방법 (새 스크린 개발)
+
+**1. 기본 스크린 구조**
+```dart
+import 'package:responsive_builder/responsive_builder.dart';
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: ResponsiveBuilder(
+      builder: (context, sizingInformation) {
+        return SingleChildScrollView(
+          padding: getValueForScreenType<EdgeInsets>(
+            context: context,
+            mobile: const EdgeInsets.all(16),
+            tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 30),
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 700,
+                  desktop: 900,
+                ),
+              ),
+              child: Column(
+                children: [
+                  // 콘텐츠
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+```
+
+**2. 공통 위젯 활용**
+```dart
+// ResponsiveHelper 사용
+import '../../utils/responsive_helper.dart';
+
+final padding = ResponsiveHelper.responsivePadding(
+  context: context,
+  mobile: const EdgeInsets.all(16),
+  tablet: const EdgeInsets.all(24),
+  desktop: const EdgeInsets.all(32),
+);
+
+// ResponsiveScreen 사용 (간단한 경우)
+import '../../widgets/responsive_screen.dart';
+
+body: ResponsiveScreen(
+  mobile: MobileLayout(),
+  tablet: TabletLayout(),
+  desktop: DesktopLayout(),
+  maxWidth: 1200,
+)
+```
+
+**3. 반응형 값 기준**
+
+| 화면 타입 | 너비 범위 | 패딩 (일반) | 패딩 (폼) | 최대 너비 (일반) | 최대 너비 (폼) |
+|---------|---------|-----------|---------|--------------|-------------|
+| Mobile | < 600px | 16-24px | 16px | 무제한 | 무제한 |
+| Tablet | 600-1200px | 40px (horizontal) | 40px (horizontal) | 800-1200px | 700px |
+| Desktop | > 1200px | 60-100px (horizontal) | 100px (horizontal) | 1200-1400px | 900px |
+
+### ❌ 잘못된 방법
+
+```dart
+// ❌ 잘못: 고정된 패딩 사용
+body: SingleChildScrollView(
+  padding: const EdgeInsets.all(16),  // ❌ 모든 화면 크기에서 동일
+  child: Column(...),
+)
+
+// ❌ 잘못: ResponsiveBuilder 없이 개발
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: Column(...),  // ❌ 반응형 지원 없음
+  );
+}
+
+// ❌ 잘못: MediaQuery만 사용 (일관성 없음)
+final isMobile = MediaQuery.of(context).size.width < 600;
+final padding = isMobile ? 16.0 : 40.0;  // ❌ 표준 패턴 미준수
+```
+
+### 📋 개발 체크리스트
+
+새로운 스크린을 개발할 때 다음을 확인하세요:
+
+1. ✅ `ResponsiveBuilder`로 body를 감싸는가?
+2. ✅ `getValueForScreenType`을 사용하여 반응형 값을 설정하는가?
+3. ✅ 표준 패딩 값을 사용하는가? (Mobile: 16-24px, Tablet: 40px, Desktop: 60-100px)
+4. ✅ 최대 너비 제한을 추가하는가? (Tablet: 700-1200px, Desktop: 900-1400px)
+5. ✅ `SingleChildScrollView`로 스크롤을 지원하는가?
+6. ✅ 콘텐츠를 `Center`와 `ConstrainedBox`로 감싸는가?
+
+### 📚 참고 자료
+
+- 공통 유틸리티: `lib/utils/responsive_helper.dart`
+- 공통 위젯: `lib/widgets/responsive_screen.dart`, `lib/widgets/responsive_container.dart`
+- 가이드 문서: `docs/responsive-builder-implementation-guide.md`
+- 최종 보고서: `docs/responsive-builder-final-report.md`
+
+**중요:**
+- 모든 새로운 스크린은 **반드시 ResponsiveBuilder를 사용**해야 합니다
+- 기존 스크린도 필요 시 ResponsiveBuilder로 마이그레이션해야 합니다
+- 표준 패턴을 따라 일관된 사용자 경험을 제공해야 합니다
