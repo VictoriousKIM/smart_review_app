@@ -2883,6 +2883,24 @@ class _CampaignCreationScreenState
                 return null;
               },
             ),
+            const SizedBox(height: 4),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _duplicateCheckDaysController,
+              builder: (context, value, child) {
+                final days = int.tryParse(value.text) ?? 0;
+                final previewText = days == 0
+                    ? '미리보기: 중복 방지 비활성화'
+                    : '미리보기: $days일 내 중복 금지';
+                return Text(
+                  previewText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -3614,6 +3632,29 @@ class _CampaignCreationScreenState
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
+                            onChanged: (value) {
+                              setDialogState(() {});
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Builder(
+                            builder: (context) {
+                              final days = int.tryParse(
+                                    duplicatePreventDaysController.text,
+                                  ) ??
+                                  0;
+                              final previewText = days == 0
+                                  ? '미리보기: 중복 방지 비활성화'
+                                  : '미리보기: $days일 내 중복 금지';
+                              return Text(
+                                previewText,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
