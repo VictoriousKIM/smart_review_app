@@ -176,6 +176,8 @@ class _CampaignCreationScreenState
         await Future.delayed(const Duration(milliseconds: 100));
         if (mounted) {
           _loadDefaultSchedule();
+          _loadDefaultReviewSettings();
+          _loadDefaultDuplicateSettings();
           _loadCompanyBalance();
         }
 
@@ -1684,8 +1686,8 @@ class _CampaignCreationScreenState
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            tooltip: '기본 일정 설정 변경',
-            onPressed: () => _showDefaultScheduleSettingsDialog(context),
+            tooltip: '전체 기본 설정',
+            onPressed: () => _showAllDefaultSettingsDialog(context),
           ),
         ],
       ),
@@ -2302,6 +2304,14 @@ class _CampaignCreationScreenState
                   '리뷰 설정',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.settings, size: 18),
+                  tooltip: '리뷰 기본 설정 변경',
+                  onPressed: () => _showDefaultReviewSettingsDialog(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -2471,16 +2481,12 @@ class _CampaignCreationScreenState
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
-                TextButton.icon(
-                  onPressed: () => _showDefaultScheduleSettingsDialog(context),
+                IconButton(
                   icon: const Icon(Icons.settings, size: 18),
-                  label: const Text('기본 설정 변경'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
+                  tooltip: '일정 기본 설정 변경',
+                  onPressed: () => _showDefaultScheduleSettingsDialog(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
@@ -2827,6 +2833,14 @@ class _CampaignCreationScreenState
                   '중복 방지 설정',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.settings, size: 18),
+                  tooltip: '중복방지 기본 설정 변경',
+                  onPressed: () => _showDefaultDuplicateSettingsDialog(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -3152,6 +3166,546 @@ class _CampaignCreationScreenState
         (int.tryParse(maxParticipants) ?? 0) > 0 &&
         !_isUploadingImage &&
         !_isCreatingCampaign; // ✅ 중복 호출 방지
+  }
+
+  /// 전체 기본 설정 다이얼로그 표시
+  Future<void> _showAllDefaultSettingsDialog(BuildContext context) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.9,
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          padding: EdgeInsets.all(
+            MediaQuery.of(context).size.width < 400 ? 16 : 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.settings, color: Colors.blue[700], size: 28),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      '전체 기본 설정',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '캠페인 생성 시 자동으로 적용될 기본 설정을 관리합니다',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 일정 설정
+                      ListTile(
+                        leading: Icon(Icons.calendar_today, color: Colors.teal[600]),
+                        title: const Text('일정 설정'),
+                        subtitle: const Text('신청 기간 및 리뷰 기간 기본값'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          _showDefaultScheduleSettingsDialog(context);
+                        },
+                      ),
+                      const Divider(),
+                      // 리뷰 설정
+                      ListTile(
+                        leading: Icon(Icons.rate_review, color: Colors.purple[600]),
+                        title: const Text('리뷰 설정'),
+                        subtitle: const Text('리뷰 타입 및 리뷰비 기본값'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          _showDefaultReviewSettingsDialog(context);
+                        },
+                      ),
+                      const Divider(),
+                      // 중복방지 설정
+                      ListTile(
+                        leading: Icon(Icons.block, color: Colors.red[600]),
+                        title: const Text('중복방지 설정'),
+                        subtitle: const Text('중복 참여 방지 기본값'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          _showDefaultDuplicateSettingsDialog(context);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 기본 리뷰 설정 변경 다이얼로그 표시
+  Future<void> _showDefaultReviewSettingsDialog(BuildContext context) async {
+    final currentSettings =
+        await CampaignDefaultScheduleService.loadDefaultReviewSettings();
+
+    String reviewType = currentSettings.reviewType;
+    int reviewTextLength = currentSettings.reviewTextLength;
+    int reviewImageCount = currentSettings.reviewImageCount;
+    int campaignReward = currentSettings.campaignReward;
+    bool useReviewKeywords = currentSettings.useReviewKeywords;
+    String reviewKeywords = currentSettings.reviewKeywords;
+
+    final reviewTextLengthController =
+        TextEditingController(text: reviewTextLength.toString());
+    final reviewImageCountController =
+        TextEditingController(text: reviewImageCount.toString());
+    final campaignRewardController =
+        TextEditingController(text: campaignReward.toString());
+    final reviewKeywordsController =
+        TextEditingController(text: reviewKeywords);
+
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.9,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              padding: EdgeInsets.all(
+                MediaQuery.of(context).size.width < 400 ? 16 : 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.rate_review, color: Colors.purple[700], size: 28),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          '기본 리뷰 설정',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '캠페인 생성 시 자동으로 적용될 기본 리뷰 설정을 변경합니다',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 리뷰 타입
+                          DropdownButtonFormField<String>(
+                            value: reviewType,
+                            decoration: const InputDecoration(
+                              labelText: '리뷰 타입',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'star_only',
+                                child: Text('별점만'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'star_text',
+                                child: Text('별점 + 텍스트 리뷰'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'star_text_image',
+                                child: Text('별점 + 텍스트 + 사진'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setDialogState(() {
+                                reviewType = value!;
+                              });
+                            },
+                          ),
+                          if (reviewType == 'star_text' ||
+                              reviewType == 'star_text_image') ...[
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: reviewTextLengthController,
+                              decoration: const InputDecoration(
+                                labelText: '텍스트 리뷰 최소 글자 수',
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly
+                              ],
+                            ),
+                          ],
+                          if (reviewType == 'star_text_image') ...[
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: reviewImageCountController,
+                              decoration: const InputDecoration(
+                                labelText: '사진 최소 개수',
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: campaignRewardController,
+                            decoration: const InputDecoration(
+                              labelText: '리뷰비 (기본값)',
+                              hintText: '0',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          CheckboxListTile(
+                            title: const Text('리뷰 키워드 사용'),
+                            value: useReviewKeywords,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                useReviewKeywords = value ?? false;
+                                if (!useReviewKeywords) {
+                                  reviewKeywordsController.clear();
+                                }
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                          if (useReviewKeywords) ...[
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: reviewKeywordsController,
+                              decoration: const InputDecoration(
+                                labelText: '리뷰 키워드',
+                                hintText: '예: 키워드1, 키워드2, 키워드3',
+                                helperText: '키워드 3개 이내 20자 이내',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('취소'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final settings = CampaignDefaultReviewSettings(
+                            reviewType: reviewType,
+                            reviewTextLength: int.tryParse(
+                                  reviewTextLengthController.text,
+                                ) ??
+                                100,
+                            reviewImageCount: int.tryParse(
+                                  reviewImageCountController.text,
+                                ) ??
+                                1,
+                            campaignReward: int.tryParse(
+                                  campaignRewardController.text,
+                                ) ??
+                                0,
+                            useReviewKeywords: useReviewKeywords,
+                            reviewKeywords: reviewKeywordsController.text.trim(),
+                          );
+
+                          final success = await CampaignDefaultScheduleService
+                              .saveDefaultReviewSettings(settings);
+
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                            if (success) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('기본 리뷰 설정이 저장되었습니다'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              // 현재 화면의 리뷰 설정도 업데이트
+                              _loadDefaultReviewSettings();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('기본 리뷰 설정 저장에 실패했습니다'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.save),
+                        label: const Text('저장'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// 기본 중복방지 설정 변경 다이얼로그 표시
+  Future<void> _showDefaultDuplicateSettingsDialog(BuildContext context) async {
+    final currentSettings =
+        await CampaignDefaultScheduleService.loadDefaultDuplicateSettings();
+
+    bool preventProductDuplicate = currentSettings.preventProductDuplicate;
+    bool preventStoreDuplicate = currentSettings.preventStoreDuplicate;
+    int duplicatePreventDays = currentSettings.duplicatePreventDays;
+
+    final duplicatePreventDaysController =
+        TextEditingController(text: duplicatePreventDays.toString());
+
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.9,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              padding: EdgeInsets.all(
+                MediaQuery.of(context).size.width < 400 ? 16 : 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.block, color: Colors.red[700], size: 28),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          '기본 중복방지 설정',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '캠페인 생성 시 자동으로 적용될 기본 중복방지 설정을 변경합니다',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CheckboxListTile(
+                            title: const Text('상품 중복 금지'),
+                            subtitle: const Text('동일 상품에 대한 중복 참여 방지'),
+                            value: preventProductDuplicate,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                preventProductDuplicate = value ?? false;
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                          CheckboxListTile(
+                            title: const Text('판매자(스토어) 중복 금지'),
+                            subtitle: const Text('동일 스토어에 대한 중복 참여 방지'),
+                            value: preventStoreDuplicate,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                preventStoreDuplicate = value ?? false;
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: duplicatePreventDaysController,
+                            decoration: const InputDecoration(
+                              labelText: '며칠 내 중복 금지',
+                              hintText: '0 (0이면 비활성화)',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('취소'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final settings = CampaignDefaultDuplicateSettings(
+                            preventProductDuplicate: preventProductDuplicate,
+                            preventStoreDuplicate: preventStoreDuplicate,
+                            duplicatePreventDays: int.tryParse(
+                                  duplicatePreventDaysController.text,
+                                ) ??
+                                0,
+                          );
+
+                          final success = await CampaignDefaultScheduleService
+                              .saveDefaultDuplicateSettings(settings);
+
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                            if (success) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('기본 중복방지 설정이 저장되었습니다'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              // 현재 화면의 중복방지 설정도 업데이트
+                              _loadDefaultDuplicateSettings();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('기본 중복방지 설정 저장에 실패했습니다'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.save),
+                        label: const Text('저장'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// 기본 리뷰 설정 로드 및 적용
+  Future<void> _loadDefaultReviewSettings() async {
+    try {
+      final defaultSettings =
+          await CampaignDefaultScheduleService.loadDefaultReviewSettings();
+      if (mounted) {
+        setState(() {
+          _reviewType = defaultSettings.reviewType;
+          _reviewTextLengthController.text =
+              defaultSettings.reviewTextLength.toString();
+          _reviewImageCountController.text =
+              defaultSettings.reviewImageCount.toString();
+          _campaignRewardController.text =
+              defaultSettings.campaignReward.toString();
+          _useReviewKeywords = defaultSettings.useReviewKeywords;
+          _reviewKeywordsController.text = defaultSettings.reviewKeywords;
+        });
+      }
+    } catch (e) {
+      debugPrint('기본 리뷰 설정 로드 실패: $e');
+    }
+  }
+
+  /// 기본 중복방지 설정 로드 및 적용
+  Future<void> _loadDefaultDuplicateSettings() async {
+    try {
+      final defaultSettings =
+          await CampaignDefaultScheduleService.loadDefaultDuplicateSettings();
+      if (mounted) {
+        setState(() {
+          _preventProductDuplicate = defaultSettings.preventProductDuplicate;
+          _preventStoreDuplicate = defaultSettings.preventStoreDuplicate;
+          _duplicateCheckDaysController.text =
+              defaultSettings.duplicatePreventDays.toString();
+        });
+      }
+    } catch (e) {
+      debugPrint('기본 중복방지 설정 로드 실패: $e');
+    }
   }
 
   /// 기본 일정 설정 변경 다이얼로그 표시
