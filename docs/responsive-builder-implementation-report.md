@@ -476,9 +476,11 @@ body: ResponsiveScreen(
 - 회원가입 화면 (signup_screen) ResponsiveBuilder 적용 완료
 - 리뷰어 회원가입 화면 ResponsiveBuilder 적용 완료
 - 광고주 회원가입 화면 ResponsiveBuilder 적용 완료
+- 관리자 대시보드 화면 ResponsiveBuilder 적용 완료
+- 계정 삭제 화면 ResponsiveBuilder 적용 완료
 
 ❌ **남은 작업:**
-- Phase 3: 관리자, 기타 화면들 (~15개)
+- Phase 3: 나머지 관리자 화면들 (~7개)
 
 ### 권장사항
 
