@@ -13,6 +13,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../utils/date_time_utils.dart';
 import '../../utils/keyword_utils.dart';
 import '../../models/campaign.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 /// 리뷰 키워드 입력 제한 Formatter
 /// 키워드 3개 이내, 총 20자 이내로 제한
@@ -713,11 +714,28 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               autovalidateMode: kIsWeb
                   ? AutovalidateMode.disabled
                   : AutovalidateMode.onUserInteraction,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+              child: ResponsiveBuilder(
+                builder: (context, sizingInformation) {
+                  return SingleChildScrollView(
+                    padding: getValueForScreenType<EdgeInsets>(
+                      context: context,
+                      mobile: const EdgeInsets.all(16),
+                      tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                      desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 30),
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: getValueForScreenType<double>(
+                            context: context,
+                            mobile: double.infinity,
+                            tablet: 700,
+                            desktop: 900,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                     if (_errorMessage != null) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -795,8 +813,12 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                         ),
                       ),
                     ),
-                  ],
-                ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
     );

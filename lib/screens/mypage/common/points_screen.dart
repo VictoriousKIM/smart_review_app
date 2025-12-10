@@ -8,6 +8,7 @@ import '../../../utils/user_type_helper.dart';
 import '../../../utils/error_message_utils.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../utils/date_time_utils.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class PointsScreen extends ConsumerStatefulWidget {
   final String userType;
@@ -247,11 +248,28 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   }
 
   Widget _buildPointsContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return ResponsiveBuilder(
+      builder: (context, sizingInformation) {
+        return SingleChildScrollView(
+          padding: getValueForScreenType<EdgeInsets>(
+            context: context,
+            mobile: const EdgeInsets.all(16),
+            tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 30),
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 700,
+                  desktop: 900,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
           // 현재 포인트 카드
           _buildCurrentPointsCard(),
 
@@ -262,10 +280,14 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
 
           const SizedBox(height: 24),
 
-          // 포인트 내역
-          _buildPointHistory(),
-        ],
-      ),
+                  // 포인트 내역
+                  _buildPointHistory(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

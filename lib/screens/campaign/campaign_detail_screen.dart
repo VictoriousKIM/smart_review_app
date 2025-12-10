@@ -13,6 +13,7 @@ import '../../services/campaign_realtime_manager.dart';
 import '../../services/auth_service.dart';
 import '../../utils/error_message_utils.dart';
 import '../../config/supabase_config.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
 class CampaignDetailScreen extends ConsumerStatefulWidget {
   final String campaignId;
@@ -174,10 +175,22 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
     WidgetRef ref,
     Campaign campaign,
   ) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return ResponsiveBuilder(
+      builder: (context, sizingInformation) {
+        return SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: getValueForScreenType<double>(
+                  context: context,
+                  mobile: double.infinity,
+                  tablet: 800,
+                  desktop: 1200,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
           // 이미지
           Container(
             width: double.infinity,
@@ -201,8 +214,13 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
             ),
           ),
 
-          Padding(
-            padding: const EdgeInsets.all(24),
+                  Padding(
+                    padding: getValueForScreenType<EdgeInsets>(
+                      context: context,
+                      mobile: const EdgeInsets.all(24),
+                      tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                      desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 32),
+                    ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -391,8 +409,12 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
               ],
             ),
           ),
-        ],
-      ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
