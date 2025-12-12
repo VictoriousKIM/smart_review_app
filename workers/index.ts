@@ -248,6 +248,7 @@ async function handlePresignedUrl(request: Request, env: Env): Promise<Response>
         success: true,
         url: presignedUrl,
         filePath,
+        publicUrl: `${env.R2_PUBLIC_URL}/${filePath}`, // Public URL 추가
         expiresIn,
         expiresAt: Math.floor(Date.now() / 1000) + expiresIn,
         method,
@@ -298,8 +299,9 @@ async function createPresignedUrlSignature(
   const algorithm = 'AWS4-HMAC-SHA256';
   
   // 경로 인코딩 (Canonical Request와 실제 URL에서 동일하게 사용)
+  // Cloudflare R2는 bucket binding을 사용하므로 bucket name을 경로에 포함하지 않음
   const encodedPath = encodePath(filePath);
-  const canonicalPath = `/${env.R2_BUCKET_NAME}/${encodedPath}`;
+  const canonicalPath = `/${encodedPath}`;
   
   const host = `${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
   const date = new Date();
@@ -320,7 +322,7 @@ async function createPresignedUrlSignature(
   const signedHeaders = 'host';
   const canonicalRequest = [
     method,
-    canonicalPath,  // 인코딩된 경로 사용
+    canonicalPath,  // 인코딩된 경로 사용 (bucket name 제외)
     queryParams.toString(),
     canonicalHeaders,
     signedHeaders,
@@ -349,9 +351,9 @@ async function createPresignedUrlSignature(
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
   
-  // Presigned URL 생성 (동일한 인코딩된 경로 사용)
+  // Presigned URL 생성 (동일한 인코딩된 경로 사용, bucket name 제외)
   queryParams.set('X-Amz-Signature', signature);
-  const fullPath = `/${env.R2_BUCKET_NAME}/${encodedPath}`;
+  const fullPath = `/${encodedPath}`;
   return `https://${host}${fullPath}?${queryParams.toString()}`;
 }
 
@@ -442,7 +444,7 @@ async function handleUpload(request: Request, env: Env): Promise<Response> {
 async function handleGetFile(request: Request, env: Env): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const key = url.pathname.replace('/api/files/', '');
+    let key = url.pathname.replace('/api/files/', '');
 
     if (!key) {
       return new Response(
@@ -454,16 +456,28 @@ async function handleGetFile(request: Request, env: Env): Promise<Response> {
       );
     }
 
+    // URL 디코딩 (인코딩된 경로 처리)
+    try {
+      key = decodeURIComponent(key);
+    } catch (e) {
+      console.warn('⚠️ URL 디코딩 실패 (원본 사용):', key, e);
+    }
+
+    console.log('📂 파일 조회 시도:', { originalPath: url.pathname, extractedKey: key });
+
     const object = await env.FILES.get(key);
     if (!object) {
+      console.error('❌ 파일을 찾을 수 없음:', key);
       return new Response(
-        JSON.stringify({ error: 'File not found' }),
+        JSON.stringify({ error: 'File not found', key }),
         {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
+
+    console.log('✅ 파일 조회 성공:', key);
 
     const headers = new Headers(corsHeaders);
     headers.set('Content-Type', object.httpMetadata?.contentType || 'application/octet-stream');
@@ -473,6 +487,7 @@ async function handleGetFile(request: Request, env: Env): Promise<Response> {
 
     return new Response(object.body, { headers });
   } catch (error) {
+    console.error('❌ 파일 조회 실패:', error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -1143,6 +1158,13 @@ async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
       filePath = filePath.substring('api/files/'.length);
     }
 
+    // URL 디코딩 (인코딩된 경로 처리)
+    try {
+      filePath = decodeURIComponent(filePath);
+    } catch (e) {
+      console.warn('⚠️ URL 디코딩 실패 (원본 사용):', filePath, e);
+    }
+
     // 허용된 파일 경로 확인
     if (!filePath.startsWith('business-registration/') && 
         !filePath.startsWith('campaign-images/')) {
@@ -1156,7 +1178,11 @@ async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    console.log('🗑️ 파일 삭제 시도:', { originalUrl: fileUrl, extractedPath: filePath });
+    console.log('🗑️ 파일 삭제 시도:', { 
+      originalUrl: fileUrl, 
+      extractedPath: filePath,
+      pathname: urlObj.pathname 
+    });
 
     // R2에서 파일 삭제
     try {
@@ -1167,7 +1193,7 @@ async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } catch (deleteError) {
-      console.error('❌ R2 파일 삭제 실패:', deleteError);
+      console.error('❌ R2 파일 삭제 실패:', deleteError, '경로:', filePath);
       throw deleteError;
     }
   } catch (error) {

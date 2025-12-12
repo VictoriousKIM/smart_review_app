@@ -149,7 +149,16 @@ class CloudflareWorkersService {
   static String extractFilePathFromUrl(String fileUrl) {
     try {
       final uri = Uri.parse(fileUrl);
-      final pathSegments = uri.pathSegments;
+      var pathSegments = uri.pathSegments;
+
+      // Workers API URL 형식인 경우 (/api/files/ 제거)
+      if (pathSegments.isNotEmpty && 
+          pathSegments.length >= 2 && 
+          pathSegments[0] == 'api' && 
+          pathSegments[1] == 'files') {
+        // 'api', 'files' 제거
+        pathSegments = pathSegments.sublist(2);
+      }
 
       // 전체 경로 반환 (첫 번째 세그먼트도 포함)
       if (pathSegments.isNotEmpty) {
@@ -172,6 +181,14 @@ class CloudflareWorkersService {
       if (parts.length > 1) {
         final pathWithQuery = parts[1];
         return pathWithQuery.split('?')[0]; // 쿼리 파라미터 제거
+      }
+      // Workers API URL 형식인 경우
+      if (fileUrl.contains('/api/files/')) {
+        final parts = fileUrl.split('/api/files/');
+        if (parts.length > 1) {
+          final pathWithQuery = parts[1];
+          return pathWithQuery.split('?')[0]; // 쿼리 파라미터 제거
+        }
       }
       return '';
     }
@@ -243,6 +260,7 @@ class PresignedUrlResponse {
   final bool success;
   final String url;
   final String filePath;
+  final String? publicUrl; // Public URL 추가
   final int expiresIn;
   final int? expiresAt;
   final String method;
@@ -252,6 +270,7 @@ class PresignedUrlResponse {
     required this.success,
     required this.url,
     required this.filePath,
+    this.publicUrl,
     required this.expiresIn,
     this.expiresAt,
     required this.method,
@@ -263,6 +282,7 @@ class PresignedUrlResponse {
       success: json['success'] ?? false,
       url: json['url'] ?? '',
       filePath: json['filePath'] ?? '',
+      publicUrl: json['publicUrl'] as String?,
       expiresIn: json['expiresIn'] ?? 0,
       expiresAt: json['expiresAt'] as int?,
       method: json['method'] ?? 'PUT',
@@ -275,6 +295,7 @@ class PresignedUrlResponse {
       'success': success,
       'url': url,
       'filePath': filePath,
+      if (publicUrl != null) 'publicUrl': publicUrl,
       'expiresIn': expiresIn,
       'expiresAt': expiresAt,
       'method': method,

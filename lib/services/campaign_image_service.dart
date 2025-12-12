@@ -3,12 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image/image.dart' as img;
+import '../config/supabase_config.dart';
 
 /// 캠페인 이미지에서 정보를 추출하는 서비스
 class CampaignImageService {
-  // Workers URL (api_config_info.md 참조)
-  static const String workersUrl =
-      'https://smart-review-api.nightkille.workers.dev';
+  // Workers URL (로컬/프로덕션 자동 선택)
+  static String get workersUrl => SupabaseConfig.workersApiUrl;
 
   /// 이미지에서 캠페인 정보 추출
   ///
