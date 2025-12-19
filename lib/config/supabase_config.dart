@@ -5,10 +5,10 @@ class SupabaseConfig {
   // ============================================
   // 로컬 개발 모드 (현재 활성화)
   // ============================================
-  
+
   // 로컬 Supabase URL
   static const String supabaseUrl = 'http://127.0.0.1:54500';
-  
+
   // 로컬 Supabase Anon Key
   static const String supabaseAnonKey =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
@@ -24,12 +24,12 @@ class SupabaseConfig {
   // Cloudflare Workers API URL
   // ============================================
   // 파일 업로드, 사업자등록증 검증, 네이버 로그인 등에 사용
-  // 
+  //
   // 로컬 개발: 로컬 Workers 서버 사용 (로컬 Supabase 연결 가능)
   // 프로덕션: 프로덕션 Workers 사용
   static const String workersApiUrl = kIsWeb
-      ? 'http://localhost:8787'  // 로컬 개발: 로컬 Workers 서버
-      : 'https://smart-review-api.nightkille.workers.dev';  // 프로덕션: 프로덕션 Workers
+      ? 'http://localhost:8787' // 로컬 개발: 로컬 Workers 서버
+      : 'https://smart-review-api.nightkille.workers.dev'; // 프로덕션: 프로덕션 Workers
 
   // R2 Public URL (파일 업로드용)
   static const String r2PublicUrl =

@@ -11,7 +11,7 @@
 
 2. **로컬 Workers 서버 시작** (네이버 로그인 등에 사용)
    ```bash
-   cd workers
+   
    npx wrangler dev
    ```
    - 포트: `8787` (기본값)

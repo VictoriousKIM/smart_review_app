@@ -50,6 +50,7 @@ class _AdvertiserMyCampaignsScreenState
 
   bool _isLoading = true;
   bool _shouldRefreshOnRestore = false; // 화면 복원 시 새로고침 플래그
+  DateTime? _lastRefreshTime; // 마지막 새로고침 시간 (디바운싱용)
 
   // Pull-to-Refresh 충돌 방지용 큐
   final List<CampaignRealtimeEvent> _pendingRealtimeEvents = [];
@@ -333,8 +334,14 @@ class _AdvertiserMyCampaignsScreenState
         // 일시정지된 구독이 있으면 재개
         _realtimeManager.resumeSubscription(_screenId);
 
+        // 플래그가 설정된 경우 새로고침 (캠페인 생성 화면에서 돌아온 경우)
         if (_shouldRefreshOnRestore) {
+          // 디바운싱: 마지막 새로고침 후 1초 이내면 스킵
+          final now = DateTime.now();
+          if (_lastRefreshTime == null || 
+              now.difference(_lastRefreshTime!).inSeconds >= 1) {
           _shouldRefreshOnRestore = false;
+            _lastRefreshTime = now;
           debugPrint('🔄 화면 복원 감지 - 캠페인 목록 새로고침');
           // DB에 캠페인이 반영될 시간을 주기 위해 약간의 지연 후 새로고침
           Future.delayed(const Duration(milliseconds: 300), () {
@@ -342,53 +349,54 @@ class _AdvertiserMyCampaignsScreenState
               _loadCampaigns();
             }
           });
+          } else {
+            debugPrint('⏭️ 너무 빈번한 새로고침 요청 스킵');
+          }
         }
       }
     });
   }
 
-  /// 캠페인 생성 화면으로 이동 (push().then() 패턴)
-  /// pushNamed 대신 push를 사용하여 반환값 전달 안정성 향상
-  void _navigateToCreateCampaign() {
-    // 캠페인 생성 화면으로 이동할 때 플래그 설정
-    _shouldRefreshOnRestore = true;
-    // pushNamed 대신 push 사용 (다른 화면에서 검증된 패턴)
-    context
-        .push('/mypage/advertiser/my-campaigns/create')
-        .then((result) {
-          debugPrint(
-            '📥 캠페인 생성 화면에서 반환된 결과: $result (타입: ${result.runtimeType})',
-          );
+  /// 캠페인 생성 화면으로 이동 (async/await 패턴)
+  Future<void> _navigateToCreateCampaign() async {
+    debugPrint('🚀 캠페인 생성 화면으로 이동');
 
-          if (result != null && result is Campaign) {
-            // 생성된 Campaign 객체를 직접 목록에 추가 (즉시 반영)
-            debugPrint('✅ Campaign 객체를 받았습니다. 목록에 직접 추가합니다.');
-            _shouldRefreshOnRestore = false; // 성공적으로 처리되었으므로 플래그 해제
-            _addCampaignDirectly(result);
-            // DB에서 최신 데이터를 다시 조회하여 확실하게 반영
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted) {
-                debugPrint('🔄 DB에서 최신 캠페인 목록 다시 조회');
-                _loadCampaigns();
-              }
-            });
-          } else if (result == true) {
-            // 일반 새로고침
-            debugPrint('🔄 일반 새로고침 실행 (result == true)');
-            _shouldRefreshOnRestore = false; // 새로고침 실행했으므로 플래그 해제
-            _loadCampaigns();
-          } else {
-            // result가 null이거나 예상치 못한 값인 경우
-            // didChangeDependencies에서 새로고침하도록 플래그 유지
-            debugPrint(
-              '⚠️ 예상치 못한 반환값: $result - didChangeDependencies에서 새로고침 예정',
-            );
-          }
-        })
-        .catchError((error) {
-          debugPrint('❌ 캠페인 생성 화면에서 에러 발생: $error');
-          // 에러 발생 시에도 didChangeDependencies에서 새로고침하도록 플래그 유지
-        });
+    try {
+      // 캠페인 생성 화면으로 이동하고 결과 대기
+      final result = await context.push(
+        '/mypage/advertiser/my-campaigns/create',
+      );
+
+      debugPrint(
+        '📥 캠페인 생성 화면에서 반환됨 - result: $result (타입: ${result.runtimeType})',
+      );
+
+      if (!mounted) {
+        debugPrint('⚠️ 위젯이 unmount됨');
+        return;
+      }
+
+      // 반환값에 관계없이 항상 새로고침
+      debugPrint('🔄 캠페인 목록 새로고침 시작...');
+
+      // 플래그 설정 (didChangeDependencies에서도 새로고침하도록)
+      _shouldRefreshOnRestore = true;
+
+      // 약간의 지연 후 새로고침 (DB 트랜잭션 커밋 대기)
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      if (mounted) {
+        await _loadCampaigns();
+        debugPrint('✅ 캠페인 목록 새로고침 완료 - 총 ${_allCampaigns.length}개');
+      }
+    } catch (error) {
+      debugPrint('❌ 캠페인 생성 화면 에러: $error');
+      // 에러 발생 시에도 새로고침 시도
+      _shouldRefreshOnRestore = true;
+      if (mounted) {
+        await _loadCampaigns();
+      }
+    }
   }
 
   /// 생성된 Campaign 객체를 직접 목록에 추가 (1단계: 주 방법)
@@ -806,15 +814,18 @@ class _AdvertiserMyCampaignsScreenState
     _completedCampaigns = [];
 
     for (final campaign in _allCampaigns) {
-      // 1. 종료: inactive 상태 또는 리뷰 종료일 이후
-      if (campaign.status == CampaignStatus.inactive ||
-          campaign.reviewEndDate.isBefore(now)) {
+      // active 상태만 처리 (inactive는 제외)
+      if (campaign.status != CampaignStatus.active) {
+        // inactive 상태는 종료 탭에 추가
         _completedCampaigns.add(campaign);
         continue;
       }
 
-      // active 상태만 계속 처리
-      if (campaign.status != CampaignStatus.active) continue;
+      // 1. 종료: 리뷰 종료일 이후
+      if (campaign.reviewEndDate.isBefore(now)) {
+        _completedCampaigns.add(campaign);
+        continue;
+      }
 
       // 2. 등록기간: 리뷰 시작일 ~ 리뷰 종료일 사이
       if (!campaign.reviewStartDate.isAfter(now) &&
@@ -926,8 +937,7 @@ class _AdvertiserMyCampaignsScreenState
             const SizedBox(height: 24),
             CustomButton(
               text: '캠페인 등록하기',
-              onPressed: () =>
-                  context.go('/mypage/advertiser/my-campaigns/create'),
+              onPressed: () => _navigateToCreateCampaign(),
               backgroundColor: const Color(0xFF137fec),
               textColor: Colors.white,
             ),
@@ -954,8 +964,14 @@ class _AdvertiserMyCampaignsScreenState
                 padding: getValueForScreenType<EdgeInsets>(
                   context: context,
                   mobile: const EdgeInsets.all(16),
-                  tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 20),
+                  tablet: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 16,
+                  ),
+                  desktop: const EdgeInsets.symmetric(
+                    horizontal: 60,
+                    vertical: 20,
+                  ),
                 ),
                 itemCount: campaigns.length,
                 itemBuilder: (context, index) {

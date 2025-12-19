@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:responsive_builder/responsive_builder.dart';
 
 /// 시각적으로 이미지를 크롭할 수 있는 위젯
 class ImageCropEditor extends StatefulWidget {
@@ -43,7 +44,13 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    final maxDialogWidth = screenWidth - 32;
+    // 반응형 너비 설정: 모바일은 화면 너비의 95%, 태블릿/데스크톱은 최대 1400px
+    final isMobile = screenWidth < 600;
+    final maxDialogWidth = isMobile
+        ? screenWidth * 0.95
+        : screenWidth > 1400
+            ? 1400.0
+            : screenWidth * 0.92;
     final maxDialogHeight = screenHeight - 32;
 
     const headerHeight = 60.0;
@@ -74,9 +81,12 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
           maxWidth: maxDialogWidth,
           maxHeight: maxDialogHeight,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: ResponsiveBuilder(
+          builder: (context, sizingInformation) {
+            final isMobile = sizingInformation.isMobile;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
             // 헤더
             Container(
               padding: const EdgeInsets.all(16),
@@ -152,79 +162,151 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
 
             // 하단 버튼
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(isMobile ? 12 : 16),
               decoration: BoxDecoration(
                 color: Colors.grey[100],
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(8),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (_cropRect != null)
-                    Text(
-                      'X: ${_cropRect!.left.toInt()}, Y: ${_cropRect!.top.toInt()}\n'
-                      'W: ${_cropRect!.width.toInt()}, H: ${_cropRect!.height.toInt()}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+              child: isMobile
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_cropRect != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'X: ${_cropRect!.left.toInt()}, Y: ${_cropRect!.top.toInt()}\n'
+                              'W: ${_cropRect!.width.toInt()}, H: ${_cropRect!.height.toInt()}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _cropRect = Rect.fromLTWH(
+                                    0,
+                                    0,
+                                    _image.width / 2,
+                                    _image.height.toDouble(),
+                                  );
+                                });
+                              },
+                              child: const Text('왼쪽 절반'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _cropRect = Rect.fromLTWH(
+                                    _image.width / 4,
+                                    0,
+                                    _image.width / 2,
+                                    _image.height.toDouble(),
+                                  );
+                                });
+                              },
+                              child: const Text('중앙'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('취소'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                if (_cropRect != null) {
+                                  Navigator.pop(context, {
+                                    'x': _cropRect!.left.toInt(),
+                                    'y': _cropRect!.top.toInt(),
+                                    'width': _cropRect!.width.toInt(),
+                                    'height': _cropRect!.height.toInt(),
+                                  });
+                                }
+                              },
+                              child: const Text('적용'),
+                            ),
+                          ],
+                        ),
+                      ],
                     )
-                  else
-                    const SizedBox.shrink(),
-
-                  Row(
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _cropRect = Rect.fromLTWH(
-                              0,
-                              0,
-                              _image.width / 2,
-                              _image.height.toDouble(),
-                            );
-                          });
-                        },
-                        child: const Text('왼쪽 절반'),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _cropRect = Rect.fromLTWH(
-                              _image.width / 4,
-                              0,
-                              _image.width / 2,
-                              _image.height.toDouble(),
-                            );
-                          });
-                        },
-                        child: const Text('중앙'),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('취소'),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () {
-                          if (_cropRect != null) {
-                            Navigator.pop(context, {
-                              'x': _cropRect!.left.toInt(),
-                              'y': _cropRect!.top.toInt(),
-                              'width': _cropRect!.width.toInt(),
-                              'height': _cropRect!.height.toInt(),
-                            });
-                          }
-                        },
-                        child: const Text('적용'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (_cropRect != null)
+                          Text(
+                            'X: ${_cropRect!.left.toInt()}, Y: ${_cropRect!.top.toInt()}\n'
+                            'W: ${_cropRect!.width.toInt()}, H: ${_cropRect!.height.toInt()}',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                          )
+                        else
+                          const SizedBox.shrink(),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _cropRect = Rect.fromLTWH(
+                                        0,
+                                        0,
+                                        _image.width / 2,
+                                        _image.height.toDouble(),
+                                      );
+                                    });
+                                  },
+                                  child: const Text('왼쪽 절반'),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _cropRect = Rect.fromLTWH(
+                                        _image.width / 4,
+                                        0,
+                                        _image.width / 2,
+                                        _image.height.toDouble(),
+                                      );
+                                    });
+                                  },
+                                  child: const Text('중앙'),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('취소'),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    if (_cropRect != null) {
+                                      Navigator.pop(context, {
+                                        'x': _cropRect!.left.toInt(),
+                                        'y': _cropRect!.top.toInt(),
+                                        'width': _cropRect!.width.toInt(),
+                                        'height': _cropRect!.height.toInt(),
+                                      });
+                                    }
+                                  },
+                                  child: const Text('적용'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );

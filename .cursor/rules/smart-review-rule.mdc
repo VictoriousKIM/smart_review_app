@@ -2,418 +2,215 @@
 alwaysApply: true
 ---
 
-## 데이터베이스 덤프 (시드 데이터)
+## 데이터베이스 마이그레이션
 
-### ✅ 올바른 방법 (로컬)
+### 시드 데이터 덤프
 ```bash
 npx supabase db dump --local --data-only -f supabase/seed.sql
 ```
 
-<!-- 프로덕션 사용 시 (주석 처리):
-### ❌ 잘못된 방법 (원격/프로덕션)
+### 마이그레이션 관리
 ```bash
-npx supabase db dump --data-only -f supabase/seed.sql
-```
--->
-
-### 마이그레이션 파일 압축
-```bash
+# 마이그레이션 파일 압축
 npx supabase migration squash
-```
 
-### 로컬대시보드 변경사항 마이그레이션 적용
-```bash
+# 로컬 대시보드 변경사항 마이그레이션 적용
 npx supabase db diff -f <migration_name>
-```
 
-### 스키마 변경 마이그레이션 추가
-```bash
-# 현재 DB와 마이그레이션 파일 차이점 확인 후 새 마이그레이션 생성
+# 스키마 변경 마이그레이션 생성
 npx supabase db diff --local --schema public -f supabase/migrations/YYYYMMDDHHMMSS_description.sql
 ```
 
-### 마이그레이션 적용
+## Cloudflare Workers 설정
 
-### ✅ 올바른 방법 (데이터 유지하며 마이그레이션 적용)
-```bash
-npx supabase migration up --local
+**파일**: `lib/config/supabase_config.dart`
+
+### 로컬 개발
+```dart
+static const String workersApiUrl = 'http://localhost:8787';
 ```
 
-### ❌ 잘못된 방법 (데이터 삭제됨)
 ```bash
-npx supabase db reset --local  # ❌ 모든 데이터가 삭제되고 처음부터 다시 적용됨
+cd workers
+npx wrangler dev --remote  # ⚠️ --remote 필수 (프로덕션 R2 사용)
+```
+
+### 프로덕션
+```dart
+static const String workersApiUrl = 'https://smart-review-api.nightkille.workers.dev';
 ```
 
 **중요:**
-- 마이그레이션을 적용할 때는 **반드시** `migration up` 명령어를 사용해야 합니다
-- `db reset`은 데이터베이스를 완전히 초기화하고 모든 데이터를 삭제합니다
-- `migration up`은 기존 데이터를 유지하면서 새로운 마이그레이션만 적용합니다
-- 로컬 Supabase를 사용하므로 항상 `--local` 플래그를 사용해야 합니다
-- `seed.sql`은 로컬 개발용 테스트 데이터입니다
-- 로컬 환경에서만 작업하므로 원격 DB와의 동기화 문제가 없습니다
-<!-- 프로덕션 사용 시 주의사항 (주석 처리):
-- `--local` 플래그가 없으면 기본적으로 원격(프로덕션) DB에서 덤프를 가져옵니다
-- 로컬 개발 환경과 프로덕션 환경은 데이터 구조가 다를 수 있습니다
-- 원격 DB에서 덤프를 가져오면 로컬 환경과 맞지 않아 리셋이 실패할 수 있습니다
--->
+- 로컬: `http://localhost:8787` 사용, `--remote` 플래그로 프로덕션 R2 연결
+- 프로덕션 배포: `npx wrangler deploy` (프로젝트 루트)
 
-## Git 커밋 메시지 작성 규칙
+## Git 커밋 메시지
 
-### ✅ 올바른 방법 (영어로 작성)
+**영어로 작성** (PowerShell 호환성)
 ```bash
 git commit -m "feat: add point cancellation feature
 
 - Add cancel cash transaction RPC function
-- Update UI to show cancel button for pending transactions
-- Remove reviewer charge functionality"
+- Update UI to show cancel button for pending transactions"
 ```
 
-### ❌ 잘못된 방법 (한글로 작성)
-```bash
-git commit -m "feat: 포인트 취소 기능 추가"
-```
+커밋 타입: `feat`, `fix`, `chore`, `refactor`, `docs`, `style`, `test`
 
-**중요:**
-- 모든 커밋 메시지는 **영어로 작성**해야 합니다
-- 한글 커밋 메시지는 Windows PowerShell에서 깨져 보일 수 있습니다
-- GitHub에서는 정상 표시되지만, 로컬 터미널에서 가독성이 떨어집니다
-- 커밋 타입: `feat`, `fix`, `chore`, `refactor`, `docs`, `style`, `test` 등
-
-## 📱 Flutter 웹 앱 접근성 활성화
-
-Flutter 웹 앱에서 접근성 버튼을 활성화하는 방법:
+## Flutter 웹 앱 접근성 활성화
 
 ```javascript
-// 접근성 활성화 (필수!)
 await page.evaluate(() => {
-  const accessibilityButton = document.querySelector('flt-semantics-placeholder[aria-label="Enable accessibility"]');
-  if (accessibilityButton) {
-    accessibilityButton.click();
-  }
+  const button = document.querySelector('flt-semantics-placeholder[aria-label="Enable accessibility"]');
+  if (button) button.click();
 });
 ```
 
-## 📄 문서 작성 규칙
+## 문서 작성 규칙
 
-### 보고서 작성 시 날짜 반영
-
-### ✅ 올바른 방법 (현재 날짜 사용)
-보고서나 문서를 작성할 때는 **반드시 현재 날짜를 확인**하고 사용해야 합니다:
-
+보고서 작성 시 **현재 날짜 확인 후 사용**:
 ```bash
-# PowerShell에서 현재 날짜 확인
 powershell -Command "Get-Date -Format 'yyyy년 MM월 dd일'"
 ```
 
-보고서 작성 예시:
-```markdown
-**작성일**: 2025년 11월 24일  
-**작업 기간**: 2025년 11월 24일
-```
+날짜 형식: `yyyy년 MM월 dd일` (예: 2025년 11월 24일)
 
-### ❌ 잘못된 방법 (임의의 날짜 사용)
-```markdown
-**작성일**: 2024년 12월 25일  # ❌ 임의의 날짜 사용
-```
+## Flutter 웹 앱 이미지 업로드
 
-**중요:**
-- 보고서나 문서 작성 시 **항상 현재 날짜를 확인**한 후 사용해야 합니다
-- `run_terminal_cmd` 도구를 사용하여 현재 날짜를 확인할 수 있습니다
-- 날짜 형식: `yyyy년 MM월 dd일` (예: 2025년 11월 24일)
-- 마이그레이션 파일명의 타임스탬프는 생성 시점을 나타내므로 변경하지 않아도 됩니다
-
-## 🖼️ Flutter 웹 앱 이미지 업로드 방법
-
-Flutter 웹 앱에서 이미지를 업로드하는 방법:
-
-### ✅ 올바른 방법
-
-1. **이미지 파일을 웹 서버에 복사**:
+1. 이미지 파일을 웹 서버에 복사:
 ```bash
-# Flutter 웹 앱이 localhost:3001에서 실행 중인 경우
 powershell -Command "Copy-Item '이미지파일.png' -Destination 'web/' -Force"
 ```
 
-2. **"이미지 선택" 버튼 클릭 후 file input에 이미지 설정**:
+2. Playwright로 파일 설정:
 ```javascript
-// 이미지 선택 버튼 클릭
 await page.locator('button:has-text("이미지 선택")').click();
 await page.waitForTimeout(1000);
 
-// fetch로 이미지 가져와서 File 객체 생성
 const response = await fetch('http://localhost:3001/이미지파일.png');
 const blob = await response.blob();
 const file = new File([blob], '이미지파일.png', { type: 'image/png' });
 
-// file input 찾아서 DataTransfer로 파일 설정
 const fileInput = document.querySelector('input[type="file"]');
 const dataTransfer = new DataTransfer();
 dataTransfer.items.add(file);
 fileInput.files = dataTransfer.files;
-
-// change 이벤트 발생
-const changeEvent = new Event('change', { bubbles: true });
-fileInput.dispatchEvent(changeEvent);
+fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 ```
 
-**중요:**
-- "이미지 선택" 버튼을 클릭하면 file input이 나타남
-- `DataTransfer` API를 사용하여 파일을 설정해야 함
-- 이미지 파일은 Flutter 웹 앱과 같은 도메인(localhost:3001)에서 제공되어야 함
+## DateTime 처리 (KST 기준)
 
-## ⏰ DateTime(일시) 처리 규칙
+**원칙**: 모든 DateTime은 한국 시간(KST, UTC+9) 기준, DB는 UTC 저장
 
-**핵심 원칙:**
-- 모든 DateTime은 **한국 시간(KST, UTC+9)** 기준으로 처리
-- DB에는 UTC로 저장하되, 애플리케이션에서는 항상 한국 시간으로 변환하여 사용
-
-**1. DateTime 생성**
 ```dart
 import '../../utils/date_time_utils.dart';
 
-final dateTime = DateTimeUtils.nowKST().copyWith(
-  year: date.year,
-  month: date.month,
-  day: date.day,
-  hour: time.hour,
-  minute: time.minute,
-  second: 0,
-  millisecond: 0,
-);
-```
-
-**2. 현재 시간 사용**
-```dart
+// 현재 시간
 final now = DateTimeUtils.nowKST();
-```
 
-**3. DB에 저장**
-```dart
-import '../utils/date_time_utils.dart';
+// DateTime 생성
+final dateTime = DateTimeUtils.nowKST().copyWith(
+  year: date.year, month: date.month, day: date.day,
+  hour: time.hour, minute: time.minute, second: 0, millisecond: 0,
+);
 
+// DB 저장
 'p_apply_start_date': DateTimeUtils.toIso8601StringKST(applyStartDate),
-```
 
-**4. DB에서 읽기**
-```dart
-import '../utils/date_time_utils.dart';
-
+// DB 읽기
 applyStartDate: json['apply_start_date'] != null
     ? DateTimeUtils.parseKST(json['apply_start_date'])
     : DateTimeUtils.nowKST().add(const Duration(days: 1)),
-```
 
-**5. 시간 비교**
-```dart
-import '../../../utils/date_time_utils.dart';
+// 시간 비교
+final now = DateTimeUtils.nowKST();
+_pendingCampaigns = _allCampaigns.where((c) => c.applyStartDate.isAfter(now)).toList();
 
-void _updateFilteredCampaigns() {
-  final now = DateTimeUtils.nowKST();
-  _pendingCampaigns = _allCampaigns.where((campaign) {
-    return campaign.applyStartDate.isAfter(now);
-  }).toList();
-}
-```
-
-**6. 날짜/시간 표시**
-```dart
-import '../../../utils/date_time_utils.dart';
-
+// 표시
 Text(DateTimeUtils.formatKST(dateTime)) // "2025-11-25 14:30"
 ```
 
-**금지 사항:**
-- ❌ `DateTime.now()` 직접 사용 금지 → `DateTimeUtils.nowKST()` 사용
-- ❌ `.toLocal()` 사용 금지 → `DateTimeUtils.parseKST()` 사용
-- ❌ `.toIso8601String()` 직접 사용 금지 → `DateTimeUtils.toIso8601StringKST()` 사용
+**금지**: `DateTime.now()`, `.toLocal()`, `.toIso8601String()` 직접 사용
 
-## 🔐 Custom JWT 세션 지원 (네이버 로그인)
+## Custom JWT 세션 지원 (네이버 로그인)
 
-**핵심 원칙:**
-- 네이버 로그인은 Custom JWT 세션을 사용하므로, `supabase.auth.currentUser`가 `null`일 수 있음
-- 모든 서비스 메서드에서 사용자 ID를 가져올 때는 **반드시 Custom JWT 세션도 체크**해야 함
-- Custom JWT 세션과 Supabase 세션을 모두 지원하도록 개발해야 함
+**원칙**: 네이버 로그인은 Custom JWT 세션 사용 → `supabase.auth.currentUser`가 `null`일 수 있음
 
-### ✅ 올바른 방법 (사용자 ID 가져오기)
-
-**1. 서비스 메서드에서 사용자 ID 가져오기**
+### ✅ 올바른 방법
 ```dart
 import 'auth_service.dart';
 
-// ❌ 잘못된 방법
-final user = _supabase.auth.currentUser;
-if (user == null) {
-  throw Exception('로그인이 필요합니다');
-}
-final userId = user.id;
-
-// ✅ 올바른 방법
+// 사용자 ID 가져오기
 final userId = await AuthService.getCurrentUserId();
 if (userId == null) {
   throw Exception('로그인이 필요합니다');
 }
-```
 
-**2. RPC 함수 호출 시 사용자 ID 사용**
-```dart
-// ✅ 올바른 방법
-final userId = await AuthService.getCurrentUserId();
-if (userId == null) {
-  return ApiResponse(success: false, error: '로그인이 필요합니다.');
-}
-
+// RPC 함수 호출
 final response = await _supabase.rpc(
   'some_rpc_function',
   params: {'p_user_id': userId, ...},
 );
-```
 
-**3. 직접 쿼리 시 사용자 ID 사용**
-```dart
-// ✅ 올바른 방법
-final userId = await AuthService.getCurrentUserId();
-if (userId == null) {
-  return ApiResponse(success: false, error: '로그인이 필요합니다.');
-}
-
+// 직접 쿼리
 final response = await _supabase
     .from('some_table')
     .select()
     .eq('user_id', userId);
 ```
 
-### ❌ 잘못된 방법
-
+### ❌ 금지
 ```dart
-// ❌ 잘못된 방법 1: currentUser 직접 사용
+// ❌ currentUser 직접 사용
 final user = _supabase.auth.currentUser;
-if (user == null) {
-  throw Exception('로그인이 필요합니다');
-}
-// Custom JWT 세션에서는 currentUser가 null이므로 실패함
-
-// ❌ 잘못된 방법 2: currentUser?.id 사용
 final userId = _supabase.auth.currentUser?.id;
-if (userId == null) {
-  throw Exception('로그인이 필요합니다');
-}
-// Custom JWT 세션에서는 null이 반환되어 실패함
-
-// ❌ 잘못된 방법 3: currentSession 사용
 final session = _supabase.auth.currentSession;
-final userId = session?.user.id;
-// Custom JWT 세션에서는 session이 null이므로 실패함
 ```
 
-### 📋 체크리스트
+**중요**: 모든 서비스 메서드에서 `AuthService.getCurrentUserId()` 사용 필수
 
-새로운 서비스 메서드를 작성할 때 다음을 확인하세요:
+## 보안 및 데이터 접근 제어
 
-1. ✅ `AuthService.getCurrentUserId()`를 사용하여 사용자 ID를 가져오는가?
-2. ✅ Custom JWT 세션과 Supabase 세션을 모두 지원하는가?
-3. ✅ 사용자 ID가 `null`인 경우 적절한 에러 처리를 하는가?
-4. ✅ RPC 함수 호출 시 `p_user_id` 파라미터에 올바른 `userId`를 전달하는가?
-5. ✅ 직접 쿼리 시 `.eq('user_id', userId)` 형태로 올바르게 사용하는가?
-
-### 🔍 영향받는 서비스
-
-다음 서비스들은 이미 Custom JWT 세션을 지원하도록 수정되었습니다:
-- ✅ `AuthService` - `getCurrentUserId()` 정적 메서드 제공
-- ✅ `SNSPlatformConnectionService` - 모든 메서드
-- ✅ `WalletService` - 모든 메서드
-- ✅ `CampaignService` - 사용자 관련 메서드
-- ✅ `CampaignApplicationService` - 모든 메서드
-- ✅ `ReviewService` - 모든 메서드
-- ✅ `NotificationService` - 모든 메서드
-- ✅ `AccountDeletionService` - 모든 메서드
-
-**중요:**
-- 새로운 서비스 메서드를 추가할 때는 **반드시** `AuthService.getCurrentUserId()`를 사용해야 합니다
-- 기존 코드를 수정할 때도 `_supabase.auth.currentUser`를 사용하는 부분이 있다면 수정해야 합니다
-- Custom JWT 세션은 네이버 로그인에서만 사용되며, 다른 OAuth 제공자(Google, Kakao)는 Supabase 세션을 사용합니다
-
-## 🔒 보안 및 데이터 접근 제어 원칙
-
-**핵심 원칙:**
-- ❌ **프론트엔드에서 보안/필터링 로직 하드코딩 금지** - 우회 가능
-- ✅ **데이터베이스 레벨에서 보안 처리** - RLS + RPC 함수 이중 보안
-- ✅ **역할 기반 필터링은 RPC 함수에서 수행**
+**원칙**: 프론트엔드 보안 로직 금지 → 데이터베이스 레벨 처리 (RLS + RPC)
 
 ### ✅ 올바른 방법
-
 ```dart
-// ❌ 잘못: 프론트엔드에서 역할 체크 후 데이터 접근
-if (role != 'owner') return null;
-final data = await supabase.from('table').select();
-
-// ✅ 올바름: RPC 함수 사용 (데이터베이스 레벨 필터링)
+// RPC 함수 사용
 final data = await Service.getDataByUserId(userId);
 ```
 
-### ❌ 금지 사항
+### ❌ 금지
+```dart
+// 프론트엔드에서 역할 체크 후 데이터 접근
+if (role != 'owner') return null;
+final data = await supabase.from('table').select();
+```
 
-1. 프론트엔드에서 역할 체크 후 데이터 접근
-2. 직접 쿼리로 복잡한 필터링 (`.eq('role', 'manager')` 등)
-3. RPC 실패 시 직접 쿼리로 대체 (Fallback)
-4. 프론트엔드에서 권한 체크 후 직접 쿼리
-
-### 📋 RPC 함수 생성 규칙
-
-**필수 사항:**
+### RPC 함수 생성 규칙
 ```sql
 CREATE OR REPLACE FUNCTION "public"."function_name"(
-    "p_user_id" "uuid" DEFAULT NULL::"uuid"  -- Custom JWT 세션 지원
+    "p_user_id" "uuid" DEFAULT NULL::"uuid"
 )
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO ''  -- ✅ 필수: 보안 강화
+    SET "search_path" TO ''  -- 필수: 보안 강화
     AS $$
 DECLARE
     v_user_id UUID := COALESCE(p_user_id, auth.uid());
     v_role TEXT;
 BEGIN
-    -- 권한 체크는 함수 내부에서 수행
     SELECT company_role INTO v_role FROM public.company_users ...;
     IF v_role NOT IN ('owner', 'manager') THEN RETURN; END IF;
-    
-    -- 데이터 반환
     RETURN QUERY SELECT ...;
 END;
 $$;
 ```
 
-### 📋 개발 체크리스트
+**허용**: UI/UX 목적의 프론트엔드 체크만 (버튼 활성화, 위젯 표시)
 
-1. ✅ 프론트엔드에서 역할 체크 후 데이터 접근? → RPC 함수로 이동
-2. ✅ 직접 쿼리로 필터링? → RPC 함수로 이동
-3. ✅ RPC 함수에 `SET search_path = ''` 적용?
-4. ✅ `SECURITY DEFINER` 사용?
-5. ✅ Custom JWT 세션 지원? (`p_user_id` 파라미터)
-6. ✅ 권한 체크는 데이터베이스 레벨에서?
-7. ✅ 대체 로직(Fallback) 제거?
+## 반응형 디자인 (ResponsiveBuilder)
 
-### ✅ 허용 가능한 프론트엔드 체크
+**원칙**: 모든 새 스크린은 ResponsiveBuilder 필수 사용
 
-**UI/UX 목적만 허용:**
-```dart
-// ✅ 허용: UI 표시 제어만
-if (_isOwner) return OwnerOnlyWidget();
-
-// ✅ 허용: 버튼 활성화/비활성화만
-if (!_isOwner) return DisabledButton();
-```
-
-**중요:** UI 제어는 허용되지만, **실제 데이터 접근은 반드시 데이터베이스 레벨에서 제어**되어야 함
-
-## 📱 반응형 디자인 (ResponsiveBuilder)
-
-**핵심 원칙:**
-- 모든 새로운 스크린은 **반드시 ResponsiveBuilder를 사용**하여 개발해야 함
-- 기존 스크린도 필요 시 ResponsiveBuilder로 마이그레이션
-- 일관된 반응형 패턴을 따라야 함
-
-### ✅ 올바른 방법 (새 스크린 개발)
-
-**1. 기본 스크린 구조**
+### 기본 구조
 ```dart
 import 'package:responsive_builder/responsive_builder.dart';
 
@@ -439,11 +236,7 @@ Widget build(BuildContext context) {
                   desktop: 900,
                 ),
               ),
-              child: Column(
-                children: [
-                  // 콘텐츠
-                ],
-              ),
+              child: Column(children: [...]),
             ),
           ),
         );
@@ -528,3 +321,93 @@ final padding = isMobile ? 16.0 : 40.0;  // ❌ 표준 패턴 미준수
 - 모든 새로운 스크린은 **반드시 ResponsiveBuilder를 사용**해야 합니다
 - 기존 스크린도 필요 시 ResponsiveBuilder로 마이그레이션해야 합니다
 - 표준 패턴을 따라 일관된 사용자 경험을 제공해야 합니다
+
+## 다른 스크린에 수정사항 반영
+
+**원칙**: 하위 화면에서 데이터 수정 후 상위 화면으로 돌아올 때 변경사항이 자동으로 반영되어야 함
+
+### ✅ 올바른 방법
+
+**1. 수정/생성 화면에서 반환값 전달**
+```dart
+// 수정/생성 성공 시
+if (response.success && response.data != null) {
+  context.pop(response.data);  // 수정된 객체 반환
+} else {
+  context.pop(true);  // 또는 true 반환하여 새로고침 필요함을 알림
+}
+```
+
+**2. 상위 화면에서 반환값 처리 (async/await 패턴)**
+```dart
+Future<void> _navigateToEditScreen(String id) async {
+  final result = await context.push('/edit/$id');
+  
+  if (!mounted) return;
+  
+  // 반환값이 있으면 새로고침
+  if (result != null) {
+    // Provider 무효화 (Riverpod)
+    ref.invalidate(dataProvider(id));
+    
+    // 또는 직접 새로고침
+    await _loadData();
+    
+    // 변경사항 플래그 설정 (뒤로가기 시 상위 화면도 새로고침)
+    setState(() {
+      _hasChanges = true;
+    });
+  }
+}
+```
+
+**3. 뒤로가기 시 상위 화면 새로고침**
+```dart
+// 뒤로가기 버튼
+leading: IconButton(
+  icon: const Icon(Icons.arrow_back),
+  onPressed: () {
+    context.pop(_hasChanges ? true : null);
+  },
+),
+
+// 상위 화면에서 처리
+context.push('/detail/$id').then((result) {
+  if (result == true) {
+    _loadData();  // 새로고침
+  }
+});
+```
+
+**4. Provider 사용 시 자동 새로고침**
+```dart
+// Provider 무효화로 자동 새로고침
+ref.invalidate(campaignDetailProvider(campaignId));
+
+// 약간의 지연 후 재무효화 (DB 트랜잭션 커밋 대기)
+await Future.delayed(const Duration(milliseconds: 300));
+if (mounted) {
+  ref.invalidate(campaignDetailProvider(campaignId));
+}
+```
+
+### ❌ 잘못된 방법
+
+```dart
+// ❌ 반환값을 처리하지 않음
+void _navigateToEdit() {
+  context.push('/edit');  // 반환값 무시
+}
+
+// ❌ 수정 후 반환값을 전달하지 않음
+if (response.success) {
+  context.pop();  // ❌ 반환값 없음
+}
+
+// ❌ Provider 무효화 없이 수정
+// 수정 후에도 이전 데이터가 표시됨
+```
+
+**참고 예시:**
+- 캠페인 편집: `lib/screens/mypage/advertiser/advertiser_campaign_detail_screen.dart`의 `_handleEdit` 메서드
+- 캠페인 생성: `lib/screens/mypage/advertiser/advertiser_my_campaigns_screen.dart`의 `_navigateToCreateCampaign` 메서드

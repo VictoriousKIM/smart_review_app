@@ -34,7 +34,7 @@ class CampaignDuplicateCheckService {
             prevent_product_duplicate,
             prevent_store_duplicate,
             duplicate_prevent_days,
-            end_date,
+            apply_end_date,
             created_at
           )
         ''')
@@ -61,7 +61,8 @@ class CampaignDuplicateCheckService {
     if (cutoffDate != null) {
       return logs.where((log) {
         final campaign = log['campaigns'];
-        final campaignDate = campaign['end_date'] ?? campaign['created_at'];
+        // apply_end_date를 우선 사용하고, 없으면 created_at 사용
+        final campaignDate = campaign['apply_end_date'] ?? campaign['created_at'];
         if (campaignDate == null) return false;
 
         final campaignDateTime = DateTime.parse(campaignDate);

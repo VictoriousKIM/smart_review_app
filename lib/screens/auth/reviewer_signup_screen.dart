@@ -7,6 +7,7 @@ import 'dart:convert';
 import '../../config/supabase_config.dart';
 import '../../services/wallet_service.dart';
 import '../../services/auth_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/error_message_utils.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import 'reviewer_signup_profile_form.dart';
@@ -45,8 +46,40 @@ class _ReviewerSignupScreenState extends ConsumerState<ReviewerSignupScreen> {
   @override
   void initState() {
     super.initState();
+    _checkUserState();
     // OAuth 데이터를 먼저 로드한 후 저장된 데이터 로드
     _loadOAuthUserData().then((_) => _loadSavedData());
+  }
+
+  /// 사용자 상태 확인 (이미 프로필이 있으면 리다이렉트)
+  Future<void> _checkUserState() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      final authService = ref.read(authServiceProvider);
+      final userState = await authService.getUserState();
+
+      // 이미 프로필이 있는 사용자는 signup 페이지 접근 불가
+      if (userState == UserState.loggedIn) {
+        debugPrint('🔄 [ReviewerSignupScreen] 이미 프로필이 있는 사용자: 홈으로 리다이렉트');
+        if (mounted) {
+          context.go('/home');
+        }
+        return;
+      }
+
+      // 비로그인 상태도 signup 페이지 접근 불가
+      if (userState == UserState.notLoggedIn) {
+        debugPrint('🔄 [ReviewerSignupScreen] 비로그인 상태: 로그인으로 리다이렉트');
+        if (mounted) {
+          context.go('/login');
+        }
+        return;
+      }
+
+      // tempSession 상태만 signup 페이지 허용
+      debugPrint('✅ [ReviewerSignupScreen] 임시 세션 상태: signup 페이지 허용');
+    });
   }
 
   /// 저장된 회원가입 데이터 로드

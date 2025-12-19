@@ -520,8 +520,78 @@ class _PointTransactionDetailScreenState
           ] else if (receiptType == 'tax_invoice') ...[
             _buildTaxInvoiceInfo(),
           ],
+          // 영수증 상세 방법 안내
+          const SizedBox(height: 16),
+          _buildReceiptDetailMethod(receiptType),
         ],
       ],
+    );
+  }
+
+  Widget _buildReceiptDetailMethod(String receiptType) {
+    String methodText;
+    String description;
+
+    switch (receiptType) {
+      case 'cash_receipt':
+        methodText = '현금영수증 확인 방법';
+        description = '국세청 홈택스(www.hometax.go.kr)에서 현금영수증을 확인하실 수 있습니다.\n'
+            '• 홈택스 로그인 → 현금영수증 조회\n'
+            '• 휴대폰 번호 또는 사업자번호로 조회 가능';
+        break;
+      case 'tax_invoice':
+        methodText = '세금계산서 확인 방법';
+        description = '세금계산서는 등록하신 이메일 주소로 발송됩니다.\n'
+            '• 이메일 수신함 확인\n'
+            '• 스팸 메일함도 확인해주세요\n'
+            '• 국세청 홈택스에서도 확인 가능';
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F7F8),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.grey[300]!,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 20,
+                color: Colors.blue[700],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                methodText,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue[700],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[700],
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

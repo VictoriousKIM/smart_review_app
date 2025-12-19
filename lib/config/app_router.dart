@@ -140,18 +140,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null; // 세션 저장이 완료될 때까지 전역 redirect 제외
       }
 
-      // Signup 관련 경로는 redirect 제외 (무한 루프 방지)
-      if (matchedLocation.startsWith('/signup') ||
-          fullPath.startsWith('/signup')) {
-        debugPrint(
-          'Redirect: Signup 경로는 redirect 제외: matchedLocation=$matchedLocation, fullPath=$fullPath',
-        );
-        return null;
-      }
-
       // 1. 사용자 상태 확인 (통합 세션 관리자 사용)
       // 모든 세션 타입(Supabase, Custom JWT)을 통합적으로 처리
       final userState = await authService.getUserState();
+
+      // Signup 관련 경로 체크 (사용자 상태 확인 후)
+      final isSignup =
+          matchedLocation.startsWith('/signup') ||
+          fullPath.startsWith('/signup');
+
+      if (isSignup) {
+        // 이미 프로필이 있는 사용자는 signup 페이지 접근 불가
+        if (userState == UserState.loggedIn) {
+          debugPrint('🔄 이미 프로필이 있는 사용자: signup 페이지 접근 차단 → 홈으로 리다이렉트');
+          return '/home';
+        }
+        // 임시 세션이거나 비로그인 상태는 signup 페이지 허용
+        debugPrint(
+          'Redirect: Signup 경로 접근 허용: matchedLocation=$matchedLocation, fullPath=$fullPath, userState=$userState',
+        );
+        return null;
+      }
 
       // 2. 임시 세션 (프로필 없음) → signup으로 리다이렉트
       if (userState == UserState.tempSession) {

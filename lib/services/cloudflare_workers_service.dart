@@ -152,9 +152,9 @@ class CloudflareWorkersService {
       var pathSegments = uri.pathSegments;
 
       // Workers API URL 형식인 경우 (/api/files/ 제거)
-      if (pathSegments.isNotEmpty && 
-          pathSegments.length >= 2 && 
-          pathSegments[0] == 'api' && 
+      if (pathSegments.isNotEmpty &&
+          pathSegments.length >= 2 &&
+          pathSegments[0] == 'api' &&
           pathSegments[1] == 'files') {
         // 'api', 'files' 제거
         pathSegments = pathSegments.sublist(2);
@@ -162,32 +162,67 @@ class CloudflareWorkersService {
 
       // 전체 경로 반환 (첫 번째 세그먼트도 포함)
       if (pathSegments.isNotEmpty) {
-        return pathSegments.join('/');
+        final path = pathSegments.join('/');
+        // URL 디코딩 (한글/특수문자 처리)
+        try {
+          return Uri.decodeComponent(path);
+        } catch (e) {
+          debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+          return path;
+        }
       }
 
       // 만약 경로가 없으면 전체 경로에서 bucketName 제거
       final fullPath = uri.path;
       const bucketName = 'smart-review-files/';
       if (fullPath.startsWith('/$bucketName')) {
-        return fullPath.substring(bucketName.length + 1);
+        final path = fullPath.substring(bucketName.length + 1);
+        // URL 디코딩
+        try {
+          return Uri.decodeComponent(path);
+        } catch (e) {
+          debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+          return path;
+        }
       }
 
       // 앞의 슬래시 제거
-      return fullPath.startsWith('/') ? fullPath.substring(1) : fullPath;
+      final path = fullPath.startsWith('/') ? fullPath.substring(1) : fullPath;
+      // URL 디코딩
+      try {
+        return Uri.decodeComponent(path);
+      } catch (e) {
+        debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+        return path;
+      }
     } catch (e) {
       debugPrint('❌ 파일 경로 추출 실패: $e');
       // 폴백: URL에서 직접 경로 추출 시도
       final parts = fileUrl.split('.r2.cloudflarestorage.com/');
       if (parts.length > 1) {
         final pathWithQuery = parts[1];
-        return pathWithQuery.split('?')[0]; // 쿼리 파라미터 제거
+        final path = pathWithQuery.split('?')[0]; // 쿼리 파라미터 제거
+        // URL 디코딩
+        try {
+          return Uri.decodeComponent(path);
+        } catch (e) {
+          debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+          return path;
+        }
       }
       // Workers API URL 형식인 경우
       if (fileUrl.contains('/api/files/')) {
         final parts = fileUrl.split('/api/files/');
         if (parts.length > 1) {
           final pathWithQuery = parts[1];
-          return pathWithQuery.split('?')[0]; // 쿼리 파라미터 제거
+          final path = pathWithQuery.split('?')[0]; // 쿼리 파라미터 제거
+          // URL 디코딩
+          try {
+            return Uri.decodeComponent(path);
+          } catch (e) {
+            debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+            return path;
+          }
         }
       }
       return '';
@@ -213,7 +248,9 @@ class CloudflareWorkersService {
         }
       } else {
         final errorData = json.decode(response.body) as Map<String, dynamic>;
-        throw Exception(errorData['error'] ?? '파일 삭제 실패: ${response.statusCode}');
+        throw Exception(
+          errorData['error'] ?? '파일 삭제 실패: ${response.statusCode}',
+        );
       }
     } catch (e) {
       debugPrint('❌ 파일 삭제 실패: $e');
@@ -221,7 +258,7 @@ class CloudflareWorkersService {
     }
   }
 
-  /// R2 파일 조회용 Presigned URL 생성 (Workers API 사용)
+  /// R2 파일 조회용 URL 생성 (Workers 프록시 사용 - CORS 문제 해결)
   static Future<String> getPresignedUrlForViewing(String fileUrl) async {
     try {
       final filePath = extractFilePathFromUrl(fileUrl);
@@ -231,25 +268,16 @@ class CloudflareWorkersService {
 
       debugPrint('🔍 파일 URL에서 경로 추출: $filePath');
 
-      final response = await http.post(
-        Uri.parse('$_baseUrl/api/presigned-url-view'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'filePath': filePath}),
-      );
+      // Workers 프록시 URL 사용 (CORS 문제 해결)
+      // URL 인코딩하여 한글/특수문자 처리
+      final encodedPath = Uri.encodeComponent(filePath);
+      final proxyUrl = '$_baseUrl/api/files/$encodedPath';
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        if (data['success'] == true && data['url'] != null) {
-          return data['url'] as String;
-        } else {
-          throw Exception(data['error'] ?? 'Presigned URL 생성 실패');
-        }
-      } else {
-        final errorData = json.decode(response.body) as Map<String, dynamic>;
-        throw Exception(errorData['error'] ?? 'Presigned URL 생성 실패');
-      }
+      debugPrint('✅ Workers 프록시 URL 생성: $proxyUrl');
+
+      return proxyUrl;
     } catch (e) {
-      debugPrint('❌ Presigned URL 생성 실패: $e');
+      debugPrint('❌ URL 생성 실패: $e');
       rethrow;
     }
   }

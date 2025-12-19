@@ -611,7 +611,53 @@ class _AdvertiserCampaignDetailScreenState
     }
   }
 
-  void _handleEdit(BuildContext context, Campaign campaign) {
-    context.push('/mypage/advertiser/my-campaigns/edit/${campaign.id}');
+  Future<void> _handleEdit(BuildContext context, Campaign campaign) async {
+    debugPrint('🚀 캠페인 편집 화면으로 이동 - campaignId: ${campaign.id}');
+
+    try {
+      // 캠페인 편집 화면으로 이동하고 결과 대기
+      final result = await context.push(
+        '/mypage/advertiser/my-campaigns/edit/${campaign.id}',
+      );
+
+      debugPrint(
+        '📥 캠페인 편집 화면에서 반환됨 - result: $result (타입: ${result.runtimeType})',
+      );
+
+      if (!mounted) {
+        debugPrint('⚠️ 위젯이 unmount됨');
+        return;
+      }
+
+      // 반환값이 있으면 캠페인 상세 정보 새로고침
+      if (result != null) {
+        debugPrint('🔄 캠페인 상세 정보 새로고침 시작...');
+
+        // Provider 무효화하여 캠페인 상세 정보 새로고침
+        ref.invalidate(campaignDetailProvider(widget.campaignId));
+
+        // 변경사항 있음 표시
+        setState(() {
+          _hasChanges = true;
+        });
+
+        // 약간의 지연 후 Provider 새로고침 (DB 트랜잭션 커밋 대기)
+        await Future.delayed(const Duration(milliseconds: 300));
+
+        if (mounted) {
+          // Provider를 다시 무효화하여 최신 데이터 로드
+          ref.invalidate(campaignDetailProvider(widget.campaignId));
+          debugPrint('✅ 캠페인 상세 정보 새로고침 완료');
+        }
+      } else {
+        debugPrint('ℹ️ 캠페인 편집 화면에서 반환값이 없습니다.');
+      }
+    } catch (error) {
+      debugPrint('❌ 캠페인 편집 화면 에러: $error');
+      // 에러 발생 시에도 Provider 새로고침 시도
+      if (mounted) {
+        ref.invalidate(campaignDetailProvider(widget.campaignId));
+      }
+    }
   }
 }

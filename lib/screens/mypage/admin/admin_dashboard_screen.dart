@@ -213,28 +213,31 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         children: [
           Row(
             children: [
-              const Text(
-                '관리자 대시보드',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              Expanded(
+                child: const Text(
+                  '관리자 대시보드',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              const Spacer(),
               // 리뷰어 전환 버튼
               TextButton.icon(
                 onPressed: () {
                   context.go('/mypage/reviewer');
                 },
-                icon: const Icon(Icons.rate_review_outlined, size: 18),
-                label: const Text('리뷰어'),
+                icon: const Icon(Icons.rate_review_outlined, size: 16),
+                label: const Text('리뷰어', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: 6,
                     vertical: 4,
                   ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
               // 광고주 전환 버튼 (companyId가 있는 경우만 표시)
@@ -243,14 +246,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   onPressed: () {
                     context.go('/mypage/advertiser');
                   },
-                  icon: const Icon(Icons.business_outlined, size: 18),
-                  label: const Text('광고주'),
+                  icon: const Icon(Icons.business_outlined, size: 16),
+                  label: const Text('광고주', style: TextStyle(fontSize: 12)),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
+                      horizontal: 6,
                       vertical: 4,
                     ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
             ],
@@ -272,7 +277,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: 2.2,
+      childAspectRatio: 1.8,
       children: [
         _buildStatCard(
           title: '전체 사용자',
@@ -328,30 +333,42 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
             children: [
               // 아이콘과 숫자를 같은 행에 배치
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icon, color: color, size: 32),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: color,
+                  Icon(icon, color: color, size: 28),
+                  Flexible(
+                    child: Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
-              Text(
-                title,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF666666)),
+              const SizedBox(height: 8),
+              Flexible(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF666666),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -369,51 +386,62 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _buildActionButton(
-              icon: Icons.people_outlined,
-              label: '사용자 관리',
-              color: Colors.blue,
-              onTap: () {
-                context.go('/mypage/admin/users');
-              },
-            ),
-            _buildActionButton(
-              icon: Icons.business_outlined,
-              label: '회사 관리',
-              color: Colors.green,
-              onTap: () {
-                context.go('/mypage/admin/companies');
-              },
-            ),
-            _buildActionButton(
-              icon: Icons.campaign_outlined,
-              label: '캠페인 관리',
-              color: Colors.orange,
-              onTap: () {
-                context.go('/mypage/admin/campaigns');
-              },
-            ),
-            _buildActionButton(
-              icon: Icons.account_balance_wallet_outlined,
-              label: '포인트 관리',
-              color: Colors.teal,
-              onTap: () {
-                context.go('/mypage/admin/points');
-              },
-            ),
-            _buildActionButton(
-              icon: Icons.bar_chart_outlined,
-              label: '통계 보기',
-              color: Colors.purple,
-              onTap: () {
-                context.go('/mypage/admin/statistics');
-              },
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // 화면 크기에 따라 그리드 열 수 결정
+            final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+
+            return GridView.count(
+              crossAxisCount: crossAxisCount,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 2.5,
+              children: [
+                _buildActionButton(
+                  icon: Icons.people_outlined,
+                  label: '사용자 관리',
+                  color: Colors.blue,
+                  onTap: () {
+                    context.go('/mypage/admin/users');
+                  },
+                ),
+                _buildActionButton(
+                  icon: Icons.business_outlined,
+                  label: '회사 관리',
+                  color: Colors.green,
+                  onTap: () {
+                    context.go('/mypage/admin/companies');
+                  },
+                ),
+                _buildActionButton(
+                  icon: Icons.campaign_outlined,
+                  label: '캠페인 관리',
+                  color: Colors.orange,
+                  onTap: () {
+                    context.go('/mypage/admin/campaigns');
+                  },
+                ),
+                _buildActionButton(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: '포인트 관리',
+                  color: Colors.teal,
+                  onTap: () {
+                    context.go('/mypage/admin/points');
+                  },
+                ),
+                _buildActionButton(
+                  icon: Icons.bar_chart_outlined,
+                  label: '통계 보기',
+                  color: Colors.purple,
+                  onTap: () {
+                    context.go('/mypage/admin/statistics');
+                  },
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -425,16 +453,20 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 20),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color.withValues(alpha: 0.1),
-        foregroundColor: color,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 20),
+        label: Text(label, style: const TextStyle(fontSize: 14)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color.withValues(alpha: 0.1),
+          foregroundColor: color,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          alignment: Alignment.centerLeft,
+        ),
       ),
     );
   }

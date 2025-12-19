@@ -88,6 +88,25 @@ class Campaign {
     this.totalCost = 0,
   });
 
+  /// review_keywords를 파싱하는 헬퍼 함수
+  /// DB에서는 text[] (배열)로 저장되지만, 모델에서는 String? (콤마로 구분된 문자열)로 사용
+  static String? _parseReviewKeywords(dynamic value) {
+    if (value == null) return null;
+    
+    // 배열인 경우
+    if (value is List) {
+      if (value.isEmpty) return null;
+      return value.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).join(',');
+    }
+    
+    // 문자열인 경우 (하위 호환성)
+    if (value is String) {
+      return value.trim().isEmpty ? null : value.trim();
+    }
+    
+    return null;
+  }
+
   factory Campaign.fromJson(Map<String, dynamic> json) {
     // DB의 campaign_type 값 매핑: 'journalist' -> 'press', 'store' -> 'store', 'visit' -> 'visit'
     CampaignCategory mapCampaignType(String? type) {
@@ -151,7 +170,7 @@ class Campaign {
       reviewType: json['review_type'] ?? 'star_only',
       reviewTextLength: json['review_text_length'] ?? 100,
       reviewImageCount: json['review_image_count'] ?? 0,
-      reviewKeywords: json['review_keywords'],
+      reviewKeywords: _parseReviewKeywords(json['review_keywords']),
       // 중복 방지 설정
       preventProductDuplicate: json['prevent_product_duplicate'] ?? false,
       preventStoreDuplicate: json['prevent_store_duplicate'] ?? false,

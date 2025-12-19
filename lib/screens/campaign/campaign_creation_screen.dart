@@ -14,7 +14,6 @@ import '../../widgets/image_crop_editor.dart';
 import '../../services/campaign_service.dart';
 import '../../services/wallet_service.dart';
 import '../../services/cloudflare_workers_service.dart';
-import '../../services/company_user_service.dart';
 import '../../services/campaign_default_schedule_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/custom_button.dart';
@@ -323,9 +322,9 @@ class _CampaignCreationScreenState
 
     int cost = 0;
     if (_paymentType == 'platform') {
-      cost = (paymentAmount + campaignReward + 500) * maxParticipants;
+      cost = (paymentAmount + campaignReward + 0) * maxParticipants;
     } else {
-      cost = 500 * maxParticipants;
+      cost = 0 * maxParticipants;
     }
 
     // ✅ 값이 변경되었을 때만 setState
@@ -506,7 +505,14 @@ class _CampaignCreationScreenState
             setState(() {
               _ignoreCostListeners = true;
               _keywordController.text = extractedData['keyword'] ?? '';
-              _productNameController.text = extractedData['title'] ?? '';
+
+              // 제품명 추출: 콤마(,) 이후 부분 제거 (안전장치)
+              String productName = extractedData['title'] ?? '';
+              if (productName.contains(',')) {
+                productName = productName.split(',').first.trim();
+              }
+              _productNameController.text = productName;
+
               _optionController.text = extractedData['option'] ?? '';
               _quantityController.text = (extractedData['quantity'] ?? 1)
                   .toString();
@@ -1031,13 +1037,14 @@ class _CampaignCreationScreenState
     );
   }
 
-  // 상품 이미지 업로드 (Presigned URL 방식) - 재시도 로직 포함
+  // 상품 이미지 업로드 (Workers API 방식) - 재시도 로직 포함
   Future<String?> _uploadProductImage(
     Uint8List imageBytes, {
     int maxRetries = 3,
     bool showRetryDialog = true,
   }) async {
     int attempt = 0;
+    String? lastUploadedKey; // 마지막 업로드된 파일 키 저장
 
     while (attempt < maxRetries) {
       attempt++;
@@ -1054,12 +1061,6 @@ class _CampaignCreationScreenState
           throw Exception('로그인이 필요합니다.');
         }
 
-        // 회사 ID 가져오기
-        final companyId = await CompanyUserService.getUserCompanyId(userId);
-        if (companyId == null) {
-          throw Exception('회사 정보를 찾을 수 없습니다.');
-        }
-
         // 상품명 가져오기
         final productName = _productNameController.text.trim();
         if (productName.isEmpty) {
@@ -1069,51 +1070,35 @@ class _CampaignCreationScreenState
         // 파일명 생성 (확장자만 사용)
         final fileName = 'product.jpg';
 
-        // 1. Presigned URL 요청
-        setState(() {
-          _uploadProgress = 0.1;
-        });
-
-        final presignedUrlResponse =
-            await CloudflareWorkersService.getPresignedUrl(
-              fileName: fileName,
-              userId: userId,
-              contentType: 'image/jpeg',
-              fileType: 'campaign-images',
-              method: 'PUT',
-              companyId: companyId,
-              productName: productName,
-            ).timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                throw TimeoutException('Presigned URL 요청 시간 초과');
-              },
-            );
-
-        if (!presignedUrlResponse.success) {
-          throw Exception('Presigned URL 생성 실패');
-        }
-
-        // 2. Presigned URL로 R2에 직접 업로드
+        // Workers API를 통해 파일 업로드 (CORS 문제 없음)
         setState(() {
           _uploadProgress = 0.3;
         });
 
-        await CloudflareWorkersService.uploadToPresignedUrl(
-          presignedUrl: presignedUrlResponse.url,
-          fileBytes: imageBytes,
-          contentType: 'image/jpeg',
-        ).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            throw TimeoutException('이미지 업로드 시간 초과');
-          },
-        );
+        final uploadResult =
+            await CloudflareWorkersService.uploadFile(
+              fileBytes: imageBytes,
+              fileName: fileName,
+              userId: userId,
+              fileType: 'campaign-images',
+              contentType: 'image/jpeg',
+            ).timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                throw TimeoutException('이미지 업로드 시간 초과');
+              },
+            );
 
-        // 3. Public URL 생성 (Cloudflare Workers를 통해 제공)
-        // R2 Public URL은 직접 접근이 안 될 수 있으므로 Workers를 통해 제공
+        if (!uploadResult.success || uploadResult.url.isEmpty) {
+          throw Exception('이미지 업로드 실패');
+        }
+
+        // 업로드 성공 시 키 저장 (재시도 시 중복 업로드 방지)
+        lastUploadedKey = uploadResult.key;
+
+        // Workers API를 통해 프록시로 제공하는 URL 사용
         final publicUrl =
-            '${SupabaseConfig.workersApiUrl}/api/files/${presignedUrlResponse.filePath}';
+            '${SupabaseConfig.workersApiUrl}/api/files/${uploadResult.key}';
 
         setState(() {
           _uploadProgress = 1.0;
@@ -1150,6 +1135,17 @@ class _CampaignCreationScreenState
 
         // 마지막 시도인 경우
         if (attempt >= maxRetries) {
+          // 마지막 시도에서도 실패했지만, 이전에 업로드된 파일이 있으면 사용
+          if (lastUploadedKey != null) {
+            debugPrint('⚠️ 업로드 실패했지만 이전에 업로드된 파일 사용: $lastUploadedKey');
+            final publicUrl =
+                '${SupabaseConfig.workersApiUrl}/api/files/$lastUploadedKey';
+            setState(() {
+              _isUploadingImage = false;
+            });
+            return publicUrl;
+          }
+          
           setState(() {
             _errorMessage = userFriendlyMessage;
             _isUploadingImage = false;
@@ -1167,7 +1163,17 @@ class _CampaignCreationScreenState
           );
 
           if (!shouldRetry) {
-            // 사용자가 취소
+            // 사용자가 취소 - 이전에 업로드된 파일이 있으면 사용
+            if (lastUploadedKey != null) {
+              debugPrint('⚠️ 사용자가 취소했지만 이전에 업로드된 파일 사용: $lastUploadedKey');
+              final publicUrl =
+                  '${SupabaseConfig.workersApiUrl}/api/files/$lastUploadedKey';
+              setState(() {
+                _isUploadingImage = false;
+              });
+              return publicUrl;
+            }
+            
             setState(() {
               _isUploadingImage = false;
             });
@@ -1181,6 +1187,17 @@ class _CampaignCreationScreenState
         });
         await Future.delayed(Duration(seconds: attempt * 2));
       }
+    }
+
+    // 모든 시도 실패 - 이전에 업로드된 파일이 있으면 사용
+    if (lastUploadedKey != null) {
+      debugPrint('⚠️ 모든 시도 실패했지만 이전에 업로드된 파일 사용: $lastUploadedKey');
+      final publicUrl =
+          '${SupabaseConfig.workersApiUrl}/api/files/$lastUploadedKey';
+      setState(() {
+        _isUploadingImage = false;
+      });
+      return publicUrl;
     }
 
     setState(() {
@@ -1277,65 +1294,121 @@ class _CampaignCreationScreenState
 
     // 필수 필드 검증
     if (_productNameController.text.trim().isEmpty) {
-      setState(() {
-        _errorMessage = '상품명을 입력해주세요';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('상품명을 입력해주세요'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     if (_sellerController.text.trim().isEmpty) {
-      setState(() {
-        _errorMessage = '판매자명을 입력해주세요';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('판매자명을 입력해주세요'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     if (_paymentAmountController.text.trim().isEmpty) {
-      setState(() {
-        _errorMessage = '상품 가격을 입력해주세요';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('상품 가격을 입력해주세요'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     if (_platform.isEmpty) {
-      setState(() {
-        _errorMessage = '플랫폼을 선택해주세요';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('플랫폼을 선택해주세요'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     if (_purchaseMethod.isEmpty) {
-      setState(() {
-        _errorMessage = '구매방법을 선택해주세요';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('구매방법을 선택해주세요'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     if (_reviewType.isEmpty) {
-      setState(() {
-        _errorMessage = '리뷰 타입을 선택해주세요';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('리뷰 타입을 선택해주세요'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     if (_paymentType.isEmpty) {
-      setState(() {
-        _errorMessage = '지급 방법을 선택해주세요';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('지급 방법을 선택해주세요'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     if (_productImage == null && _capturedImage == null) {
-      setState(() {
-        _errorMessage = '상품 이미지를 업로드해주세요';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('상품 이미지를 업로드해주세요'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     if (_totalCost > _currentBalance) {
-      setState(() {
-        _errorMessage = '잔액이 부족합니다. 필요: ${_totalCost}P, 현재: $_currentBalance P';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '잔액이 부족합니다. 필요: ${_totalCost}P, 현재: $_currentBalance P',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
@@ -1388,9 +1461,17 @@ class _CampaignCreationScreenState
         reviewTextLength = int.tryParse(_reviewTextLengthController.text);
         if (reviewTextLength == null || reviewTextLength <= 0) {
           setState(() {
-            _errorMessage = '리뷰 텍스트 최소 글자 수를 입력해주세요';
             _isCreatingCampaign = false;
           });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('리뷰 텍스트 최소 글자 수를 입력해주세요'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
           return;
         }
         reviewImageCount = null;
@@ -1399,16 +1480,32 @@ class _CampaignCreationScreenState
         reviewImageCount = int.tryParse(_reviewImageCountController.text);
         if (reviewTextLength == null || reviewTextLength <= 0) {
           setState(() {
-            _errorMessage = '리뷰 텍스트 최소 글자 수를 입력해주세요';
             _isCreatingCampaign = false;
           });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('리뷰 텍스트 최소 글자 수를 입력해주세요'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
           return;
         }
         if (reviewImageCount == null || reviewImageCount <= 0) {
           setState(() {
-            _errorMessage = '사진 최소 개수를 입력해주세요';
             _isCreatingCampaign = false;
           });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('사진 최소 개수를 입력해주세요'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
           return;
         }
       }
@@ -1419,9 +1516,17 @@ class _CampaignCreationScreenState
 
       if (_applyStartDateTime == null) {
         setState(() {
-          _errorMessage = '신청 시작일시를 선택해주세요';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 시작일시를 선택해주세요'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
@@ -1429,43 +1534,83 @@ class _CampaignCreationScreenState
       if (_applyStartDateTime!.isBefore(nowKST) ||
           _applyStartDateTime!.isAtSameMomentAs(nowKST)) {
         setState(() {
-          _errorMessage = '신청 시작일시는 현재 시간보다 나중이어야 합니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 시작일시는 현재 시간보다 나중이어야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 신청 시작일시는 현재 시간으로부터 14일 이내여야 함
       if (_applyStartDateTime!.isAfter(maxDate)) {
         setState(() {
-          _errorMessage = '신청 시작일시는 현재 시간으로부터 14일 이내여야 합니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 시작일시는 현재 시간으로부터 14일 이내여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_applyEndDateTime == null) {
         setState(() {
-          _errorMessage = '신청 종료일시를 선택해주세요';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시를 선택해주세요'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 신청 종료일시는 현재 시간으로부터 14일 이내여야 함
       if (_applyEndDateTime!.isAfter(maxDate)) {
         setState(() {
-          _errorMessage = '신청 종료일시는 현재 시간으로부터 14일 이내여야 합니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시는 현재 시간으로부터 14일 이내여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_reviewStartDateTime == null) {
         setState(() {
-          _errorMessage = '리뷰 시작일시를 선택해주세요';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시를 선택해주세요'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
@@ -1473,62 +1618,118 @@ class _CampaignCreationScreenState
       if (_reviewStartDateTime!.isBefore(nowKST) ||
           _reviewStartDateTime!.isAtSameMomentAs(nowKST)) {
         setState(() {
-          _errorMessage = '리뷰 시작일시는 현재 시간보다 나중이어야 합니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시는 현재 시간보다 나중이어야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 리뷰 시작일시는 현재 시간으로부터 14일 이내여야 함
       if (_reviewStartDateTime!.isAfter(maxDate)) {
         setState(() {
-          _errorMessage = '리뷰 시작일시는 현재 시간으로부터 14일 이내여야 합니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시는 현재 시간으로부터 14일 이내여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_reviewEndDateTime == null) {
         setState(() {
-          _errorMessage = '리뷰 종료일시를 선택해주세요';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 종료일시를 선택해주세요'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 리뷰 종료일시는 현재 시간으로부터 14일 이내여야 함
       if (_reviewEndDateTime!.isAfter(maxDate)) {
         setState(() {
-          _errorMessage = '리뷰 종료일시는 현재 시간으로부터 14일 이내여야 합니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 종료일시는 현재 시간으로부터 14일 이내여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_applyEndDateTime!.isBefore(_applyStartDateTime!) ||
           _applyEndDateTime!.isAtSameMomentAs(_applyStartDateTime!)) {
         setState(() {
-          _errorMessage = '신청 종료일시는 시작일시보다 뒤여야 합니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시는 시작일시보다 뒤여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_applyEndDateTime!.isAfter(_reviewStartDateTime!) ||
           _applyEndDateTime!.isAtSameMomentAs(_reviewStartDateTime!)) {
         setState(() {
-          _errorMessage = '신청 종료일시는 리뷰 시작일시보다 빠를 수 없습니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시는 리뷰 시작일시보다 빠를 수 없습니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_reviewStartDateTime!.isAfter(_reviewEndDateTime!) ||
           _reviewStartDateTime!.isAtSameMomentAs(_reviewEndDateTime!)) {
         setState(() {
-          _errorMessage = '리뷰 시작일시는 종료일시보다 빠를 수 없습니다';
           _isCreatingCampaign = false;
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시는 종료일시보다 빠를 수 없습니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
@@ -1595,21 +1796,16 @@ class _CampaignCreationScreenState
             debugPrint(
               '✅ 캠페인 생성 성공 - campaignId: ${campaign.id}, title: ${campaign.title}',
             );
-            // 캠페인 생성 완료 후 "나의 캠페인"의 "대기중" 탭으로 이동
-            // 약간의 지연 후 이동하여 DB 반영 시간 확보
-            Future.delayed(const Duration(milliseconds: 300), () {
-              if (mounted) {
-                context.go('/mypage/advertiser/my-campaigns?tab=pending');
-              }
-            });
+            // 생성된 Campaign 객체를 반환하여 목록에 즉시 추가
+            if (mounted) {
+              context.pop(campaign);
+            }
           } else {
-            debugPrint('⚠️ Campaign 객체가 null입니다. "나의 캠페인"의 "대기중" 탭으로 이동합니다.');
-            // Campaign 객체가 null인 경우에도 "나의 캠페인"의 "대기중" 탭으로 이동
-            Future.delayed(const Duration(milliseconds: 300), () {
-              if (mounted) {
-                context.go('/mypage/advertiser/my-campaigns?tab=pending');
-              }
-            });
+            debugPrint('⚠️ Campaign 객체가 null입니다. true를 반환하여 새로고침합니다.');
+            // Campaign 객체가 null인 경우 true를 반환하여 새로고침
+            if (mounted) {
+              context.pop(true);
+            }
           }
         }
       } else {
@@ -1617,18 +1813,30 @@ class _CampaignCreationScreenState
         _isCreatingCampaign = false;
         _lastCampaignCreationId = null;
 
-        setState(() {
-          _errorMessage = response.error ?? '캠페인 생성에 실패했습니다.';
-        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.error ?? '캠페인 생성에 실패했습니다.'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       // ✅ 예외 시에도 플래그 해제
       _isCreatingCampaign = false;
       _lastCampaignCreationId = null;
 
-      setState(() {
-        _errorMessage = '예상치 못한 오류: $e';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('예상치 못한 오류: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } finally {
       // ✅ 최종적으로 플래그 해제
       if (mounted) {
@@ -2131,6 +2339,7 @@ class _CampaignCreationScreenState
             CustomTextField(
               controller: _productNameController,
               labelText: '제품명 *',
+              maxLines: null, // 제품명이 길어도 전체가 보이도록
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return '제품명을 입력해주세요';
@@ -2275,7 +2484,7 @@ class _CampaignCreationScreenState
                 controller: _productProvisionOtherController,
                 labelText: '상품제공 방법 상세',
                 hintText: '상품제공 방법을 입력하세요',
-                maxLines: 2,
+                maxLines: 1,
                 onChanged: (value) {
                   setState(() {});
                 },
@@ -2896,8 +3105,12 @@ class _CampaignCreationScreenState
                 } else {
                   // 캠페인 시작일 이전 X일 동안 중복 참여 방지
                   final campaignStartDate = _applyStartDateTime!;
-                  final endDate = campaignStartDate.subtract(const Duration(days: 1)); // 시작일 전날까지
-                  final startDate = endDate.subtract(Duration(days: days - 1)); // X일 전부터
+                  final endDate = campaignStartDate.subtract(
+                    const Duration(days: 1),
+                  ); // 시작일 전날까지
+                  final startDate = endDate.subtract(
+                    Duration(days: days - 1),
+                  ); // X일 전부터
                   final startDateStr =
                       '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
                   final endDateStr =
@@ -2980,7 +3193,7 @@ class _CampaignCreationScreenState
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _paymentType,
+              value: _paymentType,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: '비용 지급 방법 *',
@@ -2988,52 +3201,35 @@ class _CampaignCreationScreenState
                 filled: true,
                 fillColor: Colors.white,
               ),
-              selectedItemBuilder: (BuildContext context) {
-                final maxParticipants = _maxParticipantsController.text.isEmpty
-                    ? '0'
-                    : _maxParticipantsController.text;
-                final paymentAmount = _paymentAmountController.text.isEmpty
-                    ? '0'
-                    : _paymentAmountController.text;
-                final campaignReward = _campaignRewardController.text.isEmpty
-                    ? '0'
-                    : _campaignRewardController.text;
-
-                return [
-                  Text(
-                    '직접 지급 [플랫폼수수료(500) × 모집인원($maxParticipants)]',
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  Text(
-                    '플랫폼 지급 [플랫폼수수료(500) + 제품금액($paymentAmount) + 리뷰비($campaignReward)] × 모집인원($maxParticipants) (추가예정)',
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ];
-              },
-              items: [
+              items: const [
                 DropdownMenuItem(
                   value: 'direct',
-                  enabled: true,
-                  child: Builder(
-                    builder: (context) {
-                      final maxParticipants =
-                          _maxParticipantsController.text.isEmpty
-                          ? '0'
-                          : _maxParticipantsController.text;
-                      return Text(
-                        '직접 지급 [플랫폼수수료(500) × 모집인원($maxParticipants)]',
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        maxLines: 2,
-                      );
-                    },
-                  ),
+                  child: Text('직접 지급'),
                 ),
                 DropdownMenuItem(
                   value: 'platform',
-                  enabled: false,
+                  child: Text('플랫폼 지급'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _paymentType = value;
+                    _calculateCost();
+                  });
+                }
+              },
+            ),
+            // 계산식 표시 영역
+            ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
                   child: Builder(
                     builder: (context) {
                       final maxParticipants =
@@ -3048,25 +3244,39 @@ class _CampaignCreationScreenState
                           _campaignRewardController.text.isEmpty
                           ? '0'
                           : _campaignRewardController.text;
-                      return Text(
-                        '플랫폼 지급 [플랫폼수수료(500) + 제품금액($paymentAmount) + 리뷰비($campaignReward)] × 모집인원($maxParticipants) (추가예정)',
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        maxLines: 2,
-                      );
-                    },
+
+                    String formula = '';
+                    if (_paymentType == 'direct') {
+                      formula =
+                          '플랫폼수수료(0) × 모집인원($maxParticipants)';
+                    } else if (_paymentType == 'platform') {
+                      formula =
+                          '[플랫폼수수료(0) + 제품금액($paymentAmount) + 리뷰비($campaignReward)] × 모집인원($maxParticipants)';
+                    }
+
+                    return Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Colors.blue[700],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            formula,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                            ),
                   ),
                 ),
               ],
-              onChanged: (value) {
-                if (value != null && value == 'direct') {
-                  setState(() {
-                    _paymentType = value;
-                    _calculateCost();
-                  });
-                }
-              },
+                    );
+                  },
+                ),
             ),
+            ],
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
@@ -3665,8 +3875,12 @@ class _CampaignCreationScreenState
                                 // 기본 설정 다이얼로그에서는 현재 날짜를 기준으로 예시 표시
                                 // 실제 캠페인 생성 시에는 캠페인 시작일 기준으로 계산됨
                                 final now = DateTimeUtils.nowKST();
-                                final endDate = now.subtract(const Duration(days: 1)); // 시작일 전날까지
-                                final startDate = endDate.subtract(Duration(days: days - 1)); // X일 전부터
+                                final endDate = now.subtract(
+                                  const Duration(days: 1),
+                                ); // 시작일 전날까지
+                                final startDate = endDate.subtract(
+                                  Duration(days: days - 1),
+                                ); // X일 전부터
                                 final startDateStr =
                                     '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
                                 final endDateStr =

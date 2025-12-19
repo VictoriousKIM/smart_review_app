@@ -10,6 +10,7 @@ name = "smart-review-api"
 [[r2_buckets]]
 binding = "FILES"
 bucket_name = "smart-review-files"
+preview_bucket_name = "smart-review-files"  # --remote 플래그 사용 시 프로덕션 버킷 사용
 
 # 환경 변수 (프로덕션 환경)
 [vars]

@@ -803,43 +803,60 @@ class CampaignService {
       }
 
       // RPC 함수 호출 (create_campaign_with_points_v2)
+      // reviewKeywords를 배열로 변환 (콤마로 구분된 문자열 -> 배열)
+      List<String>? reviewKeywordsArray;
+      if (reviewKeywords != null && reviewKeywords.trim().isNotEmpty) {
+        reviewKeywordsArray = reviewKeywords
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        if (reviewKeywordsArray.isEmpty) {
+          reviewKeywordsArray = null;
+        }
+      }
+
+      // params 맵 생성 (reviewKeywords는 항상 포함하여 함수 오버로딩 문제 해결)
+      final params = <String, dynamic>{
+        'p_title': title,
+        'p_description': description,
+        'p_campaign_type': campaignType,
+        'p_campaign_reward': campaignReward,
+        'p_max_participants': maxParticipants,
+        'p_max_per_reviewer': maxPerReviewer,
+        'p_apply_start_date': DateTimeUtils.toIso8601StringKST(applyStartDate),
+        'p_apply_end_date': DateTimeUtils.toIso8601StringKST(applyEndDate),
+        'p_review_start_date': DateTimeUtils.toIso8601StringKST(
+          reviewStartDate,
+        ),
+        'p_review_end_date': DateTimeUtils.toIso8601StringKST(reviewEndDate),
+        'p_platform': platform,
+        'p_keyword': keyword,
+        'p_option': option,
+        'p_quantity': quantity ?? 1,
+        'p_seller': seller,
+        'p_product_number': productNumber,
+        'p_product_image_url': productImageUrl,
+        'p_product_name': productName, // ✅ 추가
+        'p_product_price': productPrice, // ✅ 추가 (paymentAmount 대체)
+        'p_purchase_method': purchaseMethod, // ✅ 하드코딩 제거
+        'p_product_description': null, // ✅ 제거 (NULL로 설정)
+        'p_review_type': reviewType ?? 'star_only',
+        'p_review_text_length': reviewTextLength, // ✅ NULL 가능
+        'p_review_image_count': reviewImageCount, // ✅ NULL 가능
+        'p_prevent_product_duplicate': preventProductDuplicate ?? false,
+        'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
+        'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
+        'p_payment_method': paymentMethod,
+        'p_user_id': userId, // ✅ Custom JWT 세션 지원
+        // ✅ reviewKeywords는 항상 포함 (null이면 빈 배열 전달) - 타입 불일치 해결
+        'p_review_keywords':
+            reviewKeywordsArray ?? <String>[], // null이면 빈 배열 전달
+      };
+
       final response = await _supabase.rpc(
         'create_campaign_with_points_v2',
-        params: {
-          'p_title': title,
-          'p_description': description,
-          'p_campaign_type': campaignType,
-          'p_campaign_reward': campaignReward,
-          'p_max_participants': maxParticipants,
-          'p_max_per_reviewer': maxPerReviewer,
-          'p_apply_start_date': DateTimeUtils.toIso8601StringKST(
-            applyStartDate,
-          ),
-          'p_apply_end_date': DateTimeUtils.toIso8601StringKST(applyEndDate),
-          'p_review_start_date': DateTimeUtils.toIso8601StringKST(
-            reviewStartDate,
-          ),
-          'p_review_end_date': DateTimeUtils.toIso8601StringKST(reviewEndDate),
-          'p_platform': platform,
-          'p_keyword': keyword,
-          'p_option': option,
-          'p_quantity': quantity ?? 1,
-          'p_seller': seller,
-          'p_product_number': productNumber,
-          'p_product_image_url': productImageUrl,
-          'p_product_name': productName, // ✅ 추가
-          'p_product_price': productPrice, // ✅ 추가 (paymentAmount 대체)
-          'p_purchase_method': purchaseMethod, // ✅ 하드코딩 제거
-          'p_product_description': null, // ✅ 제거 (NULL로 설정)
-          'p_review_type': reviewType ?? 'star_only',
-          'p_review_text_length': reviewTextLength, // ✅ NULL 가능
-          'p_review_image_count': reviewImageCount, // ✅ NULL 가능
-          'p_prevent_product_duplicate': preventProductDuplicate ?? false,
-          'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
-          'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
-          'p_payment_method': paymentMethod,
-          'p_review_keywords': reviewKeywords,
-        },
+        params: params,
       );
 
       if (response['success'] == true) {
@@ -933,43 +950,60 @@ class CampaignService {
       }
 
       // RPC 함수 호출 (update_campaign_v2)
+      // reviewKeywords를 배열로 변환 (콤마로 구분된 문자열 -> 배열)
+      List<String>? reviewKeywordsArray;
+      if (reviewKeywords != null && reviewKeywords.trim().isNotEmpty) {
+        reviewKeywordsArray = reviewKeywords
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        if (reviewKeywordsArray.isEmpty) {
+          reviewKeywordsArray = null;
+        }
+      }
+
+      // params 맵 생성 (조건부로 reviewKeywords 포함)
+      final params = <String, dynamic>{
+        'p_campaign_id': campaignId,
+        'p_title': title,
+        'p_description': description,
+        'p_campaign_type': campaignType,
+        'p_campaign_reward': campaignReward,
+        'p_max_participants': maxParticipants,
+        'p_max_per_reviewer': maxPerReviewer,
+        'p_apply_start_date': DateTimeUtils.toIso8601StringKST(applyStartDate),
+        'p_apply_end_date': DateTimeUtils.toIso8601StringKST(applyEndDate),
+        'p_review_start_date': DateTimeUtils.toIso8601StringKST(
+          reviewStartDate,
+        ),
+        'p_review_end_date': DateTimeUtils.toIso8601StringKST(reviewEndDate),
+        'p_platform': platform,
+        'p_keyword': keyword,
+        'p_option': option,
+        'p_quantity': quantity ?? 1,
+        'p_seller': seller,
+        'p_product_number': productNumber,
+        'p_product_image_url': productImageUrl,
+        'p_product_name': productName,
+        'p_product_price': productPrice,
+        'p_purchase_method': purchaseMethod,
+        'p_review_type': reviewType ?? 'star_only',
+        'p_review_text_length': reviewTextLength,
+        'p_review_image_count': reviewImageCount,
+        'p_prevent_product_duplicate': preventProductDuplicate ?? false,
+        'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
+        'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
+        'p_payment_method': paymentMethod,
+        'p_user_id': userId, // Custom JWT 세션 지원
+        // ✅ reviewKeywords는 항상 포함 (null이면 빈 배열 전달) - 타입 불일치 해결
+        'p_review_keywords':
+            reviewKeywordsArray ?? <String>[], // null이면 빈 배열 전달
+      };
+
       final response = await _supabase.rpc(
         'update_campaign_v2',
-        params: {
-          'p_campaign_id': campaignId,
-          'p_title': title,
-          'p_description': description,
-          'p_campaign_type': campaignType,
-          'p_campaign_reward': campaignReward,
-          'p_max_participants': maxParticipants,
-          'p_max_per_reviewer': maxPerReviewer,
-          'p_apply_start_date': DateTimeUtils.toIso8601StringKST(
-            applyStartDate,
-          ),
-          'p_apply_end_date': DateTimeUtils.toIso8601StringKST(applyEndDate),
-          'p_review_start_date': DateTimeUtils.toIso8601StringKST(
-            reviewStartDate,
-          ),
-          'p_review_end_date': DateTimeUtils.toIso8601StringKST(reviewEndDate),
-          'p_platform': platform,
-          'p_keyword': keyword,
-          'p_option': option,
-          'p_quantity': quantity ?? 1,
-          'p_seller': seller,
-          'p_product_number': productNumber,
-          'p_product_image_url': productImageUrl,
-          'p_product_name': productName,
-          'p_product_price': productPrice,
-          'p_purchase_method': purchaseMethod,
-          'p_review_type': reviewType ?? 'star_only',
-          'p_review_text_length': reviewTextLength,
-          'p_review_image_count': reviewImageCount,
-          'p_prevent_product_duplicate': preventProductDuplicate ?? false,
-          'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
-          'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
-          'p_payment_method': paymentMethod,
-          'p_review_keywords': reviewKeywords,
-        },
+        params: params,
       );
 
       if (response['success'] == true) {

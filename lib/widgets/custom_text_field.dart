@@ -45,7 +45,8 @@ class CustomTextField extends StatelessWidget {
       onChanged: onChanged,
       onTap: onTap,
       readOnly: readOnly,
-      maxLines: maxLines,
+      maxLines: maxLines, // null이면 자동으로 여러 줄로 확장
+      minLines: maxLines == null ? 1 : null, // null일 때 최소 1줄
       maxLength: maxLength,
       inputFormatters: inputFormatters,
       decoration: InputDecoration(

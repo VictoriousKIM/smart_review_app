@@ -7,6 +7,7 @@ import '../../utils/error_message_utils.dart';
 import '../../services/auth_service.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import '../mypage/common/business_registration_form.dart';
+import '../../providers/auth_provider.dart';
 
 /// 광고주 회원가입 화면
 /// 단계별로 사업자 인증 → 입출금통장 입력 → 완료
@@ -37,7 +38,39 @@ class _AdvertiserSignupScreenState
   @override
   void initState() {
     super.initState();
+    _checkUserState();
     _loadOAuthUserData();
+  }
+
+  /// 사용자 상태 확인 (이미 프로필이 있으면 리다이렉트)
+  Future<void> _checkUserState() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      final authService = ref.read(authServiceProvider);
+      final userState = await authService.getUserState();
+
+      // 이미 프로필이 있는 사용자는 signup 페이지 접근 불가
+      if (userState == UserState.loggedIn) {
+        debugPrint('🔄 [AdvertiserSignupScreen] 이미 프로필이 있는 사용자: 홈으로 리다이렉트');
+        if (mounted) {
+          context.go('/home');
+        }
+        return;
+      }
+
+      // 비로그인 상태도 signup 페이지 접근 불가
+      if (userState == UserState.notLoggedIn) {
+        debugPrint('🔄 [AdvertiserSignupScreen] 비로그인 상태: 로그인으로 리다이렉트');
+        if (mounted) {
+          context.go('/login');
+        }
+        return;
+      }
+
+      // tempSession 상태만 signup 페이지 허용
+      debugPrint('✅ [AdvertiserSignupScreen] 임시 세션 상태: signup 페이지 허용');
+    });
   }
 
   /// OAuth에서 가져온 사용자 정보 로드

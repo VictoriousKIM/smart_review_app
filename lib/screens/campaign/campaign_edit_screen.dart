@@ -106,8 +106,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   int _currentBalance = 0;
   bool _isLoadingBalance = false;
 
-  String? _errorMessage;
-
   // ✅ 5. 비용 계산 디바운싱
   Timer? _costCalculationTimer;
   // bool _ignoreCostListeners = false; // 편집 화면에서는 비용 계산 제거로 인해 사용하지 않음
@@ -341,8 +339,14 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
             _currentBalance = pendingBalance;
             _cachedFormattedBalance = null; // 캐시 무효화
           }
-          if (pendingErrorMessage != null) {
-            _errorMessage = pendingErrorMessage;
+          if (pendingErrorMessage != null && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(pendingErrorMessage),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
           }
         });
       }
@@ -402,10 +406,17 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_totalCost > _currentBalance) {
-      setState(() {
-        _errorMessage =
-            '잔액이 부족합니다. 필요: ${_totalCost}P, 현재: ${_currentBalance}P';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '잔액이 부족합니다. 필요: ${_totalCost}P, 현재: ${_currentBalance}P',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
@@ -422,7 +433,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
     setState(() {
       _isCreatingCampaign = true;
-      _errorMessage = null;
     });
 
     try {
@@ -436,10 +446,16 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       } else if (_reviewType == 'star_text') {
         reviewTextLength = int.tryParse(_reviewTextLengthController.text);
         if (reviewTextLength == null || reviewTextLength <= 0) {
-          setState(() {
-            _errorMessage = '리뷰 텍스트 최소 글자 수를 입력해주세요';
-            _isCreatingCampaign = false;
-          });
+          _isCreatingCampaign = false;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('리뷰 텍스트 최소 글자 수를 입력해주세요'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
           return;
         }
         reviewImageCount = null;
@@ -447,27 +463,45 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         reviewTextLength = int.tryParse(_reviewTextLengthController.text);
         reviewImageCount = int.tryParse(_reviewImageCountController.text);
         if (reviewTextLength == null || reviewTextLength <= 0) {
-          setState(() {
-            _errorMessage = '리뷰 텍스트 최소 글자 수를 입력해주세요';
-            _isCreatingCampaign = false;
-          });
+          _isCreatingCampaign = false;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('리뷰 텍스트 최소 글자 수를 입력해주세요'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
           return;
         }
         if (reviewImageCount == null || reviewImageCount <= 0) {
-          setState(() {
-            _errorMessage = '사진 최소 개수를 입력해주세요';
-            _isCreatingCampaign = false;
-          });
+          _isCreatingCampaign = false;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('사진 최소 개수를 입력해주세요'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
           return;
         }
       }
 
       // 날짜 검증
       if (_originalCampaign == null) {
-        setState(() {
-          _errorMessage = '캠페인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('캠페인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
@@ -475,115 +509,193 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       final maxDate = createdAt.add(const Duration(days: 14)); // 생성일 기준 14일 제한
 
       if (_applyStartDateTime == null) {
-        setState(() {
-          _errorMessage = '신청 시작일시를 선택해주세요';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 시작일시를 선택해주세요'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 신청 시작일시는 생성일자 이후여야 함
       if (_applyStartDateTime!.isBefore(createdAt)) {
-        setState(() {
-          _errorMessage = '신청 시작일시는 캠페인 생성일자 이후여야 합니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 시작일시는 캠페인 생성일자 이후여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 신청 시작일시는 생성일자로부터 14일 이내여야 함
       if (_applyStartDateTime!.isAfter(maxDate)) {
-        setState(() {
-          _errorMessage = '신청 시작일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 시작일시는 캠페인 생성일자로부터 14일 이내여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_applyEndDateTime == null) {
-        setState(() {
-          _errorMessage = '신청 종료일시를 선택해주세요';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시를 선택해주세요'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 신청 종료일시는 생성일자로부터 14일 이내여야 함
       if (_applyEndDateTime!.isAfter(maxDate)) {
-        setState(() {
-          _errorMessage = '신청 종료일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시는 캠페인 생성일자로부터 14일 이내여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_reviewStartDateTime == null) {
-        setState(() {
-          _errorMessage = '리뷰 시작일시를 선택해주세요';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시를 선택해주세요'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 리뷰 시작일시는 생성일자 이후여야 함
       if (_reviewStartDateTime!.isBefore(createdAt)) {
-        setState(() {
-          _errorMessage = '리뷰 시작일시는 캠페인 생성일자 이후여야 합니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시는 캠페인 생성일자 이후여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 리뷰 시작일시는 생성일자로부터 14일 이내여야 함
       if (_reviewStartDateTime!.isAfter(maxDate)) {
-        setState(() {
-          _errorMessage = '리뷰 시작일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시는 캠페인 생성일자로부터 14일 이내여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_reviewEndDateTime == null) {
-        setState(() {
-          _errorMessage = '리뷰 종료일시를 선택해주세요';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 종료일시를 선택해주세요'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       // 리뷰 종료일시는 생성일자로부터 14일 이내여야 함
       if (_reviewEndDateTime!.isAfter(maxDate)) {
-        setState(() {
-          _errorMessage = '리뷰 종료일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 종료일시는 캠페인 생성일자로부터 14일 이내여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_applyEndDateTime!.isBefore(_applyStartDateTime!) ||
           _applyEndDateTime!.isAtSameMomentAs(_applyStartDateTime!)) {
-        setState(() {
-          _errorMessage = '신청 종료일시는 시작일시보다 뒤여야 합니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시는 시작일시보다 뒤여야 합니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_applyEndDateTime!.isAfter(_reviewStartDateTime!) ||
           _applyEndDateTime!.isAtSameMomentAs(_reviewStartDateTime!)) {
-        setState(() {
-          _errorMessage = '신청 종료일시는 리뷰 시작일시보다 빠를 수 없습니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청 종료일시는 리뷰 시작일시보다 빠를 수 없습니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
       if (_reviewStartDateTime!.isAfter(_reviewEndDateTime!) ||
           _reviewStartDateTime!.isAtSameMomentAs(_reviewEndDateTime!)) {
-        setState(() {
-          _errorMessage = '리뷰 시작일시는 종료일시보다 빠를 수 없습니다';
-          _isCreatingCampaign = false;
-        });
+        _isCreatingCampaign = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('리뷰 시작일시는 종료일시보다 빠를 수 없습니다'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
@@ -664,18 +776,30 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         _isCreatingCampaign = false;
         _lastCampaignCreationId = null;
 
-        setState(() {
-          _errorMessage = response.error ?? '캠페인 수정에 실패했습니다.';
-        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.error ?? '캠페인 수정에 실패했습니다.'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       // ✅ 예외 시에도 플래그 해제
       _isCreatingCampaign = false;
       _lastCampaignCreationId = null;
 
-      setState(() {
-        _errorMessage = '예상치 못한 오류: $e';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('예상치 못한 오류: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } finally {
       // ✅ 최종적으로 플래그 해제
       if (mounted) {
@@ -720,8 +844,14 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                     padding: getValueForScreenType<EdgeInsets>(
                       context: context,
                       mobile: const EdgeInsets.all(16),
-                      tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                      desktop: const EdgeInsets.symmetric(horizontal: 100, vertical: 30),
+                      tablet: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 20,
+                      ),
+                      desktop: const EdgeInsets.symmetric(
+                        horizontal: 100,
+                        vertical: 30,
+                      ),
                     ),
                     child: Center(
                       child: ConstrainedBox(
@@ -736,83 +866,60 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                    if (_errorMessage != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          border: Border.all(color: Colors.red[200]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.error_outline, color: Colors.red[600]),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: TextStyle(color: Colors.red[800]),
+                            _buildBoundary(_buildCampaignTypeSection()),
+                            const SizedBox(height: 24),
+
+                            _buildBoundary(_buildProductInfoSection()),
+                            const SizedBox(height: 24),
+
+                            _buildBoundary(_buildReviewSettings()),
+                            const SizedBox(height: 24),
+
+                            _buildBoundary(_buildScheduleSection()),
+                            const SizedBox(height: 24),
+
+                            _buildBoundary(_buildDuplicatePreventSection()),
+                            const SizedBox(height: 24),
+
+                            _buildBoundary(_buildCostSection()),
+                            const SizedBox(height: 24),
+
+                            const SizedBox(height: 32),
+
+                            _buildBoundary(
+                              AbsorbPointer(
+                                absorbing:
+                                    !_canCreateCampaign() ||
+                                    _isCreatingCampaign,
+                                child: Opacity(
+                                  opacity:
+                                      (_canCreateCampaign() &&
+                                          !_isCreatingCampaign)
+                                      ? 1.0
+                                      : 0.6,
+                                  child: CustomButton(
+                                    text: '캠페인 수정하기',
+                                    onPressed:
+                                        _canCreateCampaign() &&
+                                            !_isCreatingCampaign
+                                        ? () {
+                                            // 중복 호출 방지: 즉시 체크
+                                            if (_isCreatingCampaign) {
+                                              debugPrint(
+                                                '⚠️ 캠페인 수정이 이미 진행 중입니다.',
+                                              );
+                                              return;
+                                            }
+                                            _updateCampaign();
+                                          }
+                                        : null,
+                                    isLoading: _isCreatingCampaign,
+                                    backgroundColor: const Color(0xFF137fec),
+                                    textColor: Colors.white,
+                                  ),
+                                ),
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: () =>
-                                  setState(() => _errorMessage = null),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    _buildBoundary(_buildCampaignTypeSection()),
-                    const SizedBox(height: 24),
-
-                    _buildBoundary(_buildProductInfoSection()),
-                    const SizedBox(height: 24),
-
-                    _buildBoundary(_buildReviewSettings()),
-                    const SizedBox(height: 24),
-
-                    _buildBoundary(_buildScheduleSection()),
-                    const SizedBox(height: 24),
-
-                    _buildBoundary(_buildDuplicatePreventSection()),
-                    const SizedBox(height: 24),
-
-                    _buildBoundary(_buildCostSection()),
-                    const SizedBox(height: 24),
-
-                    const SizedBox(height: 32),
-
-                    _buildBoundary(
-                      AbsorbPointer(
-                        absorbing: !_canCreateCampaign() || _isCreatingCampaign,
-                        child: Opacity(
-                          opacity:
-                              (_canCreateCampaign() && !_isCreatingCampaign)
-                              ? 1.0
-                              : 0.6,
-                          child: CustomButton(
-                            text: '캠페인 수정하기',
-                            onPressed:
-                                _canCreateCampaign() && !_isCreatingCampaign
-                                ? () {
-                                    // 중복 호출 방지: 즉시 체크
-                                    if (_isCreatingCampaign) {
-                                      debugPrint('⚠️ 캠페인 수정이 이미 진행 중입니다.');
-                                      return;
-                                    }
-                                    _updateCampaign();
-                                  }
-                                : null,
-                            isLoading: _isCreatingCampaign,
-                            backgroundColor: const Color(0xFF137fec),
-                            textColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
                           ],
                         ),
                       ),
@@ -1058,7 +1165,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 controller: _productProvisionOtherController,
                 labelText: '상품제공 방법 상세',
                 hintText: '상품제공 방법을 입력하세요',
-                maxLines: 2,
+                maxLines: 1,
                 onChanged: (value) {
                   setState(() {});
                 },

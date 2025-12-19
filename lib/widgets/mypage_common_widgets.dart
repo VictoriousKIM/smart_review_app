@@ -260,7 +260,7 @@ class MyPageCommonWidgets {
           const SizedBox(height: 16),
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(children: _buildStatusRow(statusItems, onStatusTap)),

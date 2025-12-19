@@ -509,7 +509,9 @@ class _BusinessRegistrationFormState
                         }
 
                         if (snapshot.hasError || !snapshot.hasData) {
-                          debugPrint('❌ Presigned URL 생성 실패: ${snapshot.error}');
+                          debugPrint(
+                            '❌ Presigned URL 생성 실패: ${snapshot.error}',
+                          );
                           return Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -622,7 +624,9 @@ class _BusinessRegistrationFormState
   Widget _buildBusinessInfoForm() {
     if (_isLoadingExistingData) {
       return Container(
-        padding: widget.isSignupMode ? const EdgeInsets.all(20) : EdgeInsets.zero,
+        padding: widget.isSignupMode
+            ? const EdgeInsets.all(20)
+            : EdgeInsets.zero,
         color: widget.isSignupMode ? Colors.white : Colors.transparent,
         child: const Center(child: CircularProgressIndicator()),
       );
@@ -1056,7 +1060,9 @@ class _BusinessRegistrationFormState
 
       // reviewer 역할인 경우 회사 정보를 로드하지 않음
       // owner/manager 역할만 회사 정보 조회
-      final companyData = await CompanyService.getAdvertiserCompanyByUserId(userId);
+      final companyData = await CompanyService.getAdvertiserCompanyByUserId(
+        userId,
+      );
 
       if (companyData != null) {
         setState(() {
@@ -1213,7 +1219,9 @@ class _BusinessRegistrationFormState
       if (extractedData != null) {
         // 디버그: Workers에서 받은 사업자등록번호 확인
         debugPrint('📥 Workers에서 받은 extractedData: $extractedData');
-        debugPrint('📥 사업자등록번호 (Workers 응답): ${extractedData['business_number']}');
+        debugPrint(
+          '📥 사업자등록번호 (Workers 응답): ${extractedData['business_number']}',
+        );
         setState(() {
           _extractedData = extractedData;
         });
@@ -1248,37 +1256,44 @@ class _BusinessRegistrationFormState
             publicUrl != null) {
           try {
             if (widget.isSignupMode) {
-              // 회원가입 모드: 파일만 업로드하고 DB 저장은 하지 않음 (나중에 create_advertiser_profile_with_company에서 처리)
-              debugPrint('📤 회원가입 모드: 파일 업로드 시작');
-              // 파일 확장자에 따른 Content-Type 결정
-              String contentType = 'image/png';
-              final fileName = _selectedFileName?.toLowerCase() ?? '';
-              if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
-                contentType = 'image/jpeg';
-              } else if (fileName.endsWith('.png')) {
-                contentType = 'image/png';
+              // 회원가입 모드: Workers API를 통해 파일 업로드 (CORS 문제 없음)
+              // DB 저장은 나중에 create_advertiser_profile_with_company에서 처리
+              debugPrint('📤 회원가입 모드: Workers API를 통해 파일 업로드 시작');
+
+              String? uploadedFileUrl;
+              try {
+                final uploadResult = await CloudflareWorkersService.uploadFile(
+                  fileBytes: _selectedFileBytes!,
+                  fileName: _selectedFileName ?? 'business_registration.png',
+                  userId: userId,
+                  fileType: 'business-registration',
+                  contentType:
+                      _selectedFileName?.toLowerCase().endsWith('.jpg') ==
+                              true ||
+                          _selectedFileName?.toLowerCase().endsWith('.jpeg') ==
+                              true
+                      ? 'image/jpeg'
+                      : 'image/png',
+                );
+
+                if (!uploadResult.success || uploadResult.url.isEmpty) {
+                  throw Exception('파일 업로드 실패');
+                }
+
+                uploadedFileUrl = uploadResult.url;
+                debugPrint('✅ 파일 업로드 완료: $uploadedFileUrl');
+              } catch (uploadError) {
+                throw Exception('파일 업로드 실패: $uploadError');
               }
-
-              final uploadResponse = await http.put(
-                Uri.parse(presignedUrl),
-                headers: {'Content-Type': contentType},
-                body: _selectedFileBytes!,
-              );
-
-              if (uploadResponse.statusCode != 200) {
-                throw Exception('파일 업로드 실패: ${uploadResponse.statusCode}');
-              }
-
-              debugPrint('✅ 파일 업로드 완료: $publicUrl');
 
               // 성공: 검증 완료 상태로 설정 (DB 저장은 하지 않음)
-              // publicUrl을 상태에 저장하여 _handleNext에서 사용
+              // uploadedFileUrl을 상태에 저장하여 _handleNext에서 사용
               setState(() {
                 _isProcessing = false;
                 _isValidatingBusinessNumber = false;
-                // publicUrl을 _extractedData에 저장
+                // uploadedFileUrl을 _extractedData에 저장
                 if (_extractedData != null) {
-                  _extractedData!['registration_file_url'] = publicUrl;
+                  _extractedData!['registration_file_url'] = uploadedFileUrl;
                 }
               });
 
@@ -1291,53 +1306,59 @@ class _BusinessRegistrationFormState
                 );
               }
             } else {
-              // 프로필 모드: 기존 로직 (DB 저장)
-              // 1단계: DB 저장 먼저 시도 (중복 체크 포함)
-              debugPrint('💾 DB 저장 시작 (파일 업로드 전)');
+              // 프로필 모드: 파일 업로드 먼저 → DB 저장 (트랜잭션 보장)
+              // 1단계: Workers API를 통해 파일 업로드 (CORS 문제 없음)
+              debugPrint('📤 Workers API를 통해 파일 업로드 시작');
+
+              String? uploadedFileUrl;
+              try {
+                final uploadResult = await CloudflareWorkersService.uploadFile(
+                  fileBytes: _selectedFileBytes!,
+                  fileName: _selectedFileName ?? 'business_registration.png',
+                  userId: userId,
+                  fileType: 'business-registration',
+                  contentType:
+                      _selectedFileName?.toLowerCase().endsWith('.jpg') ==
+                              true ||
+                          _selectedFileName?.toLowerCase().endsWith('.jpeg') ==
+                              true
+                      ? 'image/jpeg'
+                      : 'image/png',
+                );
+
+                if (!uploadResult.success || uploadResult.url.isEmpty) {
+                  throw Exception('파일 업로드 실패');
+                }
+
+                uploadedFileUrl = uploadResult.url;
+                debugPrint('✅ 파일 업로드 완료: $uploadedFileUrl');
+              } catch (uploadError) {
+                // 파일 업로드 실패 시 DB 저장하지 않음
+                throw Exception('파일 업로드 실패: $uploadError');
+              }
+
+              // 2단계: 파일 업로드 성공 후 DB 저장 시도
+              debugPrint('💾 DB 저장 시작 (파일 업로드 성공 후)');
               String? savedCompanyId;
 
               try {
                 savedCompanyId = await _saveCompanyToDatabase(
                   extractedData: extractedData,
                   validationResult: validationResult,
-                  fileUrl: publicUrl,
+                  fileUrl: uploadedFileUrl,
                 );
                 debugPrint('✅ DB 저장 완료: $savedCompanyId');
               } catch (dbError) {
-                // DB 저장 실패 시 파일 업로드하지 않음
+                // DB 저장 실패 → 업로드된 파일 삭제 (롤백)
+                debugPrint('❌ DB 저장 실패, 파일 삭제 시작');
+                try {
+                  await CloudflareWorkersService.deleteFile(uploadedFileUrl);
+                  debugPrint('✅ 파일 롤백 완료');
+                } catch (rollbackError) {
+                  debugPrint('⚠️ 파일 롤백 실패: $rollbackError');
+                }
                 throw Exception('DB 저장 실패: $dbError');
               }
-
-              // 2단계: DB 저장 성공 후 파일 업로드
-              debugPrint('📤 Presigned URL로 파일 업로드 시작');
-              // 파일 확장자에 따른 Content-Type 결정
-              String contentType = 'image/png';
-              final fileName = _selectedFileName?.toLowerCase() ?? '';
-              if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
-                contentType = 'image/jpeg';
-              } else if (fileName.endsWith('.png')) {
-                contentType = 'image/png';
-              }
-
-              final uploadResponse = await http.put(
-                Uri.parse(presignedUrl),
-                headers: {'Content-Type': contentType},
-                body: _selectedFileBytes!,
-              );
-
-              if (uploadResponse.statusCode != 200) {
-                // 파일 업로드 실패 → DB 롤백
-                debugPrint('❌ 파일 업로드 실패, DB 롤백 시작');
-                try {
-                  await _deleteCompanyFromDatabase(savedCompanyId);
-                  debugPrint('✅ DB 롤백 완료');
-                } catch (rollbackError) {
-                  debugPrint('⚠️ DB 롤백 실패: $rollbackError');
-                }
-                throw Exception('파일 업로드 실패: ${uploadResponse.statusCode}');
-              }
-
-              debugPrint('✅ 파일 업로드 완료: $publicUrl');
 
               // 성공: 회사 등록 완료
               setState(() {
