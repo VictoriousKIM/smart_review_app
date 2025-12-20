@@ -177,62 +177,69 @@ class _AdvertiserMyPageScreenState
         }
 
         // 상태별 카운트 계산
+        // 필터 로직은 advertiser_my_campaigns_screen.dart의 _updateFilteredCampaigns()와 동일하게 유지
         final now = DateTimeUtils.nowKST(); // 한국 시간 사용
 
-        // 1. 대기중: 신청 시작일시보다 이전 (active 상태만)
-        _pendingCount = allCampaigns.where((campaign) {
-          if (campaign.status != CampaignStatus.active) return false;
-          return campaign.applyStartDate.isAfter(now);
-        }).length;
+        // 모든 카운트 초기화
+        _pendingCount = 0;
+        _recruitingCount = 0;
+        _selectedCount = 0;
+        _registeredCount = 0;
+        _completedCount = 0;
 
-        // 2. 모집중: 신청 시작일 ~ 신청 종료일 사이
-        _recruitingCount = allCampaigns.where((campaign) {
-          if (campaign.status != CampaignStatus.active) return false;
-          // 신청 시작일이 지났고, 신청 종료일이 아직 안 지났어야 함
-          if (campaign.applyStartDate.isAfter(now)) return false;
-          if (campaign.applyEndDate.isBefore(now)) return false;
-          // 참여자가 다 차지 않은 경우만
-          if (campaign.maxParticipants != null &&
-              campaign.currentParticipants >= campaign.maxParticipants!) {
-            return false;
+        for (final campaign in allCampaigns) {
+          // active 상태만 처리 (inactive는 제외)
+          if (campaign.status != CampaignStatus.active) {
+            // inactive 상태는 종료 탭에 추가
+            _completedCount++;
+            continue;
           }
-          return true;
-        }).length;
 
-        // 3. 선정완료: 신청 시작일 ~ 리뷰 시작일 사이 OR (신청 종료일 지남 + 참여자 다 참)
-        _selectedCount = allCampaigns.where((campaign) {
-          if (campaign.status != CampaignStatus.active) return false;
-          if (campaign.maxParticipants == null) return false;
-          // 참여자가 다 찬 경우만
-          if (campaign.currentParticipants < campaign.maxParticipants!) return false;
-          
-          // 조건 1: 신청 시작일 ~ 리뷰 시작일 사이
-          final isBetweenApplyAndReview = 
+          // 1. 종료: 리뷰 종료일 이후
+          if (campaign.reviewEndDate.isBefore(now)) {
+            _completedCount++;
+            continue;
+          }
+
+          // 2. 등록기간: 리뷰 시작일 ~ 리뷰 종료일 사이
+          if (!campaign.reviewStartDate.isAfter(now) &&
+              !campaign.reviewEndDate.isBefore(now)) {
+            _registeredCount++;
+            continue;
+          }
+
+          // 3. 선정완료:
+          //    - 신청기간 ~ 종료기간 사이 AND 신청자 다 참
+          //    - OR 종료기간 ~ 리뷰시작기간 사이
+          final isInApplyPeriod =
               !campaign.applyStartDate.isAfter(now) &&
+              !campaign.applyEndDate.isBefore(now);
+          final isBetweenApplyEndAndReviewStart =
+              campaign.applyEndDate.isBefore(now) &&
               campaign.reviewStartDate.isAfter(now);
-          
-          // 조건 2: 신청 종료일이 지났고 참여자 다 참
-          final isAfterApplyEndAndFull = 
-              campaign.applyEndDate.isBefore(now);
-          
-          return isBetweenApplyAndReview || isAfterApplyEndAndFull;
-        }).length;
+          final isFull =
+              campaign.maxParticipants != null &&
+              campaign.currentParticipants == campaign.maxParticipants!;
 
-        // 4. 등록기간: 리뷰 시작일 ~ 리뷰 종료일 사이
-        _registeredCount = allCampaigns.where((campaign) {
-          if (campaign.status != CampaignStatus.active) return false;
-          // 리뷰 시작일이 지났고, 리뷰 종료일이 아직 안 지났어야 함
-          if (campaign.reviewStartDate.isAfter(now)) return false;
-          if (campaign.reviewEndDate.isBefore(now)) return false;
-          return true;
-        }).length;
+          if ((isInApplyPeriod && isFull) || isBetweenApplyEndAndReviewStart) {
+            _selectedCount++;
+            continue;
+          }
 
-        // 5. 종료: 리뷰 종료일 이후 또는 inactive 상태
-        _completedCount = allCampaigns.where((campaign) {
-          if (campaign.status == CampaignStatus.inactive) return true;
-          // 리뷰 종료일이 지난 경우
-          return campaign.reviewEndDate.isBefore(now);
-        }).length;
+          // 4. 모집중: 신청기간 ~ 종료기간 사이 AND 신청자 다 안참
+          if (isInApplyPeriod &&
+              campaign.maxParticipants != null &&
+              campaign.currentParticipants < campaign.maxParticipants!) {
+            _recruitingCount++;
+            continue;
+          }
+
+          // 5. 대기중: 신청기간 이전
+          if (campaign.applyStartDate.isAfter(now)) {
+            _pendingCount++;
+            continue;
+          }
+        }
       }
 
       if (mounted) {
@@ -295,81 +302,81 @@ class _AdvertiserMyPageScreenState
                 ),
                 child: Column(
                   children: [
-            // 상단 파란색 카드
-            MyPageCommonWidgets.buildTopCard(
-              userName: user.displayName ?? '사용자',
-              userType: '광고주',
-              onSwitchPressed: () {
-                // 리뷰어 마이페이지로 이동
-                context.pushReplacement('/mypage/reviewer');
-              },
-              switchButtonText: '리뷰어 전환',
-              showRating: false,
-              showAdminButton: user.userType == app_user.UserType.admin,
-              onAdminPressed: user.userType == app_user.UserType.admin
-                  ? () {
-                      // 관리자 대시보드로 이동
-                      context.pushReplacement('/mypage/admin');
-                    }
-                  : null,
-              onProfileTap: () {
-                // 프로필 화면의 광고주 탭으로 이동
-                context.go('/mypage/profile?tab=business');
-              },
-              onPointsTap: () {
-                // 광고주 포인트 스크린으로 이동
-                context.go('/mypage/advertiser/points');
-              },
-              currentPoints: _currentPoints,
-              isLoadingPoints: _isLoadingPoints,
-            ),
+                    // 상단 파란색 카드
+                    MyPageCommonWidgets.buildTopCard(
+                      userName: user.displayName ?? '사용자',
+                      userType: '광고주',
+                      onSwitchPressed: () {
+                        // 리뷰어 마이페이지로 이동
+                        context.pushReplacement('/mypage/reviewer');
+                      },
+                      switchButtonText: '리뷰어 전환',
+                      showRating: false,
+                      showAdminButton: user.userType == app_user.UserType.admin,
+                      onAdminPressed: user.userType == app_user.UserType.admin
+                          ? () {
+                              // 관리자 대시보드로 이동
+                              context.pushReplacement('/mypage/admin');
+                            }
+                          : null,
+                      onProfileTap: () {
+                        // 프로필 화면의 광고주 탭으로 이동
+                        context.go('/mypage/profile?tab=business');
+                      },
+                      onPointsTap: () {
+                        // 광고주 포인트 스크린으로 이동
+                        context.go('/mypage/advertiser/points');
+                      },
+                      currentPoints: _currentPoints,
+                      isLoadingPoints: _isLoadingPoints,
+                    ),
 
-            const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-            // 캠페인 상태 섹션
-            MyPageCommonWidgets.buildCampaignStatusSection(
-              statusItems: [
-                {
-                  'label': '대기중',
-                  'count': _isLoadingStats ? '-' : '$_pendingCount',
-                  'tab': 'pending',
-                },
-                {
-                  'label': '모집중',
-                  'count': _isLoadingStats ? '-' : '$_recruitingCount',
-                  'tab': 'recruiting',
-                },
-                {
-                  'label': '선정완료',
-                  'count': _isLoadingStats ? '-' : '$_selectedCount',
-                  'tab': 'selected',
-                },
-                {
-                  'label': '등록기간',
-                  'count': _isLoadingStats ? '-' : '$_registeredCount',
-                  'tab': 'registered',
-                },
-                {
-                  'label': '종료',
-                  'count': _isLoadingStats ? '-' : '$_completedCount',
-                  'tab': 'completed',
-                },
-              ],
-              actionButtonText: '캠페인 등록 >',
-              onActionPressed: () {
-                context.go('/mypage/advertiser/my-campaigns/create');
-              },
-              onStatusTap: (tab) {
-                context.go('/mypage/advertiser/my-campaigns?tab=$tab');
-              },
-            ),
+                    // 캠페인 상태 섹션
+                    MyPageCommonWidgets.buildCampaignStatusSection(
+                      statusItems: [
+                        {
+                          'label': '대기중',
+                          'count': _isLoadingStats ? '-' : '$_pendingCount',
+                          'tab': 'pending',
+                        },
+                        {
+                          'label': '모집중',
+                          'count': _isLoadingStats ? '-' : '$_recruitingCount',
+                          'tab': 'recruiting',
+                        },
+                        {
+                          'label': '선정완료',
+                          'count': _isLoadingStats ? '-' : '$_selectedCount',
+                          'tab': 'selected',
+                        },
+                        {
+                          'label': '등록기간',
+                          'count': _isLoadingStats ? '-' : '$_registeredCount',
+                          'tab': 'registered',
+                        },
+                        {
+                          'label': '종료',
+                          'count': _isLoadingStats ? '-' : '$_completedCount',
+                          'tab': 'completed',
+                        },
+                      ],
+                      actionButtonText: '캠페인 등록 >',
+                      onActionPressed: () {
+                        context.go('/mypage/advertiser/my-campaigns/create');
+                      },
+                      onStatusTap: (tab) {
+                        context.go('/mypage/advertiser/my-campaigns?tab=$tab');
+                      },
+                    ),
 
-            const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-            // 알림 섹션
-            MyPageCommonWidgets.buildNotificationSection(),
+                    // 알림 섹션
+                    MyPageCommonWidgets.buildNotificationSection(),
 
-            const SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
                     // 로그아웃 버튼
                     Padding(

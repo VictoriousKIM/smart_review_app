@@ -23,8 +23,8 @@ export async function handleDeleteFile(request: Request, env: Env): Promise<Resp
     }
 
     // R2 Public URL 또는 Workers API URL에서 파일 경로 추출
-    // 예: https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/business-registration/20250115143025_filename.png
-    // 예: https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/campaign-images/{companyId}/product/...
+    // 예: https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files/business-registration/20250115143025_filename.png
+    // 예: https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files/campaign-images/{companyId}/product/...
     // 예: https://workers-url/api/files/campaign-images/{companyId}/product/...
     const urlObj = new URL(fileUrl);
     let filePath = urlObj.pathname.substring(1); // 첫 번째 '/' 제거
@@ -32,6 +32,11 @@ export async function handleDeleteFile(request: Request, env: Env): Promise<Resp
     // Workers API URL 형식인 경우 (/api/files/ 제거)
     if (filePath.startsWith('api/files/')) {
       filePath = filePath.substring('api/files/'.length);
+    }
+
+    // R2 직접 URL인 경우: smart-review-files/ 제거
+    if (filePath.startsWith('smart-review-files/')) {
+      filePath = filePath.substring('smart-review-files/'.length);
     }
 
     // URL 디코딩 (인코딩된 경로 처리)

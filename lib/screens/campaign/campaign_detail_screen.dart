@@ -10,6 +10,7 @@ import '../../widgets/custom_button.dart';
 import '../../services/campaign_duplicate_check_service.dart';
 import '../../services/campaign_application_service.dart';
 import '../../services/campaign_realtime_manager.dart';
+import '../../services/cloudflare_workers_service.dart';
 import '../../services/auth_service.dart';
 import '../../utils/error_message_utils.dart';
 import '../../config/supabase_config.dart';
@@ -197,7 +198,9 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
             height: 250,
             color: Colors.grey[100],
             child: CachedNetworkImage(
-              imageUrl: campaign.productImageUrl,
+              imageUrl: CloudflareWorkersService.convertToProxyUrl(
+                campaign.productImageUrl,
+              ),
               width: double.infinity,
               height: 250,
               fit: BoxFit.contain,

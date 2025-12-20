@@ -74,6 +74,7 @@ class CloudflareWorkersService {
     required String userId,
     required String fileType,
     required String contentType,
+    String? companyId, // 캠페인 이미지용
   }) async {
     try {
       final request = http.MultipartRequest(
@@ -87,6 +88,9 @@ class CloudflareWorkersService {
 
       request.fields['userId'] = userId;
       request.fields['fileType'] = fileType;
+      if (companyId != null) {
+        request.fields['companyId'] = companyId;
+      }
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
@@ -158,6 +162,32 @@ class CloudflareWorkersService {
           pathSegments[1] == 'files') {
         // 'api', 'files' 제거
         pathSegments = pathSegments.sublist(2);
+        // URL 디코딩 후 반환
+        if (pathSegments.isNotEmpty) {
+          final path = pathSegments.join('/');
+          try {
+            return Uri.decodeComponent(path);
+          } catch (e) {
+            debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+            return path;
+          }
+        }
+      }
+
+      // R2 직접 URL인 경우: smart-review-files/ 제거
+      if (pathSegments.isNotEmpty && pathSegments[0] == 'smart-review-files') {
+        // 'smart-review-files' 제거
+        pathSegments = pathSegments.sublist(1);
+        if (pathSegments.isNotEmpty) {
+          final path = pathSegments.join('/');
+          // URL 디코딩 (한글/특수문자 처리)
+          try {
+            return Uri.decodeComponent(path);
+          } catch (e) {
+            debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+            return path;
+          }
+        }
       }
 
       // 전체 경로 반환 (첫 번째 세그먼트도 포함)
@@ -197,17 +227,39 @@ class CloudflareWorkersService {
       }
     } catch (e) {
       debugPrint('❌ 파일 경로 추출 실패: $e');
-      // 폴백: URL에서 직접 경로 추출 시도
-      final parts = fileUrl.split('.r2.cloudflarestorage.com/');
-      if (parts.length > 1) {
-        final pathWithQuery = parts[1];
-        final path = pathWithQuery.split('?')[0]; // 쿼리 파라미터 제거
-        // URL 디코딩
-        try {
-          return Uri.decodeComponent(path);
-        } catch (e) {
-          debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
-          return path;
+      // 폴백: URL에서 직접 경로 추출 시도 (R2 URL)
+      if (fileUrl.contains('.r2.cloudflarestorage.com/')) {
+        final parts = fileUrl.split('.r2.cloudflarestorage.com/');
+        if (parts.length > 1) {
+          final pathWithQuery = parts[1];
+          final path = pathWithQuery.split('?')[0]; // 쿼리 파라미터 제거
+          
+          debugPrint('🔍 폴백 경로 추출 (R2 URL 직접 파싱): $path');
+          
+          // smart-review-files/ 제거
+          if (path.startsWith('smart-review-files/')) {
+            final cleanPath = path.substring('smart-review-files/'.length);
+            debugPrint('🔍 폴백 경로 추출 (smart-review-files 제거): $cleanPath');
+            // URL 디코딩
+            try {
+              final decoded = Uri.decodeComponent(cleanPath);
+              debugPrint('✅ 폴백 경로 추출 성공: $decoded');
+              return decoded;
+            } catch (e) {
+              debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+              return cleanPath;
+            }
+          }
+          
+          // URL 디코딩
+          try {
+            final decoded = Uri.decodeComponent(path);
+            debugPrint('✅ 폴백 경로 추출 성공 (smart-review-files 없음): $decoded');
+            return decoded;
+          } catch (e) {
+            debugPrint('⚠️ URL 디코딩 실패 (원본 사용): $e');
+            return path;
+          }
         }
       }
       // Workers API URL 형식인 경우
@@ -281,6 +333,62 @@ class CloudflareWorkersService {
       rethrow;
     }
   }
+
+  /// R2 URL을 Workers 프록시 URL로 동기 변환 (위젯에서 사용)
+  /// R2 직접 URL이면 Workers 프록시 URL로 변환, 이미 Workers URL이면 그대로 반환
+  static String convertToProxyUrl(String fileUrl) {
+    try {
+      debugPrint('🔄 convertToProxyUrl 호출: $fileUrl');
+      
+      // 빈 URL 체크
+      if (fileUrl.isEmpty) {
+        debugPrint('⚠️ 빈 URL');
+        return fileUrl;
+      }
+
+      // 이미 Workers 프록시 URL인 경우 그대로 반환
+      if (fileUrl.contains('/api/files/') || 
+          fileUrl.contains('localhost:8787') || 
+          fileUrl.contains('smart-review-api.nightkille.workers.dev')) {
+        debugPrint('✅ 이미 Workers 프록시 URL: $fileUrl');
+        return fileUrl;
+      }
+
+      // R2 직접 URL인지 확인
+      if (!fileUrl.contains('.r2.cloudflarestorage.com')) {
+        debugPrint('⚠️ R2 URL이 아님, 원본 URL 반환: $fileUrl');
+        return fileUrl;
+      }
+
+      debugPrint('🔍 R2 URL 감지, 경로 추출 시작...');
+
+      // R2 직접 URL인 경우 경로 추출 후 Workers 프록시 URL로 변환
+      final filePath = extractFilePathFromUrl(fileUrl);
+      if (filePath.isEmpty) {
+        debugPrint('⚠️ 파일 경로 추출 실패, 원본 URL 반환: $fileUrl');
+        return fileUrl;
+      }
+
+      debugPrint('🔍 추출된 파일 경로: $filePath');
+
+      // Workers 프록시 URL 생성
+      final encodedPath = Uri.encodeComponent(filePath);
+      final proxyUrl = '$_baseUrl/api/files/$encodedPath';
+
+      debugPrint('🔄 R2 URL → Workers 프록시 URL 변환:');
+      debugPrint('   원본: $fileUrl');
+      debugPrint('   변환: $proxyUrl');
+
+      return proxyUrl;
+    } catch (e, stackTrace) {
+      debugPrint('❌ URL 변환 실패, 원본 URL 반환: $e');
+      debugPrint('   Stack trace: $stackTrace');
+      return fileUrl;
+    }
+  }
+
+  /// Workers API 기본 URL (외부 접근용)
+  static String get workersApiUrl => SupabaseConfig.workersApiUrl;
 }
 
 /// Presigned URL 응답 모델

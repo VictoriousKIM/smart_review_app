@@ -9,6 +9,7 @@ import '../../../services/campaign_service.dart';
 import '../../../services/campaign_realtime_manager.dart';
 import '../../../services/company_user_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/cloudflare_workers_service.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../utils/date_time_utils.dart';
 import 'package:responsive_builder/responsive_builder.dart';
@@ -374,6 +375,14 @@ class _AdvertiserMyCampaignsScreenState
       if (!mounted) {
         debugPrint('⚠️ 위젯이 unmount됨');
         return;
+      }
+
+      // 캠페인 생성 성공 시 대기중 탭으로 이동
+      if (result != null) {
+        // 대기중 탭으로 이동
+        if (_tabController.index != 0) {
+          _tabController.animateTo(0);
+        }
       }
 
       // 반환값에 관계없이 항상 새로고침
@@ -1076,7 +1085,9 @@ class _AdvertiserMyCampaignsScreenState
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: CachedNetworkImage(
-                        imageUrl: campaign.productImageUrl,
+                        imageUrl: CloudflareWorkersService.convertToProxyUrl(
+                          campaign.productImageUrl,
+                        ),
                         width: 80,
                         height: 80,
                         fit: BoxFit.cover,

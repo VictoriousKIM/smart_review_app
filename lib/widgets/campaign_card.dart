@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/cloudflare_workers_service.dart';
 import '../models/campaign.dart';
 import '../utils/date_time_utils.dart';
 
@@ -34,232 +35,237 @@ class _CampaignCardState extends State<CampaignCard> {
         onTap: isUpcoming ? null : widget.onTap, // 오픈 예정일 때는 비활성화
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 140),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 제품 이미지
-                SizedBox(
-                  width: 140,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      bottomLeft: Radius.circular(12),
-                    ),
-                    child: widget.campaign.productImageUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: widget.campaign.productImageUrl,
-                            width: 140,
-                            fit: BoxFit.contain,
-                            placeholder: (context, url) => Container(
-                              width: 140,
-                              color: Colors.grey[200],
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) {
-                              // 디버깅 로그
-                              debugPrint(
-                                '🖼️ 이미지 로딩 실패: ${widget.campaign.productImageUrl}',
-                              );
-                              debugPrint('에러: $error');
-                              return Container(
-                                width: 140,
-                                color: Colors.grey[300],
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.broken_image,
-                                      color: Colors.grey,
-                                      size: 40,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '이미지\n로딩 실패',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey[600],
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          )
-                        : Container(
-                            width: 140,
-                            color: Colors.grey[300],
-                            child: const Icon(
-                              Icons.image,
-                              color: Colors.grey,
-                              size: 40,
-                            ),
-                          ),
+          height: 170, // ✅ 고정 높이 설정
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 제품 이미지
+              SizedBox(
+                width: 130, // ✅ 너비 약간 조정
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
                   ),
+                  child: widget.campaign.productImageUrl.isNotEmpty
+                      ? Builder(
+                          builder: (context) {
+                            // R2 URL을 Workers 프록시 URL로 변환
+                            final imageUrl =
+                                CloudflareWorkersService.convertToProxyUrl(
+                                  widget.campaign.productImageUrl,
+                                );
+                            debugPrint('🖼️ 캠페인 카드 이미지 URL 변환:');
+                            debugPrint(
+                              '   원본: ${widget.campaign.productImageUrl}',
+                            );
+                            debugPrint('   변환: $imageUrl');
+
+                            return CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              width: 140,
+                              fit: BoxFit.contain,
+                              placeholder: (context, url) => Container(
+                                width: 140,
+                                color: Colors.grey[200],
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) {
+                                // 디버깅 로그
+                                debugPrint('🖼️ 이미지 로딩 실패:');
+                                debugPrint(
+                                  '   원본 URL: ${widget.campaign.productImageUrl}',
+                                );
+                                debugPrint('   변환된 URL: $imageUrl');
+                                debugPrint('   실제 사용된 URL: $url');
+                                debugPrint('   에러: $error');
+                                return Container(
+                                  width: 140,
+                                  color: Colors.grey[300],
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.broken_image,
+                                        color: Colors.grey,
+                                        size: 40,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '이미지\n로딩 실패',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey[600],
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        )
+                      : Container(
+                          width: 140,
+                          color: Colors.grey[300],
+                          child: const Icon(
+                            Icons.image,
+                            color: Colors.grey,
+                            size: 40,
+                          ),
+                        ),
                 ),
-                // 캠페인 정보
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 제목
-                        Text(
+              ),
+              // 캠페인 정보
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      // 1. 상단 라벨 레이어 (신청가능, 플랫폼, 배송여부, 지급여부)
+                      _buildTopLabels(isRecruiting, isUpcoming),
+                      const SizedBox(height: 6),
+                      // 2. 제목 (볼드체)
+                      Expanded(
+                        child: Text(
                           widget.campaign.title.isNotEmpty
                               ? widget.campaign.title
                               : '제목 없음',
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
+                            height: 1.3,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 8),
-                        // 가격 정보
-                        _buildPriceInfo(),
-                        const SizedBox(height: 8),
-                        // 플랫폼 정보
-                        _buildPlatformInfo(),
-                        const SizedBox(height: 8),
-                        // 상태 표시 (오픈 예정 / 모집중)
-                        if (isUpcoming)
-                          _buildUpcomingBadge()
-                        else if (isRecruiting)
-                          _buildRecruitingBadge(),
-                        const SizedBox(height: 8),
-                        // 참여자 수 및 신청 가능 여부
-                        _buildParticipantsInfo(),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 6),
+                      // 3. 제품가격, 리뷰보상
+                      _buildPriceInfo(),
+                      const SizedBox(height: 6),
+                      // 4. 신청인원
+                      _buildParticipantsInfo(),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildUpcomingBadge() {
-    return CountdownWidget(targetDate: widget.campaign.applyStartDate);
+  Widget _buildTopLabels(bool isRecruiting, bool isUpcoming) {
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        // 신청 가능 여부
+        if (isUpcoming)
+          _buildSmallLabel('오픈 예정', Colors.orange)
+        else if (isRecruiting)
+          _buildSmallLabel('신청 가능', Colors.green)
+        else
+          _buildSmallLabel('마감', Colors.red),
+
+        // 플랫폼
+        _buildSmallLabel(
+          _getPlatformName(widget.campaign.platform),
+          Colors.grey[700]!,
+        ),
+
+        // 배송 여부
+        _buildSmallLabel(
+          _getProvisionTypeName(widget.campaign.productProvisionType),
+          Colors.blueGrey,
+        ),
+
+        // 지급 여부
+        _buildSmallLabel(
+          widget.campaign.paymentMethod == 'direct' ? '광고사지급' : '플랫폼지급',
+          Colors.blue,
+        ),
+      ],
+    );
   }
 
-  Widget _buildRecruitingBadge() {
+  Widget _buildSmallLabel(String text, Color color) {
+    final isOutline =
+        color == Colors.green || color == Colors.orange || color == Colors.red;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.green, width: 1),
+        color: isOutline
+            ? color.withValues(alpha: 0.1)
+            : color.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isOutline ? color : color.withValues(alpha: 0.3),
+          width: 0.5,
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.check_circle, size: 14, color: Colors.green[700]),
-          const SizedBox(width: 4),
-          Text(
-            '신청 가능',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.green[700],
-            ),
-          ),
-        ],
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: isOutline ? color.withValues(alpha: 0.9) : color,
+        ),
       ),
     );
   }
 
+  String _getProvisionTypeName(String? type) {
+    // DB에 한글로 저장되므로 그대로 반환
+    if (type == null || type.isEmpty) {
+      return '실배송';
+    }
+    return type;
+  }
+
   Widget _buildParticipantsInfo() {
-    final now = DateTimeUtils.nowKST();
-    final isRecruiting =
-        widget.campaign.status == CampaignStatus.active &&
-        !widget.campaign.applyStartDate.isAfter(now) &&
-        !widget.campaign.applyEndDate.isBefore(now);
     final isFull =
         widget.campaign.maxParticipants != null &&
         widget.campaign.currentParticipants >= widget.campaign.maxParticipants!;
-    final canApply = isRecruiting && !isFull;
 
-    return Container(
-      padding: const EdgeInsets.only(top: 4),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.people, size: 14, color: Colors.grey[600]),
-              const SizedBox(width: 4),
-              Text(
-                '참여자',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-              ),
-            ],
+    return Row(
+      children: [
+        Icon(Icons.people_outline, size: 14, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Text('신청인원', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+        const Spacer(),
+        Text(
+          '${widget.campaign.currentParticipants.toString().padLeft(2, '0')}${widget.campaign.maxParticipants != null ? '/${widget.campaign.maxParticipants.toString().padLeft(2, '0')}' : ''}명',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: isFull ? Colors.red : Colors.black87,
           ),
-          Row(
-            children: [
-              Text(
-                '${widget.campaign.currentParticipants}${widget.campaign.maxParticipants != null ? '/${widget.campaign.maxParticipants}' : ''}명',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: isFull ? Colors.red : Colors.black87,
-                ),
-              ),
-              if (!canApply && isRecruiting) ...[
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    '마감',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildPriceInfo() {
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.campaign.productPrice > 0)
-          _buildPriceRow(
-            '제품 가격',
-            '${widget.campaign.productPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}원',
-          ),
-        if (widget.campaign.productPrice > 0) const SizedBox(height: 1),
-        if (widget.campaign.campaignReward > 0)
-          _buildPriceRow(
-            '리뷰 보상',
-            '${widget.campaign.campaignReward.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}P',
-            isReward: true,
-          ),
+        _buildPriceRow(
+          '제품 가격',
+          '${widget.campaign.productPrice.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]},")}원',
+        ),
+        const SizedBox(height: 2),
+        _buildPriceRow(
+          '리뷰 보상',
+          '${widget.campaign.campaignReward.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]},")}P',
+          isReward: true,
+        ),
       ],
     );
   }
@@ -268,37 +274,16 @@ class _CampaignCardState extends State<CampaignCard> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
         Text(
           value,
           style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
             color: isReward ? const Color(0xFF137fec) : Colors.black87,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildPlatformInfo() {
-    final platformName = _getPlatformName(widget.campaign.platform);
-
-    return Container(
-      padding: const EdgeInsets.only(top: 4),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('플랫폼', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-          Text(
-            platformName,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
     );
   }
 

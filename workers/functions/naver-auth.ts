@@ -287,36 +287,47 @@ export default async function handleNaverAuth(request: Request, env: Env): Promi
       },
     });
 
-    // 3. 기존 사용자 조회 (이메일로)
-    console.log('기존 사용자 조회 시작...');
-    const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    // 3. 기존 사용자 조회 또는 새 사용자 생성
+    // 로컬 Supabase에서 listUsers()가 실패할 수 있으므로, 먼저 사용자 생성을 시도하고
+    // 이미 존재하는 경우 에러를 처리하는 방식으로 변경
+    console.log('사용자 조회/생성 시작...');
     
-    if (listError) {
-      console.error('사용자 목록 조회 에러:', listError);
-      throw new Error(`사용자 목록 조회 실패: ${listError.message}`);
-    }
-    
-    console.log('사용자 목록 조회 성공, 총 사용자 수:', existingUsers?.users?.length || 0);
-    const existingUser = existingUsers?.users.find(u => u.email === naverUser.email);
-
     let userId: string;
+    let existingUser: any = null;
 
-    if (existingUser) {
-      // 기존 사용자
-      userId = existingUser.id;
+    // 먼저 기존 사용자 조회 시도 (실패해도 계속 진행)
+    try {
+      const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      
+      if (!listError && existingUsers?.users) {
+        console.log('사용자 목록 조회 성공, 총 사용자 수:', existingUsers.users.length);
+        existingUser = existingUsers.users.find((u: any) => u.email === naverUser.email);
+        
+        if (existingUser) {
+          console.log('기존 사용자 발견:', existingUser.id);
+          userId = existingUser.id;
+          
+          // user_metadata 업데이트 (프로필 이미지 등)
+          await supabaseAdmin.auth.admin.updateUserById(userId, {
+            user_metadata: {
+              ...existingUser.user_metadata,
+              full_name: naverUser.name,
+              avatar_url: naverUser.profile_image,
+              provider: 'naver',
+              naver_id: naverUser.id,
+            },
+          });
+        }
+      } else {
+        console.warn('사용자 목록 조회 실패 (계속 진행):', listError?.message || '알 수 없는 오류');
+      }
+    } catch (listError: any) {
+      console.warn('사용자 목록 조회 중 예외 발생 (계속 진행):', listError?.message || String(listError));
+    }
 
-      // user_metadata 업데이트 (프로필 이미지 등)
-      await supabaseAdmin.auth.admin.updateUserById(userId, {
-        user_metadata: {
-          ...existingUser.user_metadata,
-          full_name: naverUser.name,
-          avatar_url: naverUser.profile_image,
-          provider: 'naver',
-          naver_id: naverUser.id,
-        },
-      });
-    } else {
-      // 4. 새 사용자 생성
+    // 기존 사용자를 찾지 못한 경우 새 사용자 생성 시도
+    if (!existingUser) {
+      console.log('새 사용자 생성 시도...');
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: naverUser.email,
         email_confirm: true, // 이메일 확인 스킵
@@ -333,26 +344,68 @@ export default async function handleNaverAuth(request: Request, env: Env): Promi
       });
 
       if (createError) {
-        // 이메일 중복인 경우 기존 계정 연결
-        if (createError.message.includes('already exists') || 
-            createError.message.includes('already registered')) {
-          const { data: retryUsers } = await supabaseAdmin.auth.admin.listUsers();
-          const retryUser = retryUsers?.users.find(u => u.email === naverUser.email);
+        // 이메일 중복인 경우 listUsers()로 다시 조회 시도 (페이지네이션 사용)
+        const errorMessage = createError.message || String(createError);
+        console.warn('사용자 생성 실패, 중복 가능성:', errorMessage);
+        
+        if (errorMessage.includes('already exists') || 
+            errorMessage.includes('already registered') ||
+            errorMessage.includes('User already registered')) {
           
-          if (retryUser) {
-            userId = retryUser.id;
-            // user_metadata 업데이트
-            await supabaseAdmin.auth.admin.updateUserById(userId, {
-              user_metadata: {
-                ...retryUser.user_metadata,
-                full_name: naverUser.name,
-                avatar_url: naverUser.profile_image,
-                provider: 'naver',
-                naver_id: naverUser.id,
-              },
-            });
-          } else {
-            throw createError;
+          // listUsers()를 페이지네이션으로 호출하여 사용자 찾기
+          try {
+            let foundUser = null;
+            let page = 1;
+            const perPage = 1000; // 한 번에 최대 1000명 조회
+            
+            // 최대 10페이지까지 시도 (10,000명까지)
+            while (page <= 10 && !foundUser) {
+              const { data: pageUsers, error: pageError } = await supabaseAdmin.auth.admin.listUsers({
+                page: page,
+                perPage: perPage,
+              });
+              
+              if (pageError) {
+                console.warn(`페이지 ${page} 조회 실패:`, pageError.message);
+                break;
+              }
+              
+              if (pageUsers?.users) {
+                foundUser = pageUsers.users.find((u: any) => u.email === naverUser.email);
+                
+                if (foundUser) {
+                  existingUser = foundUser;
+                  userId = foundUser.id;
+                  console.log(`페이지 ${page}에서 기존 사용자 발견:`, userId);
+                  
+                  // user_metadata 업데이트
+                  await supabaseAdmin.auth.admin.updateUserById(userId, {
+                    user_metadata: {
+                      ...foundUser.user_metadata,
+                      full_name: naverUser.name,
+                      avatar_url: naverUser.profile_image,
+                      provider: 'naver',
+                      naver_id: naverUser.id,
+                    },
+                  });
+                  break;
+                }
+                
+                // 더 이상 사용자가 없으면 종료
+                if (pageUsers.users.length < perPage) {
+                  break;
+                }
+              }
+              
+              page++;
+            }
+            
+            if (!foundUser) {
+              throw new Error(`사용자 생성 실패: ${errorMessage} (기존 사용자 조회도 실패)`);
+            }
+          } catch (retryError: any) {
+            console.error('사용자 재조회 중 오류:', retryError);
+            throw new Error(`사용자 생성 및 조회 실패: ${errorMessage}`);
           }
         } else {
           throw createError;
@@ -362,6 +415,7 @@ export default async function handleNaverAuth(request: Request, env: Env): Promi
           throw new Error('사용자 생성 실패: user 객체가 null입니다');
         }
         userId = newUser.user.id;
+        console.log('새 사용자 생성 성공:', userId);
       }
     }
 

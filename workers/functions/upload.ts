@@ -13,6 +13,7 @@ export async function handleUpload(request: Request, env: Env): Promise<Response
     const file = formData.get('file') as File;
     const userId = formData.get('userId') as string;
     const fileType = formData.get('fileType') as string;
+    const companyId = formData.get('companyId') as string | null;
 
     if (!file || !userId || !fileType) {
       return new Response(
@@ -31,7 +32,14 @@ export async function handleUpload(request: Request, env: Env): Promise<Response
     const extension = file.name.substring(file.name.lastIndexOf('.'));
     const baseFileName = file.name.substring(0, file.name.lastIndexOf('.')) || 'file';
 
-    const key = `${fileType}/${timestamp}_${fileUuid}_${baseFileName}${extension}`;
+    let key: string;
+    if (fileType === 'campaign-images' && companyId) {
+      // 캠페인 이미지: campaign-images/{companyId}/product/{timestamp}_{uuid}.jpg
+      key = `${fileType}/${companyId}/product/${timestamp}_${fileUuid}${extension}`;
+    } else {
+      // 기타 파일 타입: {fileType}/{timestamp}_{uuid}_{baseFileName}.{extension}
+      key = `${fileType}/${timestamp}_${fileUuid}_${baseFileName}${extension}`;
+    }
 
     // R2에 업로드
     await env.FILES.put(key, file.stream(), {

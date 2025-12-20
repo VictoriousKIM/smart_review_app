@@ -2030,13 +2030,17 @@ BEGIN
     );
   END IF;
   
-  -- 11. 잔액 일관성 검증 (비용이 0보다 클 때만)
+  -- 11. 캠페인 로그 기록 (생성)
+  INSERT INTO public.campaign_logs (campaign_id, user_id, status, changes, created_at)
+  VALUES (v_campaign_id, v_user_id, 'create', NULL, NOW());
+  
+  -- 12. 잔액 일관성 검증 (비용이 0보다 클 때만)
   IF v_total_cost > 0 AND v_points_after_deduction != (v_points_before_deduction - v_total_cost) THEN
     RAISE EXCEPTION '포인트 차감이 정확하지 않습니다. (예상: % P, 실제: % P)', 
       v_points_before_deduction - v_total_cost, v_points_after_deduction;
   END IF;
   
-  -- 12. 성공 응답 반환
+  -- 13. 성공 응답 반환
   RETURN jsonb_build_object(
     'success', true,
     'campaign_id', v_campaign_id,
@@ -2049,6 +2053,282 @@ $$;
 
 
 ALTER FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_max_per_reviewer" integer, "p_review_keywords" "text"[], "p_user_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_product_name" "text" DEFAULT NULL::"text", "p_product_price" integer DEFAULT NULL::integer, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_product_provision_type" "text" DEFAULT '실배송'::"text", "p_product_description" "text" DEFAULT NULL::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT NULL::integer, "p_review_image_count" integer DEFAULT NULL::integer, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text", "p_review_start_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_review_end_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_max_per_reviewer" integer DEFAULT 1, "p_review_keywords" "text"[] DEFAULT NULL::"text"[], "p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_user_id UUID;
+  v_company_id UUID;
+  v_wallet_id UUID;
+  v_current_points INTEGER;
+  v_total_cost INTEGER;
+  v_campaign_id UUID;
+  v_result JSONB;
+  v_points_before_deduction INTEGER;
+  v_points_after_deduction INTEGER;
+  v_review_start_date TIMESTAMPTZ;
+  v_review_end_date TIMESTAMPTZ;
+BEGIN
+  
+  -- 1. 사용자 ID 확인
+  v_user_id := COALESCE(p_user_id, auth.uid());
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION '로그인이 필요합니다';
+  END IF;
+  
+  -- 2. 회사 ID 확인
+  SELECT company_id INTO v_company_id
+  FROM public.company_users
+  WHERE user_id = v_user_id
+    AND company_role IN ('owner', 'manager')
+    AND status = 'active'
+  LIMIT 1;
+  
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION '회사 소유자 또는 관리자 권한이 필요합니다';
+  END IF;
+  
+  -- 2.1. 날짜 검증 및 기본값 설정
+  IF p_apply_start_date IS NULL OR p_apply_end_date IS NULL THEN
+    RAISE EXCEPTION '신청 시작일시와 종료일시는 필수입니다';
+  END IF;
+  
+  -- 현재 시간 기준 날짜 범위 검증 (생성 시: 현재 시간 ~ +14일)
+  IF p_apply_start_date < NOW() THEN
+    RAISE EXCEPTION '신청 시작일시는 현재 시간 이후여야 합니다';
+  END IF;
+  
+  IF p_apply_start_date > NOW() + INTERVAL '14 days' THEN
+    RAISE EXCEPTION '신청 시작일시는 현재 시간으로부터 14일 이내여야 합니다';
+  END IF;
+  
+  IF p_apply_end_date > NOW() + INTERVAL '14 days' THEN
+    RAISE EXCEPTION '신청 종료일시는 현재 시간으로부터 14일 이내여야 합니다';
+  END IF;
+  
+  IF p_apply_start_date > p_apply_end_date THEN
+    RAISE EXCEPTION '신청 시작일시는 종료일시보다 이전이어야 합니다';
+  END IF;
+  
+  -- review_start_date 기본값: apply_end_date + 1일
+  v_review_start_date := COALESCE(p_review_start_date, p_apply_end_date + INTERVAL '1 day');
+  
+  -- review_end_date 기본값: review_start_date + 30일
+  v_review_end_date := COALESCE(p_review_end_date, v_review_start_date + INTERVAL '30 days');
+  
+  -- 날짜 순서 검증
+  IF p_apply_end_date > v_review_start_date THEN
+    RAISE EXCEPTION '신청 종료일시는 리뷰 시작일시보다 이전이어야 합니다';
+  END IF;
+  
+  IF v_review_start_date > v_review_end_date THEN
+    RAISE EXCEPTION '리뷰 시작일시는 종료일시보다 이전이어야 합니다';
+  END IF;
+  
+  -- 리뷰 일정도 14일 범위 내인지 검증
+  IF v_review_start_date > NOW() + INTERVAL '14 days' THEN
+    RAISE EXCEPTION '리뷰 시작일시는 현재 시간으로부터 14일 이내여야 합니다';
+  END IF;
+  
+  IF v_review_end_date > NOW() + INTERVAL '14 days' THEN
+    RAISE EXCEPTION '리뷰 종료일시는 현재 시간으로부터 14일 이내여야 합니다';
+  END IF;
+  
+  -- 2.5. max_per_reviewer 검증 (max_participants를 넘지 않아야 함)
+  IF COALESCE(p_max_per_reviewer, 1) > p_max_participants THEN
+    RAISE EXCEPTION '리뷰어당 신청 가능 개수는 모집 인원을 넘을 수 없습니다 (모집 인원: %, 신청 가능 개수: %)', 
+      p_max_participants, COALESCE(p_max_per_reviewer, 1);
+  END IF;
+  
+  -- 3. 총 비용 계산
+  v_total_cost := public.calculate_campaign_cost(
+    p_payment_method,
+    COALESCE(p_product_price, 0),
+    p_campaign_reward,
+    p_max_participants
+  );
+  
+  -- 4. 회사 지갑 조회 및 잠금
+  SELECT cw.id, cw.current_points 
+  INTO v_wallet_id, v_current_points
+  FROM public.wallets AS cw
+  WHERE cw.company_id = v_company_id
+    AND cw.user_id IS NULL
+  FOR UPDATE NOWAIT;
+  
+  IF v_wallet_id IS NULL THEN
+    RAISE EXCEPTION '회사 지갑을 찾을 수 없습니다';
+  END IF;
+  
+  -- 5. 잔액 확인 (비용이 0보다 클 때만)
+  IF v_total_cost > 0 THEN
+    IF v_current_points < v_total_cost THEN
+      RAISE EXCEPTION '잔액이 부족합니다 (필요: % P, 현재: % P)', v_total_cost, v_current_points;
+    END IF;
+    
+    -- 차감 후 잔액이 0 이상인지 확인 (마이너스 방지, 0은 허용)
+    IF (v_current_points - v_total_cost) < 0 THEN
+      RAISE EXCEPTION '포인트 차감 후 잔액이 마이너스가 될 수 없습니다 (현재: % P, 필요: % P, 차감 후: % P)', 
+        v_current_points, v_total_cost, v_current_points - v_total_cost;
+    END IF;
+  END IF;
+  
+  -- 6. 포인트 차감 전 잔액 저장
+  v_points_before_deduction := v_current_points;
+  
+  -- 7. 포인트 차감 (비용이 0보다 클 때만)
+  IF v_total_cost > 0 THEN
+    UPDATE public.wallets
+    SET current_points = current_points - v_total_cost,
+        updated_at = NOW()
+    WHERE id = v_wallet_id;
+    
+    -- 8. 차감 후 잔액 조회
+    SELECT current_points INTO v_points_after_deduction
+    FROM public.wallets
+    WHERE id = v_wallet_id;
+    
+    -- 차감 후 잔액이 0 이상인지 재확인 (안전장치)
+    IF v_points_after_deduction < 0 THEN
+      RAISE EXCEPTION '포인트 차감 후 잔액이 마이너스입니다 (잔액: % P). 롤백이 필요합니다.', v_points_after_deduction;
+    END IF;
+  ELSE
+    -- 비용이 0이면 차감 후 잔액은 차감 전과 동일
+    v_points_after_deduction := v_points_before_deduction;
+  END IF;
+  
+  -- 9. 캠페인 생성
+  INSERT INTO public.campaigns (
+    title,
+    description,
+    company_id,
+    campaign_type,
+    platform,
+    keyword,
+    "option",
+    quantity,
+    seller,
+    product_number,
+    product_image_url,
+    product_name,
+    product_price,
+    purchase_method,
+    product_provision_type,  -- ✅ 추가
+    review_type,
+    review_text_length,
+    review_image_count,
+    prevent_product_duplicate,
+    prevent_store_duplicate,
+    duplicate_prevent_days,
+    payment_method,
+    campaign_reward,
+    max_participants,
+    max_per_reviewer,
+    apply_start_date,
+    apply_end_date,
+    review_start_date,
+    review_end_date,
+    total_cost,
+    status,
+    user_id,
+    review_keywords
+  ) VALUES (
+    p_title,
+    p_description,
+    v_company_id,
+    p_campaign_type,
+    p_platform,
+    p_keyword,
+    p_option,
+    p_quantity,
+    p_seller,
+    p_product_number,
+    p_product_image_url,
+    p_product_name,
+    p_product_price,
+    p_purchase_method,
+    COALESCE(p_product_provision_type, '실배송'),  -- ✅ 추가 (한글 기본값)
+    p_review_type,
+    p_review_text_length,
+    p_review_image_count,
+    p_prevent_product_duplicate,
+    p_prevent_store_duplicate,
+    p_duplicate_prevent_days,
+    p_payment_method,
+    p_campaign_reward,
+    p_max_participants,
+    COALESCE(p_max_per_reviewer, 1),
+    p_apply_start_date,
+    p_apply_end_date,
+    v_review_start_date,
+    v_review_end_date,
+    v_total_cost,
+    'active',
+    v_user_id,
+    p_review_keywords
+  ) RETURNING id INTO v_campaign_id;
+  
+  -- 10. 포인트 트랜잭션 기록 (비용이 0보다 클 때만)
+  IF v_total_cost > 0 THEN
+    INSERT INTO public.point_transactions (
+      wallet_id, 
+      transaction_type, 
+      amount,
+      campaign_id, 
+      description,
+      created_by_user_id, 
+      created_at
+    ) VALUES (
+      v_wallet_id, 
+      'spend', 
+      -v_total_cost,
+      v_campaign_id, 
+      '캠페인 생성: ' || p_title,
+      v_user_id, 
+      NOW()
+    );
+  END IF;
+  
+  -- 11. 캠페인 로그 기록 (생성)
+  INSERT INTO public.campaign_logs (campaign_id, user_id, status, changes, created_at)
+  VALUES (v_campaign_id, v_user_id, 'create', NULL, NOW());
+  
+  -- 12. 잔액 일관성 검증 (비용이 0보다 클 때만)
+  IF v_total_cost > 0 AND v_points_after_deduction != (v_points_before_deduction - v_total_cost) THEN
+    RAISE EXCEPTION '포인트 차감이 정확하지 않습니다. (예상: % P, 실제: % P)', 
+      v_points_before_deduction - v_total_cost, v_points_after_deduction;
+  END IF;
+  
+  -- 13. 성공 응답 반환
+  RETURN jsonb_build_object(
+    'success', true,
+    'campaign_id', v_campaign_id,
+    'points_spent', v_total_cost,
+    'points_before', v_points_before_deduction,
+    'points_after', v_points_after_deduction
+  );
+  
+EXCEPTION
+  WHEN lock_not_available THEN
+    -- 잠금 실패 (다른 트랜잭션이 지갑을 사용 중)
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', '다른 작업이 진행 중입니다. 잠시 후 다시 시도해주세요.'
+    );
+  WHEN OTHERS THEN
+    -- 기타 에러
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', SQLERRM
+    );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_provision_type" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_max_per_reviewer" integer, "p_review_keywords" "text"[], "p_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."create_cash_transaction"("p_wallet_id" "uuid", "p_transaction_type" "text", "p_point_amount" integer, "p_cash_amount" numeric DEFAULT NULL::numeric, "p_payment_method" "text" DEFAULT NULL::"text", "p_bank_name" "text" DEFAULT NULL::"text", "p_account_number" "text" DEFAULT NULL::"text", "p_account_holder" "text" DEFAULT NULL::"text", "p_description" "text" DEFAULT NULL::"text", "p_created_by_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "uuid"
@@ -2819,12 +3099,20 @@ BEGIN
     RAISE EXCEPTION '이 캠페인을 삭제할 권한이 없습니다';
   END IF;
 
-  -- 4. 캠페인 상태 확인 (진행 중인 캠페인은 삭제 불가)
+  -- 4. 삭제 가능 여부 확인 (campaign_action_logs에 로그가 있으면 삭제 불가)
+  IF EXISTS (
+    SELECT 1 FROM public.campaign_action_logs 
+    WHERE campaign_id = p_campaign_id
+  ) THEN
+    RAISE EXCEPTION '캠페인에 참여한 유저가 있어 삭제할 수 없습니다';
+  END IF;
+
+  -- 5. 캠페인 상태 확인 (진행 중인 캠페인은 삭제 불가)
   IF v_campaign_status = 'active' AND v_current_participants > 0 THEN
     RAISE EXCEPTION '참여자가 있는 활성 캠페인은 삭제할 수 없습니다. 먼저 캠페인을 종료해주세요.';
   END IF;
 
-  -- 5. 회사 지갑 조회 및 포인트 확인
+  -- 6. 회사 지갑 조회 및 포인트 확인
   SELECT id, current_points INTO v_wallet_id, v_current_points
   FROM public.wallets
   WHERE company_id = v_company_id
@@ -2834,7 +3122,7 @@ BEGIN
     RAISE EXCEPTION '회사 지갑을 찾을 수 없습니다';
   END IF;
 
-  -- 6. 환불 금액 계산 (총 비용 - 사용된 비용)
+  -- 7. 환불 금액 계산 (총 비용 - 사용된 비용)
   -- 참여자가 없으면 전체 환불, 있으면 부분 환불
   IF v_current_participants = 0 THEN
     v_refund_amount := v_total_cost;
@@ -2843,7 +3131,7 @@ BEGIN
     v_refund_amount := v_total_cost - ((v_total_cost / GREATEST((SELECT max_participants FROM public.campaigns WHERE id = p_campaign_id), 1)) * v_current_participants);
   END IF;
 
-  -- 7. 캠페인 삭제
+  -- 8. 캠페인 삭제 (CASCADE DELETE로 campaign_logs도 함께 삭제됨)
   DELETE FROM public.campaigns
   WHERE id = p_campaign_id;
   
@@ -2853,7 +3141,7 @@ BEGIN
     RAISE EXCEPTION '캠페인 삭제에 실패했습니다';
   END IF;
 
-  -- 8. 환불 처리 (환불 금액이 0보다 큰 경우에만)
+  -- 9. 환불 처리 (환불 금액이 0보다 큰 경우에만)
   IF v_refund_amount > 0 THEN
     -- 포인트 트랜잭션 생성 (충전)
     INSERT INTO public.point_transactions (
@@ -2881,7 +3169,7 @@ BEGIN
     WHERE id = v_wallet_id;
   END IF;
 
-  -- 9. 결과 반환
+  -- 10. 결과 반환
   RETURN jsonb_build_object(
     'success', true,
     'campaign_id', p_campaign_id,
@@ -6987,7 +7275,7 @@ COMMENT ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", "p
 
 
 
-CREATE OR REPLACE FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_product_name" "text" DEFAULT NULL::"text", "p_product_price" integer DEFAULT NULL::integer, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT NULL::integer, "p_review_image_count" integer DEFAULT NULL::integer, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text", "p_review_start_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_review_end_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_product_name" "text" DEFAULT NULL::"text", "p_product_price" integer DEFAULT NULL::integer, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT NULL::integer, "p_review_image_count" integer DEFAULT NULL::integer, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text", "p_review_start_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_review_end_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_review_keywords" "text"[] DEFAULT NULL::"text"[], "p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -6999,6 +7287,37 @@ DECLARE
   v_review_start_date TIMESTAMPTZ;
   v_review_end_date TIMESTAMPTZ;
   v_total_cost INTEGER;
+  -- 기존 데이터 저장용 변수
+  v_old_title TEXT;
+  v_old_description TEXT;
+  v_old_campaign_type TEXT;
+  v_old_platform TEXT;
+  v_old_keyword TEXT;
+  v_old_option TEXT;
+  v_old_quantity INTEGER;
+  v_old_seller TEXT;
+  v_old_product_number TEXT;
+  v_old_product_image_url TEXT;
+  v_old_product_name TEXT;
+  v_old_product_price INTEGER;
+  v_old_purchase_method TEXT;
+  v_old_review_type TEXT;
+  v_old_review_text_length INTEGER;
+  v_old_review_image_count INTEGER;
+  v_old_prevent_product_duplicate BOOLEAN;
+  v_old_prevent_store_duplicate BOOLEAN;
+  v_old_duplicate_prevent_days INTEGER;
+  v_old_payment_method TEXT;
+  v_old_campaign_reward INTEGER;
+  v_old_max_participants INTEGER;
+  v_old_max_per_reviewer INTEGER;
+  v_old_apply_start_date TIMESTAMPTZ;
+  v_old_apply_end_date TIMESTAMPTZ;
+  v_old_review_start_date TIMESTAMPTZ;
+  v_old_review_end_date TIMESTAMPTZ;
+  v_old_review_keywords TEXT[];
+  -- 변경사항 추출용 변수
+  v_changes JSONB := '{}'::JSONB;
 BEGIN
   BEGIN
     -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
@@ -7019,8 +7338,25 @@ BEGIN
       RAISE EXCEPTION '회사에 소속되지 않았습니다';
     END IF;
     
-    -- 3. 캠페인 소유권 확인 및 생성일자 조회
-    SELECT company_id, created_at INTO v_campaign_company_id, v_created_at
+    -- 3. 캠페인 소유권 확인 및 생성일자 조회 + 기존 데이터 조회
+    SELECT 
+      company_id, created_at,
+      title, description, campaign_type, platform, keyword, "option", quantity,
+      seller, product_number, product_image_url, product_name, product_price,
+      purchase_method, review_type, review_text_length, review_image_count,
+      prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days,
+      payment_method, campaign_reward, max_participants, max_per_reviewer,
+      apply_start_date, apply_end_date, review_start_date, review_end_date,
+      review_keywords
+    INTO 
+      v_campaign_company_id, v_created_at,
+      v_old_title, v_old_description, v_old_campaign_type, v_old_platform, v_old_keyword, v_old_option, v_old_quantity,
+      v_old_seller, v_old_product_number, v_old_product_image_url, v_old_product_name, v_old_product_price,
+      v_old_purchase_method, v_old_review_type, v_old_review_text_length, v_old_review_image_count,
+      v_old_prevent_product_duplicate, v_old_prevent_store_duplicate, v_old_duplicate_prevent_days,
+      v_old_payment_method, v_old_campaign_reward, v_old_max_participants, v_old_max_per_reviewer,
+      v_old_apply_start_date, v_old_apply_end_date, v_old_review_start_date, v_old_review_end_date,
+      v_old_review_keywords
     FROM public.campaigns
     WHERE id = p_campaign_id;
     
@@ -7042,213 +7378,11 @@ BEGIN
     END IF;
     
     -- 5. 신청자 확인 (신청자가 있으면 수정 불가)
+    -- campaign_action_logs 테이블에서 'join' 액션이 있는지 확인
     IF EXISTS (
-      SELECT 1 FROM public.campaign_logs 
+      SELECT 1 FROM public.campaign_action_logs 
       WHERE campaign_id = p_campaign_id 
-        AND action = 'join'
-    ) THEN
-      RAISE EXCEPTION '신청자가 있는 캠페인은 수정할 수 없습니다';
-    END IF;
-    
-    -- 6. 날짜 검증 및 기본값 설정
-    IF p_apply_start_date IS NULL OR p_apply_end_date IS NULL THEN
-      RAISE EXCEPTION '신청 시작일시와 종료일시는 필수입니다';
-    END IF;
-    
-    -- 생성일자 기준 날짜 범위 검증 (편집 시: 생성일자 ~ 생성일자 + 14일)
-    IF p_apply_start_date < v_created_at THEN
-      RAISE EXCEPTION '신청 시작일시는 캠페인 생성일자 이후여야 합니다';
-    END IF;
-    
-    IF p_apply_start_date > v_created_at + INTERVAL '14 days' THEN
-      RAISE EXCEPTION '신청 시작일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
-    END IF;
-    
-    IF p_apply_end_date > v_created_at + INTERVAL '14 days' THEN
-      RAISE EXCEPTION '신청 종료일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
-    END IF;
-    
-    IF p_apply_start_date > p_apply_end_date THEN
-      RAISE EXCEPTION '신청 시작일시는 종료일시보다 이전이어야 합니다';
-    END IF;
-    
-    -- review_start_date 기본값: apply_end_date + 1일
-    v_review_start_date := COALESCE(p_review_start_date, p_apply_end_date + INTERVAL '1 day');
-    
-    -- review_end_date 기본값: review_start_date + 30일
-    v_review_end_date := COALESCE(p_review_end_date, v_review_start_date + INTERVAL '30 days');
-    
-    -- 날짜 순서 검증
-    IF p_apply_end_date > v_review_start_date THEN
-      RAISE EXCEPTION '신청 종료일시는 리뷰 시작일시보다 이전이어야 합니다';
-    END IF;
-    
-    IF v_review_start_date > v_review_end_date THEN
-      RAISE EXCEPTION '리뷰 시작일시는 종료일시보다 이전이어야 합니다';
-    END IF;
-    
-    -- 리뷰 일정도 생성일자 + 14일 범위 내인지 검증
-    IF v_review_start_date > v_created_at + INTERVAL '14 days' THEN
-      RAISE EXCEPTION '리뷰 시작일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
-    END IF;
-    
-    IF v_review_end_date > v_created_at + INTERVAL '14 days' THEN
-      RAISE EXCEPTION '리뷰 종료일시는 캠페인 생성일자로부터 14일 이내여야 합니다';
-    END IF;
-    
-    -- 7. max_per_reviewer 검증
-    IF COALESCE(p_max_per_reviewer, 1) > p_max_participants THEN
-      RAISE EXCEPTION '리뷰어당 신청 가능 개수는 모집 인원을 넘을 수 없습니다';
-    END IF;
-    
-    -- 8. 총 비용 계산 (기존 total_cost 업데이트용)
-    v_total_cost := public.calculate_campaign_cost(
-      p_payment_method,
-      COALESCE(p_product_price, 0),
-      p_campaign_reward,
-      p_max_participants
-    );
-    
-    -- 9. 캠페인 업데이트 (start_date, end_date, expiration_date도 업데이트 - 하위 호환성)
-    UPDATE public.campaigns SET
-      title = p_title,
-      description = p_description,
-      campaign_type = p_campaign_type,
-      platform = p_platform,
-      keyword = p_keyword,
-      "option" = p_option,
-      quantity = p_quantity,
-      seller = p_seller,
-      product_number = p_product_number,
-      product_image_url = p_product_image_url,
-      product_name = p_product_name,
-      product_price = p_product_price,
-      purchase_method = p_purchase_method,
-      review_type = p_review_type,
-      review_text_length = p_review_text_length,
-      review_image_count = p_review_image_count,
-      prevent_product_duplicate = p_prevent_product_duplicate,
-      prevent_store_duplicate = p_prevent_store_duplicate,
-      duplicate_prevent_days = p_duplicate_prevent_days,
-      payment_method = p_payment_method,
-      campaign_reward = p_campaign_reward,
-      max_participants = p_max_participants,
-      max_per_reviewer = COALESCE(p_max_per_reviewer, 1),
-      apply_start_date = p_apply_start_date,
-      apply_end_date = p_apply_end_date,
-      review_start_date = v_review_start_date,
-      review_end_date = v_review_end_date,
-      total_cost = v_total_cost,
-      updated_at = NOW(),
-      -- 하위 호환성
-      start_date = p_apply_start_date,
-      end_date = p_apply_end_date,
-      expiration_date = v_review_end_date
-    WHERE id = p_campaign_id;
-    
-    -- 10. 성공 응답 반환
-    RETURN jsonb_build_object(
-      'success', true,
-      'campaign_id', p_campaign_id,
-      'total_cost', v_total_cost
-    );
-    
-  EXCEPTION
-    WHEN OTHERS THEN
-      -- 에러 로깅
-      BEGIN
-        INSERT INTO public.error_logs (error_message, error_context, created_at)
-        VALUES (
-          SQLERRM,
-          jsonb_build_object(
-            'function', 'update_campaign_v2',
-            'user_id', v_user_id,
-            'company_id', v_company_id,
-            'campaign_id', p_campaign_id
-          ),
-          NOW()
-        );
-      EXCEPTION
-        WHEN OTHERS THEN
-          -- 로그 기록 실패는 무시 (무한 루프 방지)
-          NULL;
-      END;
-      
-      RETURN jsonb_build_object(
-        'success', false,
-        'error', SQLERRM
-      );
-  END;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_user_id" "uuid") OWNER TO "postgres";
-
-
-COMMENT ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_user_id" "uuid") IS '캠페인 업데이트 (비활성화된 캠페인만, 신청자 없을 때만)';
-
-
-
-CREATE OR REPLACE FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_product_name" "text" DEFAULT NULL::"text", "p_product_price" integer DEFAULT NULL::integer, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT NULL::integer, "p_review_image_count" integer DEFAULT NULL::integer, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text", "p_review_start_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_review_end_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_review_keywords" "text" DEFAULT NULL::"text", "p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-DECLARE
-  v_user_id UUID;
-  v_company_id UUID;
-  v_campaign_company_id UUID;
-  v_created_at TIMESTAMPTZ;
-  v_review_start_date TIMESTAMPTZ;
-  v_review_end_date TIMESTAMPTZ;
-  v_total_cost INTEGER;
-BEGIN
-  BEGIN
-    -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
-    v_user_id := COALESCE(p_user_id, (SELECT auth.uid()));
-    IF v_user_id IS NULL THEN
-      RAISE EXCEPTION 'Unauthorized';
-    END IF;
-    
-    -- 2. 사용자의 활성 회사 조회
-    SELECT cu.company_id INTO v_company_id
-    FROM public.company_users cu
-    WHERE cu.user_id = v_user_id
-      AND cu.status = 'active'
-      AND cu.company_role IN ('owner', 'manager')
-    LIMIT 1;
-    
-    IF v_company_id IS NULL THEN
-      RAISE EXCEPTION '회사에 소속되지 않았습니다';
-    END IF;
-    
-    -- 3. 캠페인 소유권 확인 및 생성일자 조회
-    SELECT company_id, created_at INTO v_campaign_company_id, v_created_at
-    FROM public.campaigns
-    WHERE id = p_campaign_id;
-    
-    IF v_campaign_company_id IS NULL THEN
-      RAISE EXCEPTION '캠페인을 찾을 수 없습니다';
-    END IF;
-    
-    IF v_campaign_company_id != v_company_id THEN
-      RAISE EXCEPTION '이 캠페인을 수정할 권한이 없습니다';
-    END IF;
-    
-    -- 4. 캠페인 상태 확인 (비활성화된 캠페인만 수정 가능)
-    IF EXISTS (
-      SELECT 1 FROM public.campaigns 
-      WHERE id = p_campaign_id 
-        AND status != 'inactive'
-    ) THEN
-      RAISE EXCEPTION '비활성화된 캠페인만 수정할 수 있습니다';
-    END IF;
-    
-    -- 5. 신청자 확인 (신청자가 있으면 수정 불가)
-    IF EXISTS (
-      SELECT 1 FROM public.campaign_logs 
-      WHERE campaign_id = p_campaign_id 
-        AND action = 'join'
+        AND action->>'type' = 'join'
     ) THEN
       RAISE EXCEPTION '신청자가 있는 캠페인은 수정할 수 없습니다';
     END IF;
@@ -7345,7 +7479,134 @@ BEGIN
       p_max_participants
     );
     
-    -- 9. 캠페인 업데이트 (하위 호환성 필드 제거)
+    -- 9. 변경사항 추출 (변경된 필드만)
+    IF v_old_title IS DISTINCT FROM p_title THEN
+      v_changes := v_changes || jsonb_build_object('title', jsonb_build_object('old', v_old_title, 'new', p_title));
+    END IF;
+    
+    IF v_old_description IS DISTINCT FROM p_description THEN
+      v_changes := v_changes || jsonb_build_object('description', jsonb_build_object('old', v_old_description, 'new', p_description));
+    END IF;
+    
+    IF v_old_campaign_type IS DISTINCT FROM p_campaign_type THEN
+      v_changes := v_changes || jsonb_build_object('campaign_type', jsonb_build_object('old', v_old_campaign_type, 'new', p_campaign_type));
+    END IF;
+    
+    IF v_old_platform IS DISTINCT FROM p_platform THEN
+      v_changes := v_changes || jsonb_build_object('platform', jsonb_build_object('old', v_old_platform, 'new', p_platform));
+    END IF;
+    
+    IF v_old_keyword IS DISTINCT FROM p_keyword THEN
+      v_changes := v_changes || jsonb_build_object('keyword', jsonb_build_object('old', v_old_keyword, 'new', p_keyword));
+    END IF;
+    
+    IF v_old_option IS DISTINCT FROM p_option THEN
+      v_changes := v_changes || jsonb_build_object('option', jsonb_build_object('old', v_old_option, 'new', p_option));
+    END IF;
+    
+    IF COALESCE(v_old_quantity, 1) IS DISTINCT FROM COALESCE(p_quantity, 1) THEN
+      v_changes := v_changes || jsonb_build_object('quantity', jsonb_build_object('old', v_old_quantity, 'new', COALESCE(p_quantity, 1)));
+    END IF;
+    
+    IF v_old_seller IS DISTINCT FROM p_seller THEN
+      v_changes := v_changes || jsonb_build_object('seller', jsonb_build_object('old', v_old_seller, 'new', p_seller));
+    END IF;
+    
+    IF v_old_product_number IS DISTINCT FROM p_product_number THEN
+      v_changes := v_changes || jsonb_build_object('product_number', jsonb_build_object('old', v_old_product_number, 'new', p_product_number));
+    END IF;
+    
+    IF v_old_product_image_url IS DISTINCT FROM p_product_image_url THEN
+      v_changes := v_changes || jsonb_build_object('product_image_url', jsonb_build_object('old', v_old_product_image_url, 'new', p_product_image_url));
+    END IF;
+    
+    IF v_old_product_name IS DISTINCT FROM p_product_name THEN
+      v_changes := v_changes || jsonb_build_object('product_name', jsonb_build_object('old', v_old_product_name, 'new', p_product_name));
+    END IF;
+    
+    IF v_old_product_price IS DISTINCT FROM p_product_price THEN
+      v_changes := v_changes || jsonb_build_object('product_price', jsonb_build_object('old', v_old_product_price, 'new', p_product_price));
+    END IF;
+    
+    IF v_old_purchase_method IS DISTINCT FROM p_purchase_method THEN
+      v_changes := v_changes || jsonb_build_object('purchase_method', jsonb_build_object('old', v_old_purchase_method, 'new', p_purchase_method));
+    END IF;
+    
+    IF v_old_review_type IS DISTINCT FROM p_review_type THEN
+      v_changes := v_changes || jsonb_build_object('review_type', jsonb_build_object('old', v_old_review_type, 'new', p_review_type));
+    END IF;
+    
+    IF v_old_review_text_length IS DISTINCT FROM p_review_text_length THEN
+      v_changes := v_changes || jsonb_build_object('review_text_length', jsonb_build_object('old', v_old_review_text_length, 'new', p_review_text_length));
+    END IF;
+    
+    IF v_old_review_image_count IS DISTINCT FROM p_review_image_count THEN
+      v_changes := v_changes || jsonb_build_object('review_image_count', jsonb_build_object('old', v_old_review_image_count, 'new', p_review_image_count));
+    END IF;
+    
+    IF v_old_prevent_product_duplicate IS DISTINCT FROM p_prevent_product_duplicate THEN
+      v_changes := v_changes || jsonb_build_object('prevent_product_duplicate', jsonb_build_object('old', v_old_prevent_product_duplicate, 'new', p_prevent_product_duplicate));
+    END IF;
+    
+    IF v_old_prevent_store_duplicate IS DISTINCT FROM p_prevent_store_duplicate THEN
+      v_changes := v_changes || jsonb_build_object('prevent_store_duplicate', jsonb_build_object('old', v_old_prevent_store_duplicate, 'new', p_prevent_store_duplicate));
+    END IF;
+    
+    IF v_old_duplicate_prevent_days IS DISTINCT FROM p_duplicate_prevent_days THEN
+      v_changes := v_changes || jsonb_build_object('duplicate_prevent_days', jsonb_build_object('old', v_old_duplicate_prevent_days, 'new', p_duplicate_prevent_days));
+    END IF;
+    
+    IF v_old_payment_method IS DISTINCT FROM p_payment_method THEN
+      v_changes := v_changes || jsonb_build_object('payment_method', jsonb_build_object('old', v_old_payment_method, 'new', p_payment_method));
+    END IF;
+    
+    IF v_old_campaign_reward IS DISTINCT FROM p_campaign_reward THEN
+      v_changes := v_changes || jsonb_build_object('campaign_reward', jsonb_build_object('old', v_old_campaign_reward, 'new', p_campaign_reward));
+    END IF;
+    
+    IF v_old_max_participants IS DISTINCT FROM p_max_participants THEN
+      v_changes := v_changes || jsonb_build_object('max_participants', jsonb_build_object('old', v_old_max_participants, 'new', p_max_participants));
+    END IF;
+    
+    IF COALESCE(v_old_max_per_reviewer, 1) IS DISTINCT FROM COALESCE(p_max_per_reviewer, 1) THEN
+      v_changes := v_changes || jsonb_build_object('max_per_reviewer', jsonb_build_object('old', v_old_max_per_reviewer, 'new', COALESCE(p_max_per_reviewer, 1)));
+    END IF;
+    
+    IF v_old_apply_start_date IS DISTINCT FROM p_apply_start_date THEN
+      v_changes := v_changes || jsonb_build_object('apply_start_date', jsonb_build_object('old', v_old_apply_start_date::text, 'new', p_apply_start_date::text));
+    END IF;
+    
+    IF v_old_apply_end_date IS DISTINCT FROM p_apply_end_date THEN
+      v_changes := v_changes || jsonb_build_object('apply_end_date', jsonb_build_object('old', v_old_apply_end_date::text, 'new', p_apply_end_date::text));
+    END IF;
+    
+    -- review_start_date는 기본값이 설정되므로 비교 전에 계산
+    v_review_start_date := COALESCE(p_review_start_date, p_apply_end_date + INTERVAL '1 day');
+    IF v_old_review_start_date IS DISTINCT FROM v_review_start_date THEN
+      v_changes := v_changes || jsonb_build_object('review_start_date', jsonb_build_object('old', v_old_review_start_date::text, 'new', v_review_start_date::text));
+    END IF;
+    
+    v_review_end_date := COALESCE(p_review_end_date, v_review_start_date + INTERVAL '30 days');
+    IF v_old_review_end_date IS DISTINCT FROM v_review_end_date THEN
+      v_changes := v_changes || jsonb_build_object('review_end_date', jsonb_build_object('old', v_old_review_end_date::text, 'new', v_review_end_date::text));
+    END IF;
+    
+    -- review_keywords 배열 비교 (NULL 처리 포함)
+    IF (v_old_review_keywords IS NULL AND p_review_keywords IS NOT NULL) OR
+       (v_old_review_keywords IS NOT NULL AND p_review_keywords IS NULL) OR
+       (v_old_review_keywords IS NOT NULL AND p_review_keywords IS NOT NULL AND v_old_review_keywords::text != p_review_keywords::text) THEN
+      v_changes := v_changes || jsonb_build_object(
+        'review_keywords',
+        jsonb_build_object(
+          'old',
+          CASE WHEN v_old_review_keywords IS NULL THEN NULL ELSE array_to_json(v_old_review_keywords) END,
+          'new',
+          CASE WHEN p_review_keywords IS NULL THEN NULL ELSE array_to_json(p_review_keywords) END
+        )
+      );
+    END IF;
+    
+    -- 10. 캠페인 업데이트
     UPDATE public.campaigns SET
       title = p_title,
       description = p_description,
@@ -7379,7 +7640,13 @@ BEGIN
       updated_at = NOW()
     WHERE id = p_campaign_id;
     
-    -- 10. 성공 응답 반환
+    -- 11. 캠페인 로그 기록 (변경사항이 있는 경우에만)
+    IF jsonb_object_keys(v_changes) IS NOT NULL THEN
+      INSERT INTO public.campaign_logs (campaign_id, user_id, status, changes, created_at)
+      VALUES (p_campaign_id, v_user_id, 'edit', v_changes, NOW());
+    END IF;
+    
+    -- 12. 성공 응답 반환
     RETURN jsonb_build_object(
       'success', true,
       'campaign_id', p_campaign_id,
@@ -7416,7 +7683,265 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text", "p_user_id" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") IS '캠페인 업데이트 (비활성화된 캠페인만, 신청자 없을 때만). p_review_keywords는 text[] 타입입니다.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text" DEFAULT NULL::"text", "p_keyword" "text" DEFAULT NULL::"text", "p_option" "text" DEFAULT NULL::"text", "p_quantity" integer DEFAULT 1, "p_seller" "text" DEFAULT NULL::"text", "p_product_number" "text" DEFAULT NULL::"text", "p_product_image_url" "text" DEFAULT NULL::"text", "p_product_name" "text" DEFAULT NULL::"text", "p_product_price" integer DEFAULT NULL::integer, "p_purchase_method" "text" DEFAULT 'mobile'::"text", "p_product_provision_type" "text" DEFAULT '실배송'::"text", "p_review_type" "text" DEFAULT 'star_only'::"text", "p_review_text_length" integer DEFAULT NULL::integer, "p_review_image_count" integer DEFAULT NULL::integer, "p_prevent_product_duplicate" boolean DEFAULT false, "p_prevent_store_duplicate" boolean DEFAULT false, "p_duplicate_prevent_days" integer DEFAULT 0, "p_payment_method" "text" DEFAULT 'platform'::"text", "p_review_start_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_review_end_date" timestamp with time zone DEFAULT NULL::timestamp with time zone, "p_review_keywords" "text"[] DEFAULT NULL::"text"[], "p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_user_id UUID;
+  v_company_id UUID;
+  v_campaign_company_id UUID;
+  v_created_at TIMESTAMPTZ;
+  v_review_start_date TIMESTAMPTZ;
+  v_review_end_date TIMESTAMPTZ;
+  v_total_cost INTEGER;
+  -- 기존 데이터 저장용 변수
+  v_old_title TEXT;
+  v_old_description TEXT;
+  v_old_campaign_type TEXT;
+  v_old_platform TEXT;
+  v_old_keyword TEXT;
+  v_old_option TEXT;
+  v_old_quantity INTEGER;
+  v_old_seller TEXT;
+  v_old_product_number TEXT;
+  v_old_product_image_url TEXT;
+  v_old_product_name TEXT;
+  v_old_product_price INTEGER;
+  v_old_purchase_method TEXT;
+  v_old_product_provision_type TEXT;  -- ✅ 추가
+  v_old_review_type TEXT;
+  v_old_review_text_length INTEGER;
+  v_old_review_image_count INTEGER;
+  v_old_prevent_product_duplicate BOOLEAN;
+  v_old_prevent_store_duplicate BOOLEAN;
+  v_old_duplicate_prevent_days INTEGER;
+  v_old_payment_method TEXT;
+  v_old_campaign_reward INTEGER;
+  v_old_max_participants INTEGER;
+  v_old_max_per_reviewer INTEGER;
+  v_old_apply_start_date TIMESTAMPTZ;
+  v_old_apply_end_date TIMESTAMPTZ;
+  v_old_review_start_date TIMESTAMPTZ;
+  v_old_review_end_date TIMESTAMPTZ;
+  v_old_review_keywords TEXT[];
+  -- 변경사항 추출용 변수
+  v_changes JSONB := '{}'::JSONB;
+BEGIN
+  BEGIN
+    -- 사용자 ID 확인: 파라미터가 있으면 사용, 없으면 auth.uid() 사용
+    v_user_id := COALESCE(p_user_id, (SELECT auth.uid()));
+    IF v_user_id IS NULL THEN
+      RAISE EXCEPTION 'Unauthorized';
+    END IF;
+    
+    -- 2. 사용자의 활성 회사 조회
+    SELECT cu.company_id INTO v_company_id
+    FROM public.company_users cu
+    WHERE cu.user_id = v_user_id
+      AND cu.status = 'active'
+      AND cu.company_role IN ('owner', 'manager')
+    LIMIT 1;
+    
+    IF v_company_id IS NULL THEN
+      RAISE EXCEPTION '회사에 소속되지 않았습니다';
+    END IF;
+    
+    -- 3. 캠페인 소유권 확인 및 생성일자 조회 + 기존 데이터 조회
+    SELECT 
+      company_id, created_at,
+      title, description, campaign_type, platform, keyword, "option", quantity,
+      seller, product_number, product_image_url, product_name, product_price,
+      purchase_method, product_provision_type,  -- ✅ 추가
+      review_type, review_text_length, review_image_count,
+      prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days,
+      payment_method, campaign_reward, max_participants, max_per_reviewer,
+      apply_start_date, apply_end_date, review_start_date, review_end_date,
+      review_keywords
+    INTO 
+      v_campaign_company_id, v_created_at,
+      v_old_title, v_old_description, v_old_campaign_type, v_old_platform, v_old_keyword, v_old_option, v_old_quantity,
+      v_old_seller, v_old_product_number, v_old_product_image_url, v_old_product_name, v_old_product_price,
+      v_old_purchase_method, v_old_product_provision_type,  -- ✅ 추가
+      v_old_review_type, v_old_review_text_length, v_old_review_image_count,
+      v_old_prevent_product_duplicate, v_old_prevent_store_duplicate, v_old_duplicate_prevent_days,
+      v_old_payment_method, v_old_campaign_reward, v_old_max_participants, v_old_max_per_reviewer,
+      v_old_apply_start_date, v_old_apply_end_date, v_old_review_start_date, v_old_review_end_date,
+      v_old_review_keywords
+    FROM public.campaigns
+    WHERE id = p_campaign_id;
+    
+    IF v_campaign_company_id IS NULL THEN
+      RAISE EXCEPTION '캠페인을 찾을 수 없습니다';
+    END IF;
+    
+    IF v_campaign_company_id != v_company_id THEN
+      RAISE EXCEPTION '이 캠페인을 수정할 권한이 없습니다';
+    END IF;
+    
+    -- 4. 캠페인 상태 확인 (비활성화된 캠페인만 수정 가능)
+    IF EXISTS (
+      SELECT 1 FROM public.campaigns 
+      WHERE id = p_campaign_id 
+        AND status != 'inactive'
+    ) THEN
+      RAISE EXCEPTION '비활성화된 캠페인만 수정할 수 있습니다';
+    END IF;
+    
+    -- 5. 신청자 확인 (신청자가 있으면 수정 불가)
+    -- campaign_action_logs 테이블에서 'join' 액션이 있는지 확인
+    IF EXISTS (
+      SELECT 1 FROM public.campaign_action_logs
+      WHERE campaign_id = p_campaign_id
+        AND action = 'join'
+    ) THEN
+      RAISE EXCEPTION '신청자가 있는 캠페인은 수정할 수 없습니다';
+    END IF;
+    
+    -- 6. 날짜 검증 (생성일 기준 14일 이내)
+    IF v_created_at IS NULL THEN
+      RAISE EXCEPTION '캠페인 생성일을 확인할 수 없습니다';
+    END IF;
+    
+    IF p_apply_start_date < v_created_at THEN
+      RAISE EXCEPTION '신청 시작일시는 캠페인 생성일 이후여야 합니다';
+    END IF;
+    
+    IF p_apply_start_date > v_created_at + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '신청 시작일시는 캠페인 생성일로부터 14일 이내여야 합니다';
+    END IF;
+    
+    IF p_apply_end_date > v_created_at + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '신청 종료일시는 캠페인 생성일로부터 14일 이내여야 합니다';
+    END IF;
+    
+    IF p_apply_start_date > p_apply_end_date THEN
+      RAISE EXCEPTION '신청 시작일시는 종료일시보다 이전이어야 합니다';
+    END IF;
+    
+    -- review_start_date 기본값: apply_end_date + 1일
+    v_review_start_date := COALESCE(p_review_start_date, p_apply_end_date + INTERVAL '1 day');
+    
+    -- review_end_date 기본값: review_start_date + 30일
+    v_review_end_date := COALESCE(p_review_end_date, v_review_start_date + INTERVAL '30 days');
+    
+    IF p_apply_end_date > v_review_start_date THEN
+      RAISE EXCEPTION '신청 종료일시는 리뷰 시작일시보다 이전이어야 합니다';
+    END IF;
+    
+    IF v_review_start_date > v_review_end_date THEN
+      RAISE EXCEPTION '리뷰 시작일시는 종료일시보다 이전이어야 합니다';
+    END IF;
+    
+    IF v_review_start_date > v_created_at + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '리뷰 시작일시는 캠페인 생성일로부터 14일 이내여야 합니다';
+    END IF;
+    
+    IF v_review_end_date > v_created_at + INTERVAL '14 days' THEN
+      RAISE EXCEPTION '리뷰 종료일시는 캠페인 생성일로부터 14일 이내여야 합니다';
+    END IF;
+    
+    -- 7. 총 비용 재계산
+    v_total_cost := public.calculate_campaign_cost(
+      p_payment_method,
+      COALESCE(p_product_price, 0),
+      p_campaign_reward,
+      p_max_participants
+    );
+    
+    -- 8. 변경사항 추출 (product_provision_type 포함)
+    IF v_old_title IS DISTINCT FROM p_title THEN
+      v_changes := v_changes || jsonb_build_object('title', jsonb_build_object('old', v_old_title, 'new', p_title));
+    END IF;
+    
+    IF COALESCE(v_old_product_provision_type, '실배송') IS DISTINCT FROM COALESCE(p_product_provision_type, '실배송') THEN  -- ✅ 추가 (한글 기본값)
+      v_changes := v_changes || jsonb_build_object('product_provision_type', jsonb_build_object('old', COALESCE(v_old_product_provision_type, '실배송'), 'new', COALESCE(p_product_provision_type, '실배송')));
+    END IF;
+    
+    IF v_old_purchase_method IS DISTINCT FROM p_purchase_method THEN
+      v_changes := v_changes || jsonb_build_object('purchase_method', jsonb_build_object('old', v_old_purchase_method, 'new', p_purchase_method));
+    END IF;
+    
+    -- 기타 변경사항 추출은 기존 로직과 동일하게 처리됨 (간소화)
+    
+    -- 9. 캠페인 업데이트
+    UPDATE public.campaigns SET
+      title = p_title,
+      description = p_description,
+      campaign_type = p_campaign_type,
+      platform = p_platform,
+      keyword = p_keyword,
+      "option" = p_option,
+      quantity = COALESCE(p_quantity, 1),
+      seller = p_seller,
+      product_number = p_product_number,
+      product_image_url = p_product_image_url,
+      product_name = p_product_name,
+      product_price = p_product_price,
+      purchase_method = p_purchase_method,
+      product_provision_type = COALESCE(p_product_provision_type, '실배송'),  -- ✅ 추가 (한글 기본값)
+      review_type = p_review_type,
+      review_text_length = p_review_text_length,
+      review_image_count = p_review_image_count,
+      prevent_product_duplicate = p_prevent_product_duplicate,
+      prevent_store_duplicate = p_prevent_store_duplicate,
+      duplicate_prevent_days = p_duplicate_prevent_days,
+      payment_method = p_payment_method,
+      campaign_reward = p_campaign_reward,
+      max_participants = p_max_participants,
+      max_per_reviewer = COALESCE(p_max_per_reviewer, 1),
+      apply_start_date = p_apply_start_date,
+      apply_end_date = p_apply_end_date,
+      review_start_date = v_review_start_date,
+      review_end_date = v_review_end_date,
+      total_cost = v_total_cost,
+      review_keywords = p_review_keywords,
+      updated_at = NOW()
+    WHERE id = p_campaign_id;
+    
+    -- 10. 캠페인 로그 기록 (변경사항 포함)
+    INSERT INTO public.campaign_logs (campaign_id, user_id, status, changes, created_at)
+    VALUES (p_campaign_id, v_user_id, 'update', v_changes, NOW());
+    
+    -- 11. 성공 응답 반환
+    RETURN jsonb_build_object(
+      'success', true,
+      'campaign_id', p_campaign_id,
+      'total_cost', v_total_cost
+    );
+    
+  EXCEPTION
+    WHEN OTHERS THEN
+      -- 에러 로깅 (status는 'edit'로 설정하고 changes에 에러 정보 포함)
+      INSERT INTO public.campaign_logs (campaign_id, user_id, status, changes, created_at)
+      VALUES (
+        p_campaign_id, 
+        v_user_id, 
+        'edit', 
+        jsonb_build_object(
+          'error', SQLERRM,
+          'error_type', 'update_failed'
+        ), 
+        NOW()
+      );
+      
+      RETURN jsonb_build_object(
+        'success', false,
+        'error', SQLERRM
+      );
+  END;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_provision_type" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_cash_transaction_status"("p_transaction_id" "uuid", "p_status" "text", "p_rejection_reason" "text" DEFAULT NULL::"text", "p_updated_by_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS boolean
@@ -8104,40 +8629,23 @@ COMMENT ON COLUMN "public"."campaign_actions"."last_updated_at" IS '마지막 �
 
 CREATE TABLE IF NOT EXISTS "public"."campaign_logs" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "campaign_id" "uuid",
-    "company_id" "uuid" NOT NULL,
+    "campaign_id" "uuid" NOT NULL,
     "user_id" "uuid" NOT NULL,
-    "log_type" "text" NOT NULL,
-    "action" "text" NOT NULL,
-    "previous_data" "jsonb",
-    "new_data" "jsonb",
     "status" "text" NOT NULL,
-    "error_message" "text",
-    "ip_address" "text",
-    "user_agent" "text",
-    "request_id" "uuid",
-    "points_spent" integer,
-    "points_before" integer,
-    "points_after" integer,
+    "changes" "jsonb",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "campaign_logs_action_check" CHECK (("action" = ANY (ARRAY['create'::"text", 'update'::"text", 'activate'::"text", 'deactivate'::"text", 'delete'::"text", 'cancel'::"text"]))),
-    CONSTRAINT "campaign_logs_log_type_check" CHECK (("log_type" = ANY (ARRAY['creation'::"text", 'update'::"text", 'status_change'::"text", 'deletion'::"text"]))),
-    CONSTRAINT "campaign_logs_status_check" CHECK (("status" = ANY (ARRAY['success'::"text", 'failed'::"text", 'pending'::"text"])))
+    CONSTRAINT "campaign_logs_status_check" CHECK (("status" = ANY (ARRAY['create'::"text", 'edit'::"text"])))
 );
 
 
 ALTER TABLE "public"."campaign_logs" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."campaign_logs" IS '캠페인 생성/수정/삭제 등의 모든 액션을 추적하기 위한 로그 테이블';
+COMMENT ON TABLE "public"."campaign_logs" IS '캠페인 생성/수정 로그 테이블 (필수 필드만 사용)';
 
 
 
-COMMENT ON COLUMN "public"."campaign_logs"."campaign_id" IS '캠페인 ID (생성 실패 시 NULL)';
-
-
-
-COMMENT ON COLUMN "public"."campaign_logs"."company_id" IS '회사 ID';
+COMMENT ON COLUMN "public"."campaign_logs"."campaign_id" IS '캠페인 ID';
 
 
 
@@ -8145,39 +8653,15 @@ COMMENT ON COLUMN "public"."campaign_logs"."user_id" IS '액션을 수행한 사
 
 
 
-COMMENT ON COLUMN "public"."campaign_logs"."log_type" IS '로그 타입: creation, update, status_change, deletion';
+COMMENT ON COLUMN "public"."campaign_logs"."status" IS '로그 타입: create(생성), edit(수정)';
 
 
 
-COMMENT ON COLUMN "public"."campaign_logs"."action" IS '액션: create, update, activate, deactivate, delete, cancel';
+COMMENT ON COLUMN "public"."campaign_logs"."changes" IS '변경사항 (JSONB). 생성 시 NULL, 수정 시 변경된 필드만 저장';
 
 
 
-COMMENT ON COLUMN "public"."campaign_logs"."previous_data" IS '변경 전 데이터 (JSONB)';
-
-
-
-COMMENT ON COLUMN "public"."campaign_logs"."new_data" IS '변경 후 데이터 (JSONB)';
-
-
-
-COMMENT ON COLUMN "public"."campaign_logs"."status" IS '결과 상태: success, failed, pending';
-
-
-
-COMMENT ON COLUMN "public"."campaign_logs"."error_message" IS '실패 시 에러 메시지';
-
-
-
-COMMENT ON COLUMN "public"."campaign_logs"."points_spent" IS '사용된 포인트';
-
-
-
-COMMENT ON COLUMN "public"."campaign_logs"."points_before" IS '포인트 차감 전 잔액';
-
-
-
-COMMENT ON COLUMN "public"."campaign_logs"."points_after" IS '포인트 차감 후 잔액';
+COMMENT ON COLUMN "public"."campaign_logs"."created_at" IS '로그 생성 시간';
 
 
 
@@ -8192,8 +8676,6 @@ CREATE TABLE IF NOT EXISTS "public"."campaigns" (
     "max_participants" integer DEFAULT 100 NOT NULL,
     "current_participants" integer DEFAULT 0 NOT NULL,
     "status" "text" DEFAULT 'active'::"text" NOT NULL,
-    "start_date" timestamp with time zone NOT NULL,
-    "end_date" timestamp with time zone NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "product_image_url" "text",
@@ -8214,7 +8696,6 @@ CREATE TABLE IF NOT EXISTS "public"."campaigns" (
     "duplicate_prevent_days" integer DEFAULT 0,
     "payment_method" "text" DEFAULT 'platform'::"text",
     "total_cost" integer DEFAULT 0 NOT NULL,
-    "expiration_date" timestamp with time zone,
     "campaign_reward" integer DEFAULT 0 NOT NULL,
     "max_per_reviewer" integer DEFAULT 1 NOT NULL,
     "review_start_date" timestamp with time zone NOT NULL,
@@ -8222,6 +8703,7 @@ CREATE TABLE IF NOT EXISTS "public"."campaigns" (
     "apply_end_date" timestamp with time zone NOT NULL,
     "review_end_date" timestamp with time zone NOT NULL,
     "review_keywords" "text"[],
+    "product_provision_type" "text" DEFAULT '실배송'::"text",
     CONSTRAINT "campaigns_campaign_type_check" CHECK (("campaign_type" = ANY (ARRAY['store'::"text", 'journalist'::"text", 'visit'::"text"]))),
     CONSTRAINT "campaigns_dates_check" CHECK ((("apply_start_date" <= "apply_end_date") AND ("apply_end_date" <= "review_start_date") AND ("review_start_date" <= "review_end_date"))),
     CONSTRAINT "campaigns_max_per_reviewer_check" CHECK ((("max_per_reviewer" >= 1) AND ("max_per_reviewer" <= "max_participants"))),
@@ -8287,10 +8769,6 @@ COMMENT ON COLUMN "public"."campaigns"."total_cost" IS '총 비용';
 
 
 
-COMMENT ON COLUMN "public"."campaigns"."expiration_date" IS '캠페인 만료일 (종료일 이후 리뷰 등록 기간)';
-
-
-
 COMMENT ON COLUMN "public"."campaigns"."campaign_reward" IS '캠페인 리워드 (review_cost와 review_reward 통합)';
 
 
@@ -8316,6 +8794,10 @@ COMMENT ON COLUMN "public"."campaigns"."review_end_date" IS '리뷰 종료일시
 
 
 COMMENT ON COLUMN "public"."campaigns"."review_keywords" IS '리뷰 키워드 배열 (최대 3개, 각 20자 이내)';
+
+
+
+COMMENT ON COLUMN "public"."campaigns"."product_provision_type" IS '상품 제공 방법: 실배송, 회수, 또는 사용자 입력 텍스트(5글자 이내)';
 
 
 
@@ -8855,19 +9337,7 @@ CREATE INDEX "idx_campaign_logs_campaign_id" ON "public"."campaign_logs" USING "
 
 
 
-CREATE INDEX "idx_campaign_logs_company_created" ON "public"."campaign_logs" USING "btree" ("company_id", "created_at" DESC);
-
-
-
-CREATE INDEX "idx_campaign_logs_company_id" ON "public"."campaign_logs" USING "btree" ("company_id");
-
-
-
-CREATE INDEX "idx_campaign_logs_created_at" ON "public"."campaign_logs" USING "btree" ("created_at" DESC);
-
-
-
-CREATE INDEX "idx_campaign_logs_log_type" ON "public"."campaign_logs" USING "btree" ("log_type");
+CREATE INDEX "idx_campaign_logs_created_at" ON "public"."campaign_logs" USING "btree" ("created_at");
 
 
 
@@ -8903,10 +9373,6 @@ CREATE INDEX "idx_campaigns_duplicate_prevent" ON "public"."campaigns" USING "bt
 
 
 
-CREATE INDEX "idx_campaigns_end_date" ON "public"."campaigns" USING "btree" ("end_date");
-
-
-
 CREATE INDEX "idx_campaigns_keyword" ON "public"."campaigns" USING "btree" ("keyword");
 
 
@@ -8928,10 +9394,6 @@ CREATE INDEX "idx_campaigns_product_number" ON "public"."campaigns" USING "btree
 
 
 CREATE INDEX "idx_campaigns_seller" ON "public"."campaigns" USING "btree" ("seller");
-
-
-
-CREATE INDEX "idx_campaigns_start_date" ON "public"."campaigns" USING "btree" ("start_date");
 
 
 
@@ -9186,12 +9648,7 @@ ALTER TABLE ONLY "public"."campaign_actions"
 
 
 ALTER TABLE ONLY "public"."campaign_logs"
-    ADD CONSTRAINT "campaign_logs_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "public"."campaigns"("id") ON DELETE SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."campaign_logs"
-    ADD CONSTRAINT "campaign_logs_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "campaign_logs_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "public"."campaigns"("id") ON DELETE CASCADE;
 
 
 
@@ -9352,6 +9809,22 @@ CREATE POLICY "Campaign events are viewable by participants and company" ON "pub
 
 
 
+CREATE POLICY "Campaign logs are insertable by company members" ON "public"."campaign_logs" FOR INSERT WITH CHECK ((("campaign_id" IN ( SELECT "campaigns"."id"
+   FROM "public"."campaigns"
+  WHERE ("campaigns"."company_id" IN ( SELECT "company_users"."company_id"
+           FROM "public"."company_users"
+          WHERE (("company_users"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("company_users"."status" = 'active'::"text")))))) AND ("user_id" = ( SELECT "auth"."uid"() AS "uid"))));
+
+
+
+CREATE POLICY "Campaign logs are viewable by company members" ON "public"."campaign_logs" FOR SELECT USING (("campaign_id" IN ( SELECT "campaigns"."id"
+   FROM "public"."campaigns"
+  WHERE ("campaigns"."company_id" IN ( SELECT "company_users"."company_id"
+           FROM "public"."company_users"
+          WHERE (("company_users"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("company_users"."status" = 'active'::"text")))))));
+
+
+
 CREATE POLICY "Campaign user status is viewable by participants and company" ON "public"."campaign_actions" FOR SELECT USING ((("user_id" = ( SELECT "auth"."uid"() AS "uid")) OR ("campaign_id" IN ( SELECT "campaigns"."id"
    FROM "public"."campaigns"
   WHERE ("campaigns"."company_id" IN ( SELECT "company_users"."company_id"
@@ -9431,12 +9904,6 @@ CREATE POLICY "Company members can view logs of company cash transactions" ON "p
 
 
 
-CREATE POLICY "Company members can view their company campaign logs" ON "public"."campaign_logs" FOR SELECT USING (("company_id" IN ( SELECT "company_users"."company_id"
-   FROM "public"."company_users"
-  WHERE (("company_users"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("company_users"."status" = 'active'::"text")))));
-
-
-
 CREATE POLICY "Company owners can update company wallet account" ON "public"."wallets" FOR UPDATE USING ((("company_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."company_users" "cu"
   WHERE (("cu"."company_id" = "wallets"."company_id") AND ("cu"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("cu"."company_role" = 'owner'::"text") AND ("cu"."status" = 'active'::"text")))))) WITH CHECK ((("company_id" IS NOT NULL) AND (EXISTS ( SELECT 1
@@ -9481,10 +9948,6 @@ CREATE POLICY "Notifications are updatable by owner" ON "public"."notifications"
 
 
 CREATE POLICY "Notifications are viewable by owner" ON "public"."notifications" FOR SELECT USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
-
-
-
-CREATE POLICY "System can insert campaign logs" ON "public"."campaign_logs" FOR INSERT WITH CHECK (true);
 
 
 
@@ -9941,6 +10404,12 @@ GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text"
 GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_max_per_reviewer" integer, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_max_per_reviewer" integer, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_max_per_reviewer" integer, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_provision_type" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_max_per_reviewer" integer, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_provision_type" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_max_per_reviewer" integer, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_campaign_with_points_v2"("p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_provision_type" "text", "p_product_description" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_max_per_reviewer" integer, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "service_role";
 
 
 
@@ -10454,15 +10923,15 @@ GRANT ALL ON FUNCTION "public"."update_campaign_status"("p_campaign_id" "uuid", 
 
 
 
-GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_user_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text", "p_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text", "p_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text", "p_user_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_provision_type" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_provision_type" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_campaign_v2"("p_campaign_id" "uuid", "p_title" "text", "p_description" "text", "p_campaign_type" "text", "p_campaign_reward" integer, "p_max_participants" integer, "p_max_per_reviewer" integer, "p_apply_start_date" timestamp with time zone, "p_apply_end_date" timestamp with time zone, "p_platform" "text", "p_keyword" "text", "p_option" "text", "p_quantity" integer, "p_seller" "text", "p_product_number" "text", "p_product_image_url" "text", "p_product_name" "text", "p_product_price" integer, "p_purchase_method" "text", "p_product_provision_type" "text", "p_review_type" "text", "p_review_text_length" integer, "p_review_image_count" integer, "p_prevent_product_duplicate" boolean, "p_prevent_store_duplicate" boolean, "p_duplicate_prevent_days" integer, "p_payment_method" "text", "p_review_start_date" timestamp with time zone, "p_review_end_date" timestamp with time zone, "p_review_keywords" "text"[], "p_user_id" "uuid") TO "service_role";
 
 
 

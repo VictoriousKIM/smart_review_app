@@ -30,6 +30,7 @@ class Campaign {
   final String seller; // NOT NULL
   final String? productNumber;
   final String purchaseMethod;
+  final String? productProvisionType; // 상품 제공 방법 (delivery, return, other)
 
   // 리뷰 설정
   final String reviewType; // 'star_only', 'star_text', 'star_text_image'
@@ -74,6 +75,7 @@ class Campaign {
     required this.seller,
     this.productNumber,
     this.purchaseMethod = 'mobile',
+    this.productProvisionType = 'delivery', // 기본값: 실배송
     // 리뷰 설정
     this.reviewType = 'star_only',
     this.reviewTextLength = 100,
@@ -166,6 +168,7 @@ class Campaign {
       seller: json['seller'] ?? '',
       productNumber: json['product_number'],
       purchaseMethod: json['purchase_method'] ?? 'mobile',
+      productProvisionType: json['product_provision_type'] ?? 'delivery',
       // 리뷰 설정
       reviewType: json['review_type'] ?? 'star_only',
       reviewTextLength: json['review_text_length'] ?? 100,
@@ -224,6 +227,7 @@ class Campaign {
       'seller': seller,
       'product_number': productNumber,
       'purchase_method': purchaseMethod,
+      'product_provision_type': productProvisionType,
       // 리뷰 설정
       'review_type': reviewType,
       'review_text_length': reviewTextLength,

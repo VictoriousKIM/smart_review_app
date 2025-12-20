@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../models/campaign.dart';
 import '../../../providers/campaign_provider.dart';
 import '../../../services/campaign_service.dart';
+import '../../../services/cloudflare_workers_service.dart';
 import '../../../widgets/custom_button.dart';
 
 class AdvertiserCampaignDetailScreen extends ConsumerStatefulWidget {
@@ -96,7 +97,9 @@ class _AdvertiserCampaignDetailScreenState
             height: 250,
             color: Colors.grey[100],
             child: CachedNetworkImage(
-              imageUrl: campaign.productImageUrl,
+              imageUrl: CloudflareWorkersService.convertToProxyUrl(
+                campaign.productImageUrl,
+              ),
               width: double.infinity,
               height: 250,
               fit: BoxFit.contain,

@@ -88,7 +88,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   String _platform = 'coupang';
   final String _paymentType = 'direct';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
-  String _productProvisionType = 'delivery'; // ✅ 필수, 초기값: 실배송
+  String _productProvisionType = '실배송'; // ✅ 필수, 초기값: 실배송
   final bool _onlyAllowedReviewers = true;
   String _reviewType = 'star_only';
   DateTime? _applyStartDateTime; // 신청 시작일시
@@ -172,6 +172,21 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         _campaignType = campaign.campaignType.name;
         _platform = campaign.platform;
         _purchaseMethod = campaign.purchaseMethod;
+
+        // 상품제공여부 처리
+        final provisionType = campaign.productProvisionType ?? '실배송';
+        if (provisionType == '실배송') {
+          _productProvisionType = '실배송';
+          _productProvisionOtherController.text = '실배송';
+        } else if (provisionType == '회수') {
+          _productProvisionType = '회수';
+          _productProvisionOtherController.text = '회수';
+        } else {
+          // '실배송'이나 '회수'가 아니면 '그외'로 처리하고 DB 값 표시
+          _productProvisionType = '그외';
+          _productProvisionOtherController.text = provisionType;
+        }
+
         _reviewType = campaign.reviewType;
         _preventProductDuplicate = campaign.preventProductDuplicate;
         _preventStoreDuplicate = campaign.preventStoreDuplicate;
@@ -738,6 +753,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         paymentMethod: _paymentType,
         productImageUrl: finalImageUrl ?? (throw Exception('상품 이미지가 필요합니다.')),
         purchaseMethod: _purchaseMethod,
+        // 상품제공여부: '그외' 선택 시 입력한 텍스트 그대로 저장, 아니면 타입값 저장
+        productProvisionType: _productProvisionType == '그외'
+            ? _productProvisionOtherController.text.trim()
+            : _productProvisionType,
         reviewKeywords:
             _useReviewKeywords &&
                 _reviewKeywordsController.text.trim().isNotEmpty
@@ -1143,13 +1162,26 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 hintText: '선택하세요',
               ),
               items: const [
-                DropdownMenuItem(value: 'delivery', child: Text('실배송')),
-                DropdownMenuItem(value: 'return', child: Text('회수')),
-                DropdownMenuItem(value: 'other', child: Text('그외')),
+                DropdownMenuItem(value: '실배송', child: Text('실배송')),
+                DropdownMenuItem(value: '회수', child: Text('회수')),
+                DropdownMenuItem(value: '그외', child: Text('그외')),
               ],
               onChanged: (value) {
                 setState(() {
                   _productProvisionType = value!;
+                  // 실배송/회수 선택 시 텍스트 필드에 자동 입력
+                  if (value == '실배송') {
+                    _productProvisionOtherController.text = '실배송';
+                  } else if (value == '회수') {
+                    _productProvisionOtherController.text = '회수';
+                  } else {
+                    // 그외 선택 시: 기존 값이 있으면 유지, 없으면 빈 값
+                    // (편집 화면에서는 기존 사용자 입력값을 유지해야 함)
+                    if (_productProvisionOtherController.text.isEmpty) {
+                      _productProvisionOtherController.clear();
+                    }
+                    // 기존 값이 있으면 그대로 유지 (아무것도 하지 않음)
+                  }
                 });
               },
               validator: (value) {
@@ -1159,18 +1191,33 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 return null;
               },
             ),
-            if (_productProvisionType == 'other') ...[
-              const SizedBox(height: 16),
-              CustomTextField(
-                controller: _productProvisionOtherController,
-                labelText: '상품제공 방법 상세',
-                hintText: '상품제공 방법을 입력하세요',
-                maxLines: 1,
-                onChanged: (value) {
-                  setState(() {});
-                },
-              ),
-            ],
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: _productProvisionOtherController,
+              labelText: '상품제공 방법 상세',
+              hintText: _productProvisionType == '그외'
+                  ? '상품제공 방법을 입력하세요 (5글자 이내)'
+                  : null,
+              maxLines: 1,
+              readOnly: _productProvisionType != '그외',
+              inputFormatters: _productProvisionType == '그외'
+                  ? [LengthLimitingTextInputFormatter(5)]
+                  : null,
+              validator: (value) {
+                if (_productProvisionType == '그외') {
+                  if (value == null || value.trim().isEmpty) {
+                    return '상품제공 방법을 입력해주세요';
+                  }
+                  if (value.trim().length > 5) {
+                    return '5글자 이내로 입력해주세요';
+                  }
+                }
+                return null;
+              },
+              onChanged: (value) {
+                setState(() {});
+              },
+            ),
             // ✅ product_description 필드 제거됨
           ],
         ),

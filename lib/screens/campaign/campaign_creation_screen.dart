@@ -14,6 +14,7 @@ import '../../widgets/image_crop_editor.dart';
 import '../../services/campaign_service.dart';
 import '../../services/wallet_service.dart';
 import '../../services/cloudflare_workers_service.dart';
+import '../../services/company_user_service.dart';
 import '../../services/campaign_default_schedule_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/custom_button.dart';
@@ -109,7 +110,7 @@ class _CampaignCreationScreenState
   String _platform = 'coupang';
   String _paymentType = 'direct';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
-  String _productProvisionType = 'delivery'; // ✅ 필수, 초기값: 실배송
+  String _productProvisionType = '실배송'; // ✅ 필수, 초기값: 실배송
   final bool _onlyAllowedReviewers = true;
   String _reviewType = 'star_only';
   DateTime? _applyStartDateTime; // 신청 시작일시
@@ -161,6 +162,9 @@ class _CampaignCreationScreenState
     _applyEndDateTimeController = TextEditingController();
     _reviewStartDateTimeController = TextEditingController();
     _reviewEndDateTimeController = TextEditingController();
+
+    // 상품제공여부 초기값 설정
+    _productProvisionOtherController.text = '실배송';
 
     // ✅ Phase 1.2: 더 긴 지연 + 프레임 콜백 조합
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1061,6 +1065,12 @@ class _CampaignCreationScreenState
           throw Exception('로그인이 필요합니다.');
         }
 
+        // 회사 ID 가져오기 (캠페인 이미지 경로 생성용)
+        final companyId = await CompanyUserService.getUserCompanyId(userId);
+        if (companyId == null) {
+          throw Exception('회사 정보를 찾을 수 없습니다.');
+        }
+
         // 상품명 가져오기
         final productName = _productNameController.text.trim();
         if (productName.isEmpty) {
@@ -1082,6 +1092,7 @@ class _CampaignCreationScreenState
               userId: userId,
               fileType: 'campaign-images',
               contentType: 'image/jpeg',
+              companyId: companyId, // ✅ 추가
             ).timeout(
               const Duration(seconds: 30),
               onTimeout: () {
@@ -1096,9 +1107,8 @@ class _CampaignCreationScreenState
         // 업로드 성공 시 키 저장 (재시도 시 중복 업로드 방지)
         lastUploadedKey = uploadResult.key;
 
-        // Workers API를 통해 프록시로 제공하는 URL 사용
-        final publicUrl =
-            '${SupabaseConfig.workersApiUrl}/api/files/${uploadResult.key}';
+        // R2 프로덕션 직접 URL 사용
+        final publicUrl = '${SupabaseConfig.r2PublicUrl}/${uploadResult.key}';
 
         setState(() {
           _uploadProgress = 1.0;
@@ -1138,14 +1148,13 @@ class _CampaignCreationScreenState
           // 마지막 시도에서도 실패했지만, 이전에 업로드된 파일이 있으면 사용
           if (lastUploadedKey != null) {
             debugPrint('⚠️ 업로드 실패했지만 이전에 업로드된 파일 사용: $lastUploadedKey');
-            final publicUrl =
-                '${SupabaseConfig.workersApiUrl}/api/files/$lastUploadedKey';
+            final publicUrl = '${SupabaseConfig.r2PublicUrl}/$lastUploadedKey';
             setState(() {
               _isUploadingImage = false;
             });
             return publicUrl;
           }
-          
+
           setState(() {
             _errorMessage = userFriendlyMessage;
             _isUploadingImage = false;
@@ -1167,13 +1176,13 @@ class _CampaignCreationScreenState
             if (lastUploadedKey != null) {
               debugPrint('⚠️ 사용자가 취소했지만 이전에 업로드된 파일 사용: $lastUploadedKey');
               final publicUrl =
-                  '${SupabaseConfig.workersApiUrl}/api/files/$lastUploadedKey';
+                  '${SupabaseConfig.r2PublicUrl}/$lastUploadedKey';
               setState(() {
                 _isUploadingImage = false;
               });
               return publicUrl;
             }
-            
+
             setState(() {
               _isUploadingImage = false;
             });
@@ -1192,8 +1201,7 @@ class _CampaignCreationScreenState
     // 모든 시도 실패 - 이전에 업로드된 파일이 있으면 사용
     if (lastUploadedKey != null) {
       debugPrint('⚠️ 모든 시도 실패했지만 이전에 업로드된 파일 사용: $lastUploadedKey');
-      final publicUrl =
-          '${SupabaseConfig.workersApiUrl}/api/files/$lastUploadedKey';
+      final publicUrl = '${SupabaseConfig.r2PublicUrl}/$lastUploadedKey';
       setState(() {
         _isUploadingImage = false;
       });
@@ -1769,6 +1777,10 @@ class _CampaignCreationScreenState
         productImageUrl:
             productImageUrl ?? (throw Exception('상품 이미지를 업로드해주세요.')),
         purchaseMethod: _purchaseMethod,
+        // 상품제공여부: '그외' 선택 시 입력한 텍스트 그대로 저장, 아니면 타입값 저장
+        productProvisionType: _productProvisionType == '그외'
+            ? _productProvisionOtherController.text.trim()
+            : _productProvisionType,
         reviewKeywords:
             _useReviewKeywords &&
                 _reviewKeywordsController.text.trim().isNotEmpty
@@ -1797,6 +1809,7 @@ class _CampaignCreationScreenState
               '✅ 캠페인 생성 성공 - campaignId: ${campaign.id}, title: ${campaign.title}',
             );
             // 생성된 Campaign 객체를 반환하여 목록에 즉시 추가
+            // context.pop으로 돌아가서 _navigateToCreateCampaign에서 탭 변경 및 새로고침
             if (mounted) {
               context.pop(campaign);
             }
@@ -2462,13 +2475,22 @@ class _CampaignCreationScreenState
                 hintText: '선택하세요',
               ),
               items: const [
-                DropdownMenuItem(value: 'delivery', child: Text('실배송')),
-                DropdownMenuItem(value: 'return', child: Text('회수')),
-                DropdownMenuItem(value: 'other', child: Text('그외')),
+                DropdownMenuItem(value: '실배송', child: Text('실배송')),
+                DropdownMenuItem(value: '회수', child: Text('회수')),
+                DropdownMenuItem(value: '그외', child: Text('그외')),
               ],
               onChanged: (value) {
                 setState(() {
                   _productProvisionType = value!;
+                  // 실배송/회수 선택 시 텍스트 필드에 자동 입력
+                  if (value == '실배송') {
+                    _productProvisionOtherController.text = '실배송';
+                  } else if (value == '회수') {
+                    _productProvisionOtherController.text = '회수';
+                  } else {
+                    // 그외 선택 시 텍스트 필드 초기화
+                    _productProvisionOtherController.clear();
+                  }
                 });
               },
               validator: (value) {
@@ -2478,18 +2500,33 @@ class _CampaignCreationScreenState
                 return null;
               },
             ),
-            if (_productProvisionType == 'other') ...[
-              const SizedBox(height: 16),
-              CustomTextField(
-                controller: _productProvisionOtherController,
-                labelText: '상품제공 방법 상세',
-                hintText: '상품제공 방법을 입력하세요',
-                maxLines: 1,
-                onChanged: (value) {
-                  setState(() {});
-                },
-              ),
-            ],
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: _productProvisionOtherController,
+              labelText: '상품제공 방법 상세',
+              hintText: _productProvisionType == '그외'
+                  ? '상품제공 방법을 입력하세요 (5글자 이내)'
+                  : null,
+              maxLines: 1,
+              readOnly: _productProvisionType != '그외',
+              inputFormatters: _productProvisionType == '그외'
+                  ? [LengthLimitingTextInputFormatter(5)]
+                  : null,
+              validator: (value) {
+                if (_productProvisionType == '그외') {
+                  if (value == null || value.trim().isEmpty) {
+                    return '상품제공 방법을 입력해주세요';
+                  }
+                  if (value.trim().length > 5) {
+                    return '5글자 이내로 입력해주세요';
+                  }
+                }
+                return null;
+              },
+              onChanged: (value) {
+                setState(() {});
+              },
+            ),
             // ✅ product_description 필드 제거됨
           ],
         ),
@@ -3202,13 +3239,10 @@ class _CampaignCreationScreenState
                 fillColor: Colors.white,
               ),
               items: const [
-                DropdownMenuItem(
-                  value: 'direct',
-                  child: Text('직접 지급'),
-                ),
+                DropdownMenuItem(value: 'direct', child: Text('직접 지급')),
                 DropdownMenuItem(
                   value: 'platform',
-                  child: Text('플랫폼 지급'),
+                  child: Text('플랫폼 지급 (추가예정)'),
                 ),
               ],
               onChanged: (value) {
@@ -3230,25 +3264,23 @@ class _CampaignCreationScreenState
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey[300]!),
                 ),
-                  child: Builder(
-                    builder: (context) {
-                      final maxParticipants =
-                          _maxParticipantsController.text.isEmpty
-                          ? '0'
-                          : _maxParticipantsController.text;
-                      final paymentAmount =
-                          _paymentAmountController.text.isEmpty
-                          ? '0'
-                          : _paymentAmountController.text;
-                      final campaignReward =
-                          _campaignRewardController.text.isEmpty
-                          ? '0'
-                          : _campaignRewardController.text;
+                child: Builder(
+                  builder: (context) {
+                    final maxParticipants =
+                        _maxParticipantsController.text.isEmpty
+                        ? '0'
+                        : _maxParticipantsController.text;
+                    final paymentAmount = _paymentAmountController.text.isEmpty
+                        ? '0'
+                        : _paymentAmountController.text;
+                    final campaignReward =
+                        _campaignRewardController.text.isEmpty
+                        ? '0'
+                        : _campaignRewardController.text;
 
                     String formula = '';
                     if (_paymentType == 'direct') {
-                      formula =
-                          '플랫폼수수료(0) × 모집인원($maxParticipants)';
+                      formula = '플랫폼수수료(0) × 모집인원($maxParticipants)';
                     } else if (_paymentType == 'platform') {
                       formula =
                           '[플랫폼수수료(0) + 제품금액($paymentAmount) + 리뷰비($campaignReward)] × 모집인원($maxParticipants)';
@@ -3269,13 +3301,13 @@ class _CampaignCreationScreenState
                               fontSize: 13,
                               color: Colors.grey[700],
                             ),
-                  ),
-                ),
-              ],
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),
-            ),
+              ),
             ],
             const SizedBox(height: 16),
             Container(

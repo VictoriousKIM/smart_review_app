@@ -31,7 +31,7 @@ class CampaignService {
       dynamic query = _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, product_provision_type, payment_method',
           )
           .eq('status', 'active');
 
@@ -133,7 +133,7 @@ class CampaignService {
       final response = await _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, product_provision_type, payment_method',
           )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
@@ -167,7 +167,7 @@ class CampaignService {
       final response = await _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, product_provision_type, payment_method',
           )
           .eq('status', 'active')
           .eq('campaign_type', 'reviewer')
@@ -200,7 +200,7 @@ class CampaignService {
       var searchQuery = _supabase
           .from('campaigns')
           .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days',
+            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, product_provision_type, payment_method',
           )
           .eq('status', 'active')
           // 날짜 필터링: 모집중인 캠페인만 표시 (신청 기간)
@@ -759,6 +759,7 @@ class CampaignService {
     required String paymentMethod, // NOT NULL
     required String productImageUrl, // NOT NULL
     required String purchaseMethod, // NOT NULL
+    String? productProvisionType, // 상품 제공 방법 (delivery, return, other)
     String? reviewKeywords, // 리뷰 키워드
   }) async {
     try {
@@ -840,6 +841,8 @@ class CampaignService {
         'p_product_name': productName, // ✅ 추가
         'p_product_price': productPrice, // ✅ 추가 (paymentAmount 대체)
         'p_purchase_method': purchaseMethod, // ✅ 하드코딩 제거
+        'p_product_provision_type':
+            productProvisionType ?? '실배송', // ✅ 추가 (한글 기본값)
         'p_product_description': null, // ✅ 제거 (NULL로 설정)
         'p_review_type': reviewType ?? 'star_only',
         'p_review_text_length': reviewTextLength, // ✅ NULL 가능
@@ -932,6 +935,7 @@ class CampaignService {
     required String productName, // NOT NULL
     required int productPrice, // NOT NULL
     required String purchaseMethod, // NOT NULL
+    String? productProvisionType, // 상품 제공 방법 (delivery, return, other)
     String? reviewType,
     int? reviewTextLength,
     int? reviewImageCount,
@@ -988,6 +992,8 @@ class CampaignService {
         'p_product_name': productName,
         'p_product_price': productPrice,
         'p_purchase_method': purchaseMethod,
+        'p_product_provision_type':
+            productProvisionType ?? '실배송', // ✅ 추가 (한글 기본값)
         'p_review_type': reviewType ?? 'star_only',
         'p_review_text_length': reviewTextLength,
         'p_review_image_count': reviewImageCount,

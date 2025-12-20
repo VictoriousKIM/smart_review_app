@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/campaign_log.dart';
 import '../../../services/campaign_log_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/cloudflare_workers_service.dart';
 import '../../../config/supabase_config.dart';
 import '../../../widgets/custom_button.dart';
 import 'package:responsive_builder/responsive_builder.dart';
@@ -281,7 +282,9 @@ class _MyCampaignsScreenState extends ConsumerState<MyCampaignsScreen>
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: CachedNetworkImage(
-                        imageUrl: campaign.productImageUrl,
+                        imageUrl: CloudflareWorkersService.convertToProxyUrl(
+                          campaign.productImageUrl,
+                        ),
                         width: 80,
                         height: 80,
                         fit: BoxFit.cover,
