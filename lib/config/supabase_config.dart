@@ -9,9 +9,10 @@ class SupabaseConfig {
   // 로컬 Supabase URL
   static const String supabaseUrl = 'http://127.0.0.1:54500';
 
-  // 로컬 Supabase Anon Key
+  // 로컬 Supabase Anon Key (Publishable)
+  // npx supabase status 명령어로 확인한 실제 키 값
   static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+      'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
 
   // ============================================
   // 프로덕션 모드 (주석 처리됨)
