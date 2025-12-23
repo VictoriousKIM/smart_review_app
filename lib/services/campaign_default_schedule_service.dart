@@ -8,21 +8,32 @@ class CampaignDefaultScheduleService {
   static const String _keyApplyStartTime = 'campaign_default_apply_start_time';
   static const String _keyApplyEndDays = 'campaign_default_apply_end_days';
   static const String _keyApplyEndTime = 'campaign_default_apply_end_time';
-  static const String _keyReviewStartDays = 'campaign_default_review_start_days';
-  static const String _keyReviewStartTime = 'campaign_default_review_start_time';
+  static const String _keyReviewStartDays =
+      'campaign_default_review_start_days';
+  static const String _keyReviewStartTime =
+      'campaign_default_review_start_time';
   static const String _keyReviewEndDays = 'campaign_default_review_end_days';
   static const String _keyReviewEndTime = 'campaign_default_review_end_time';
-  
+
   // 리뷰 설정 키
   static const String _keyReviewType = 'campaign_default_review_type';
-  static const String _keyReviewTextLength = 'campaign_default_review_text_length';
-  static const String _keyReviewImageCount = 'campaign_default_review_image_count';
+  static const String _keyReviewTextLength =
+      'campaign_default_review_text_length';
+  static const String _keyReviewImageCount =
+      'campaign_default_review_image_count';
   static const String _keyCampaignReward = 'campaign_default_campaign_reward';
-  
+
+  // 모집 인원 설정 키
+  static const String _keyMaxParticipants = 'campaign_default_max_participants';
+  static const String _keyMaxPerReviewer = 'campaign_default_max_per_reviewer';
+
   // 중복방지 설정 키
-  static const String _keyPreventProductDuplicate = 'campaign_default_prevent_product_duplicate';
-  static const String _keyPreventStoreDuplicate = 'campaign_default_prevent_store_duplicate';
-  static const String _keyDuplicatePreventDays = 'campaign_default_duplicate_prevent_days';
+  static const String _keyPreventProductDuplicate =
+      'campaign_default_prevent_product_duplicate';
+  static const String _keyPreventStoreDuplicate =
+      'campaign_default_prevent_store_duplicate';
+  static const String _keyDuplicatePreventDays =
+      'campaign_default_duplicate_prevent_days';
 
   // 기본값
   static const int _defaultApplyStartDays = 0; // 오늘
@@ -33,13 +44,17 @@ class CampaignDefaultScheduleService {
   static const String _defaultReviewStartTime = '08:00';
   static const int _defaultReviewEndDays = 5;
   static const String _defaultReviewEndTime = '20:00';
-  
+
   // 리뷰 설정 기본값
   static const String _defaultReviewType = 'star_only';
   static const int _defaultReviewTextLength = 100;
   static const int _defaultReviewImageCount = 1;
   static const int _defaultCampaignReward = 0;
-  
+
+  // 모집 인원 설정 기본값
+  static const int _defaultMaxParticipants = 10;
+  static const int _defaultMaxPerReviewer = 1;
+
   // 중복방지 설정 기본값
   static const bool _defaultPreventProductDuplicate = false;
   static const bool _defaultPreventStoreDuplicate = false;
@@ -63,79 +78,141 @@ class CampaignDefaultScheduleService {
   static Future<CampaignDefaultSchedule> loadDefaultSchedule() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       return CampaignDefaultSchedule(
-        applyStartDays: prefs.getInt(_keyApplyStartDays) ?? _defaultApplyStartDays,
-        applyStartTime: prefs.getString(_keyApplyStartTime) ?? _defaultApplyStartTime,
+        applyStartDays:
+            prefs.getInt(_keyApplyStartDays) ?? _defaultApplyStartDays,
+        applyStartTime:
+            prefs.getString(_keyApplyStartTime) ?? _defaultApplyStartTime,
         applyEndDays: prefs.getInt(_keyApplyEndDays) ?? _defaultApplyEndDays,
         applyEndTime: prefs.getString(_keyApplyEndTime) ?? _defaultApplyEndTime,
-        reviewStartDays: prefs.getInt(_keyReviewStartDays) ?? _defaultReviewStartDays,
-        reviewStartTime: prefs.getString(_keyReviewStartTime) ?? _defaultReviewStartTime,
+        reviewStartDays:
+            prefs.getInt(_keyReviewStartDays) ?? _defaultReviewStartDays,
+        reviewStartTime:
+            prefs.getString(_keyReviewStartTime) ?? _defaultReviewStartTime,
         reviewEndDays: prefs.getInt(_keyReviewEndDays) ?? _defaultReviewEndDays,
-        reviewEndTime: prefs.getString(_keyReviewEndTime) ?? _defaultReviewEndTime,
+        reviewEndTime:
+            prefs.getString(_keyReviewEndTime) ?? _defaultReviewEndTime,
       );
     } catch (e) {
       // 에러 발생 시 기본값 반환
       return getDefaultSchedule();
     }
   }
-  
+
   /// 저장된 기본 리뷰 설정 로드
-  static Future<CampaignDefaultReviewSettings> loadDefaultReviewSettings() async {
+  static Future<CampaignDefaultReviewSettings>
+  loadDefaultReviewSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       return CampaignDefaultReviewSettings(
         reviewType: prefs.getString(_keyReviewType) ?? _defaultReviewType,
-        reviewTextLength: prefs.getInt(_keyReviewTextLength) ?? _defaultReviewTextLength,
-        reviewImageCount: prefs.getInt(_keyReviewImageCount) ?? _defaultReviewImageCount,
-        campaignReward: prefs.getInt(_keyCampaignReward) ?? _defaultCampaignReward,
+        reviewTextLength:
+            prefs.getInt(_keyReviewTextLength) ?? _defaultReviewTextLength,
+        reviewImageCount:
+            prefs.getInt(_keyReviewImageCount) ?? _defaultReviewImageCount,
+        campaignReward:
+            prefs.getInt(_keyCampaignReward) ?? _defaultCampaignReward,
       );
     } catch (e) {
       return CampaignDefaultReviewSettings.getDefault();
     }
   }
-  
+
   /// 기본 리뷰 설정 저장
-  static Future<bool> saveDefaultReviewSettings(CampaignDefaultReviewSettings settings) async {
+  static Future<bool> saveDefaultReviewSettings(
+    CampaignDefaultReviewSettings settings,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       await prefs.setString(_keyReviewType, settings.reviewType);
       await prefs.setInt(_keyReviewTextLength, settings.reviewTextLength);
       await prefs.setInt(_keyReviewImageCount, settings.reviewImageCount);
       await prefs.setInt(_keyCampaignReward, settings.campaignReward);
-      
+
       return true;
     } catch (e) {
       return false;
     }
   }
-  
-  /// 저장된 기본 중복방지 설정 로드
-  static Future<CampaignDefaultDuplicateSettings> loadDefaultDuplicateSettings() async {
+
+  /// 저장된 기본 모집 인원 설정 로드
+  static Future<CampaignDefaultParticipantSettings>
+  loadDefaultParticipantSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
+      return CampaignDefaultParticipantSettings(
+        maxParticipants:
+            prefs.getInt(_keyMaxParticipants) ?? _defaultMaxParticipants,
+        maxPerReviewer:
+            prefs.getInt(_keyMaxPerReviewer) ?? _defaultMaxPerReviewer,
+      );
+    } catch (e) {
+      return CampaignDefaultParticipantSettings.getDefault();
+    }
+  }
+
+  /// 기본 모집 인원 설정 저장
+  static Future<bool> saveDefaultParticipantSettings(
+    CampaignDefaultParticipantSettings settings,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setInt(_keyMaxParticipants, settings.maxParticipants);
+      await prefs.setInt(_keyMaxPerReviewer, settings.maxPerReviewer);
+
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 저장된 기본 중복방지 설정 로드
+  static Future<CampaignDefaultDuplicateSettings>
+  loadDefaultDuplicateSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
       return CampaignDefaultDuplicateSettings(
-        preventProductDuplicate: prefs.getBool(_keyPreventProductDuplicate) ?? _defaultPreventProductDuplicate,
-        preventStoreDuplicate: prefs.getBool(_keyPreventStoreDuplicate) ?? _defaultPreventStoreDuplicate,
-        duplicatePreventDays: prefs.getInt(_keyDuplicatePreventDays) ?? _defaultDuplicatePreventDays,
+        preventProductDuplicate:
+            prefs.getBool(_keyPreventProductDuplicate) ??
+            _defaultPreventProductDuplicate,
+        preventStoreDuplicate:
+            prefs.getBool(_keyPreventStoreDuplicate) ??
+            _defaultPreventStoreDuplicate,
+        duplicatePreventDays:
+            prefs.getInt(_keyDuplicatePreventDays) ??
+            _defaultDuplicatePreventDays,
       );
     } catch (e) {
       return CampaignDefaultDuplicateSettings.getDefault();
     }
   }
-  
+
   /// 기본 중복방지 설정 저장
-  static Future<bool> saveDefaultDuplicateSettings(CampaignDefaultDuplicateSettings settings) async {
+  static Future<bool> saveDefaultDuplicateSettings(
+    CampaignDefaultDuplicateSettings settings,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      await prefs.setBool(_keyPreventProductDuplicate, settings.preventProductDuplicate);
-      await prefs.setBool(_keyPreventStoreDuplicate, settings.preventStoreDuplicate);
-      await prefs.setInt(_keyDuplicatePreventDays, settings.duplicatePreventDays);
-      
+
+      await prefs.setBool(
+        _keyPreventProductDuplicate,
+        settings.preventProductDuplicate,
+      );
+      await prefs.setBool(
+        _keyPreventStoreDuplicate,
+        settings.preventStoreDuplicate,
+      );
+      await prefs.setInt(
+        _keyDuplicatePreventDays,
+        settings.duplicatePreventDays,
+      );
+
       return true;
     } catch (e) {
       return false;
@@ -143,10 +220,12 @@ class CampaignDefaultScheduleService {
   }
 
   /// 기본 일정 설정 저장
-  static Future<bool> saveDefaultSchedule(CampaignDefaultSchedule schedule) async {
+  static Future<bool> saveDefaultSchedule(
+    CampaignDefaultSchedule schedule,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       await prefs.setInt(_keyApplyStartDays, schedule.applyStartDays);
       await prefs.setString(_keyApplyStartTime, schedule.applyStartTime);
       await prefs.setInt(_keyApplyEndDays, schedule.applyEndDays);
@@ -155,7 +234,7 @@ class CampaignDefaultScheduleService {
       await prefs.setString(_keyReviewStartTime, schedule.reviewStartTime);
       await prefs.setInt(_keyReviewEndDays, schedule.reviewEndDays);
       await prefs.setString(_keyReviewEndTime, schedule.reviewEndTime);
-      
+
       return true;
     } catch (e) {
       return false;
@@ -175,14 +254,15 @@ class CampaignDefaultScheduleService {
   }
 
   /// 기본 일정 설정을 DateTime으로 변환 (내부 메서드)
-  static Map<String, DateTime> _scheduleToDateTimes(CampaignDefaultSchedule schedule) {
-    
+  static Map<String, DateTime> _scheduleToDateTimes(
+    CampaignDefaultSchedule schedule,
+  ) {
     // 시간 파싱 (HH:mm 형식)
     final applyStartTimeParts = schedule.applyStartTime.split(':');
     final applyEndTimeParts = schedule.applyEndTime.split(':');
     final reviewStartTimeParts = schedule.reviewStartTime.split(':');
     final reviewEndTimeParts = schedule.reviewEndTime.split(':');
-    
+
     final applyStartHour = int.parse(applyStartTimeParts[0]);
     final applyStartMinute = int.parse(applyStartTimeParts[1]);
     final applyEndHour = int.parse(applyEndTimeParts[0]);
@@ -191,39 +271,47 @@ class CampaignDefaultScheduleService {
     final reviewStartMinute = int.parse(reviewStartTimeParts[1]);
     final reviewEndHour = int.parse(reviewEndTimeParts[0]);
     final reviewEndMinute = int.parse(reviewEndTimeParts[1]);
-    
+
     // 신청 시작일시: 오늘 + applyStartDays일
-    final applyStartDate = DateTimeUtils.nowKST().add(Duration(days: schedule.applyStartDays)).copyWith(
-      hour: applyStartHour,
-      minute: applyStartMinute,
-      second: 0,
-      millisecond: 0,
-    );
-    
+    final applyStartDate = DateTimeUtils.nowKST()
+        .add(Duration(days: schedule.applyStartDays))
+        .copyWith(
+          hour: applyStartHour,
+          minute: applyStartMinute,
+          second: 0,
+          millisecond: 0,
+        );
+
     // 신청 종료일시: 오늘 + applyEndDays일
-    final applyEndDate = DateTimeUtils.nowKST().add(Duration(days: schedule.applyEndDays)).copyWith(
-      hour: applyEndHour,
-      minute: applyEndMinute,
-      second: 0,
-      millisecond: 0,
-    );
-    
+    final applyEndDate = DateTimeUtils.nowKST()
+        .add(Duration(days: schedule.applyEndDays))
+        .copyWith(
+          hour: applyEndHour,
+          minute: applyEndMinute,
+          second: 0,
+          millisecond: 0,
+        );
+
     // 리뷰 시작일시: 오늘 + reviewStartDays일
-    final reviewStartDate = DateTimeUtils.nowKST().add(Duration(days: schedule.reviewStartDays)).copyWith(
-      hour: reviewStartHour,
-      minute: reviewStartMinute,
-      second: 0,
-      millisecond: 0,
-    );
-    
+    final reviewStartDate = DateTimeUtils.nowKST()
+        .add(Duration(days: schedule.reviewStartDays))
+        .copyWith(
+          hour: reviewStartHour,
+          minute: reviewStartMinute,
+          second: 0,
+          millisecond: 0,
+        );
+
     // 리뷰 종료일시: 오늘 + reviewEndDays일
-    final reviewEndDate = DateTimeUtils.nowKST().add(Duration(days: schedule.reviewEndDays)).copyWith(
-      hour: reviewEndHour,
-      minute: reviewEndMinute,
-      second: 0,
-      millisecond: 0,
-    );
-    
+    final reviewEndDate = DateTimeUtils.nowKST()
+        .add(Duration(days: schedule.reviewEndDays))
+        .copyWith(
+          hour: reviewEndHour,
+          minute: reviewEndMinute,
+          second: 0,
+          millisecond: 0,
+        );
+
     return {
       'applyStart': applyStartDate,
       'applyEnd': applyEndDate,
@@ -292,7 +380,7 @@ class CampaignDefaultReviewSettings {
     required this.reviewImageCount,
     required this.campaignReward,
   });
-  
+
   static CampaignDefaultReviewSettings getDefault() {
     return CampaignDefaultReviewSettings(
       reviewType: 'star_only',
@@ -301,7 +389,7 @@ class CampaignDefaultReviewSettings {
       campaignReward: 0,
     );
   }
-  
+
   CampaignDefaultReviewSettings copyWith({
     String? reviewType,
     int? reviewTextLength,
@@ -317,6 +405,34 @@ class CampaignDefaultReviewSettings {
   }
 }
 
+/// 기본 모집 인원 설정 모델
+class CampaignDefaultParticipantSettings {
+  final int maxParticipants;
+  final int maxPerReviewer;
+
+  CampaignDefaultParticipantSettings({
+    required this.maxParticipants,
+    required this.maxPerReviewer,
+  });
+
+  static CampaignDefaultParticipantSettings getDefault() {
+    return CampaignDefaultParticipantSettings(
+      maxParticipants: 10,
+      maxPerReviewer: 1,
+    );
+  }
+
+  CampaignDefaultParticipantSettings copyWith({
+    int? maxParticipants,
+    int? maxPerReviewer,
+  }) {
+    return CampaignDefaultParticipantSettings(
+      maxParticipants: maxParticipants ?? this.maxParticipants,
+      maxPerReviewer: maxPerReviewer ?? this.maxPerReviewer,
+    );
+  }
+}
+
 /// 기본 중복방지 설정 모델
 class CampaignDefaultDuplicateSettings {
   final bool preventProductDuplicate;
@@ -328,7 +444,7 @@ class CampaignDefaultDuplicateSettings {
     required this.preventStoreDuplicate,
     required this.duplicatePreventDays,
   });
-  
+
   static CampaignDefaultDuplicateSettings getDefault() {
     return CampaignDefaultDuplicateSettings(
       preventProductDuplicate: false,
@@ -336,17 +452,18 @@ class CampaignDefaultDuplicateSettings {
       duplicatePreventDays: 0,
     );
   }
-  
+
   CampaignDefaultDuplicateSettings copyWith({
     bool? preventProductDuplicate,
     bool? preventStoreDuplicate,
     int? duplicatePreventDays,
   }) {
     return CampaignDefaultDuplicateSettings(
-      preventProductDuplicate: preventProductDuplicate ?? this.preventProductDuplicate,
-      preventStoreDuplicate: preventStoreDuplicate ?? this.preventStoreDuplicate,
+      preventProductDuplicate:
+          preventProductDuplicate ?? this.preventProductDuplicate,
+      preventStoreDuplicate:
+          preventStoreDuplicate ?? this.preventStoreDuplicate,
       duplicatePreventDays: duplicatePreventDays ?? this.duplicatePreventDays,
     );
   }
 }
-

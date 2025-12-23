@@ -142,6 +142,7 @@ class _CampaignCreationScreenState
         if (mounted) {
           _loadDefaultSchedule();
           _loadDefaultReviewSettings();
+          _loadDefaultParticipantSettings();
           _loadDefaultDuplicateSettings();
           _loadCompanyBalance();
         }
@@ -1951,6 +1952,9 @@ class _CampaignCreationScreenState
                       _buildWithOptionalBoundary(_buildReviewSettings()),
                       const SizedBox(height: 24),
 
+                      _buildWithOptionalBoundary(_buildParticipantSection()),
+                      const SizedBox(height: 24),
+
                       _buildWithOptionalBoundary(_buildScheduleSection()),
                       const SizedBox(height: 24),
 
@@ -2705,6 +2709,39 @@ class _CampaignCreationScreenState
                 return null;
               },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParticipantSection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.people, color: Colors.blue[600]),
+                const SizedBox(width: 8),
+                const Text(
+                  '모집 인원 설정',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.settings, size: 18),
+                  tooltip: '모집 인원 기본 설정 변경',
+                  onPressed: () =>
+                      _showDefaultParticipantSettingsDialog(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             CustomTextField(
               controller: _maxParticipantsController,
@@ -3424,6 +3461,19 @@ class _CampaignCreationScreenState
                         },
                       ),
                       const Divider(),
+                      // 모집 인원 설정
+                      ListTile(
+                        leading: Icon(Icons.people, color: Colors.blue[600]),
+                        title: const Text('모집 인원 설정'),
+                        subtitle: const Text('모집 인원 및 리뷰어당 신청 가능 개수 기본값'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          // 전체 다이얼로그를 닫지 않고 세부 다이얼로그를 그 위에 표시
+                          // 세부 다이얼로그를 닫으면 자동으로 전체 다이얼로그가 다시 보임
+                          _showDefaultParticipantSettingsDialog(dialogContext);
+                        },
+                      ),
+                      const Divider(),
                       // 중복방지 설정
                       ListTile(
                         leading: Icon(Icons.block, color: Colors.red[600]),
@@ -3649,6 +3699,205 @@ class _CampaignCreationScreenState
                             vertical: 12,
                           ),
                         ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// 기본 모집 인원 설정 변경 다이얼로그 표시
+  Future<void> _showDefaultParticipantSettingsDialog(
+    BuildContext context,
+  ) async {
+    final currentSettings =
+        await CampaignDefaultScheduleService.loadDefaultParticipantSettings();
+
+    int maxParticipants = currentSettings.maxParticipants;
+    int maxPerReviewer = currentSettings.maxPerReviewer;
+
+    final maxParticipantsController = TextEditingController(
+      text: maxParticipants.toString(),
+    );
+    final maxPerReviewerController = TextEditingController(
+      text: maxPerReviewer.toString(),
+    );
+
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.9,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              padding: EdgeInsets.all(
+                MediaQuery.of(context).size.width < 400 ? 16 : 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.people, color: Colors.blue[700], size: 28),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          '기본 모집 인원 설정',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '캠페인 생성 시 자동으로 적용될 기본 모집 인원 설정을 변경합니다',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
+                            controller: maxParticipantsController,
+                            decoration: const InputDecoration(
+                              labelText: '모집 인원 (기본값)',
+                              hintText: '10',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: maxPerReviewerController,
+                            decoration: const InputDecoration(
+                              labelText: '리뷰어당 신청 가능 개수 (기본값)',
+                              hintText: '1',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '한 리뷰어가 이 캠페인에 신청할 수 있는 최대 횟수',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('취소'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final maxParticipantsValue =
+                              int.tryParse(maxParticipantsController.text) ??
+                              10;
+                          final maxPerReviewerValue =
+                              int.tryParse(maxPerReviewerController.text) ?? 1;
+
+                          if (maxParticipantsValue <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('모집 인원은 1 이상이어야 합니다'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          if (maxPerReviewerValue < 1) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('리뷰어당 신청 가능 개수는 1 이상이어야 합니다'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          if (maxPerReviewerValue > maxParticipantsValue) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '리뷰어당 신청 가능 개수($maxPerReviewerValue)는 모집 인원($maxParticipantsValue)을 넘을 수 없습니다',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          final settings = CampaignDefaultParticipantSettings(
+                            maxParticipants: maxParticipantsValue,
+                            maxPerReviewer: maxPerReviewerValue,
+                          );
+
+                          final success =
+                              await CampaignDefaultScheduleService.saveDefaultParticipantSettings(
+                                settings,
+                              );
+
+                          if (!mounted) return;
+                          if (success) {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('기본 모집 인원 설정이 저장되었습니다'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            // 현재 화면의 모집 인원 설정도 업데이트
+                            setState(() {
+                              _maxParticipantsController.text =
+                                  maxParticipantsValue.toString();
+                              _maxPerReviewerController.text =
+                                  maxPerReviewerValue.toString();
+                            });
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('기본 모집 인원 설정 저장에 실패했습니다'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.save),
+                        label: const Text('저장'),
                       ),
                     ],
                   ),
@@ -3904,6 +4153,23 @@ class _CampaignCreationScreenState
   }
 
   /// 기본 중복방지 설정 로드 및 적용
+  Future<void> _loadDefaultParticipantSettings() async {
+    try {
+      final defaultSettings =
+          await CampaignDefaultScheduleService.loadDefaultParticipantSettings();
+      if (mounted) {
+        setState(() {
+          _maxParticipantsController.text = defaultSettings.maxParticipants
+              .toString();
+          _maxPerReviewerController.text = defaultSettings.maxPerReviewer
+              .toString();
+        });
+      }
+    } catch (e) {
+      debugPrint('기본 모집 인원 설정 로드 실패: $e');
+    }
+  }
+
   Future<void> _loadDefaultDuplicateSettings() async {
     try {
       final defaultSettings =

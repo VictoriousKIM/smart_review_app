@@ -30,7 +30,40 @@ export async function handleGetFile(request: Request, env: Env): Promise<Respons
 
     console.log('📂 파일 조회 시도:', { originalPath: url.pathname, extractedKey: key });
 
-    const object = await env.FILES.get(key);
+    // R2 바인딩 확인
+    if (!env.FILES) {
+      console.error('❌ R2 바인딩이 없습니다');
+      return new Response(
+        JSON.stringify({ error: 'R2 binding not configured' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    let object;
+    try {
+      object = await env.FILES.get(key);
+    } catch (getError) {
+      console.error('❌ R2 get 호출 실패:', {
+        key,
+        error: getError instanceof Error ? getError.message : String(getError),
+        stack: getError instanceof Error ? getError.stack : undefined,
+      });
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to retrieve file from R2',
+          details: getError instanceof Error ? getError.message : String(getError),
+          key,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     if (!object) {
       console.error('❌ 파일을 찾을 수 없음:', key);
       return new Response(
