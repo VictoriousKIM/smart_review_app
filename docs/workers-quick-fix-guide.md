@@ -85,7 +85,7 @@ npx wrangler login
 
 # 2. 환경 변수 형식 확인 (따옴표 없이, 공백 없이)
 SUPABASE_URL=http://127.0.0.1:54500
-GEMINI_API_KEY=AIzaSyC6tax_NkvdDC9G7Miy4_dXznqHc1HDA8g
+GEMINI_API_KEY=AIzaSyD3jgMf4msKYJs3UL_JcARuducruur30yI
 
 # 3. wrangler dev 실행 시 출력 확인
 npx wrangler dev

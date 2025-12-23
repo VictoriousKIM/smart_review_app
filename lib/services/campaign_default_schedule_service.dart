@@ -18,8 +18,6 @@ class CampaignDefaultScheduleService {
   static const String _keyReviewTextLength = 'campaign_default_review_text_length';
   static const String _keyReviewImageCount = 'campaign_default_review_image_count';
   static const String _keyCampaignReward = 'campaign_default_campaign_reward';
-  static const String _keyUseReviewKeywords = 'campaign_default_use_review_keywords';
-  static const String _keyReviewKeywords = 'campaign_default_review_keywords';
   
   // 중복방지 설정 키
   static const String _keyPreventProductDuplicate = 'campaign_default_prevent_product_duplicate';
@@ -41,8 +39,6 @@ class CampaignDefaultScheduleService {
   static const int _defaultReviewTextLength = 100;
   static const int _defaultReviewImageCount = 1;
   static const int _defaultCampaignReward = 0;
-  static const bool _defaultUseReviewKeywords = false;
-  static const String _defaultReviewKeywords = '';
   
   // 중복방지 설정 기본값
   static const bool _defaultPreventProductDuplicate = false;
@@ -94,8 +90,6 @@ class CampaignDefaultScheduleService {
         reviewTextLength: prefs.getInt(_keyReviewTextLength) ?? _defaultReviewTextLength,
         reviewImageCount: prefs.getInt(_keyReviewImageCount) ?? _defaultReviewImageCount,
         campaignReward: prefs.getInt(_keyCampaignReward) ?? _defaultCampaignReward,
-        useReviewKeywords: prefs.getBool(_keyUseReviewKeywords) ?? _defaultUseReviewKeywords,
-        reviewKeywords: prefs.getString(_keyReviewKeywords) ?? _defaultReviewKeywords,
       );
     } catch (e) {
       return CampaignDefaultReviewSettings.getDefault();
@@ -111,8 +105,6 @@ class CampaignDefaultScheduleService {
       await prefs.setInt(_keyReviewTextLength, settings.reviewTextLength);
       await prefs.setInt(_keyReviewImageCount, settings.reviewImageCount);
       await prefs.setInt(_keyCampaignReward, settings.campaignReward);
-      await prefs.setBool(_keyUseReviewKeywords, settings.useReviewKeywords);
-      await prefs.setString(_keyReviewKeywords, settings.reviewKeywords);
       
       return true;
     } catch (e) {
@@ -293,16 +285,12 @@ class CampaignDefaultReviewSettings {
   final int reviewTextLength;
   final int reviewImageCount;
   final int campaignReward;
-  final bool useReviewKeywords;
-  final String reviewKeywords;
 
   CampaignDefaultReviewSettings({
     required this.reviewType,
     required this.reviewTextLength,
     required this.reviewImageCount,
     required this.campaignReward,
-    required this.useReviewKeywords,
-    required this.reviewKeywords,
   });
   
   static CampaignDefaultReviewSettings getDefault() {
@@ -311,8 +299,6 @@ class CampaignDefaultReviewSettings {
       reviewTextLength: 100,
       reviewImageCount: 1,
       campaignReward: 0,
-      useReviewKeywords: false,
-      reviewKeywords: '',
     );
   }
   
@@ -321,16 +307,12 @@ class CampaignDefaultReviewSettings {
     int? reviewTextLength,
     int? reviewImageCount,
     int? campaignReward,
-    bool? useReviewKeywords,
-    String? reviewKeywords,
   }) {
     return CampaignDefaultReviewSettings(
       reviewType: reviewType ?? this.reviewType,
       reviewTextLength: reviewTextLength ?? this.reviewTextLength,
       reviewImageCount: reviewImageCount ?? this.reviewImageCount,
       campaignReward: campaignReward ?? this.campaignReward,
-      useReviewKeywords: useReviewKeywords ?? this.useReviewKeywords,
-      reviewKeywords: reviewKeywords ?? this.reviewKeywords,
     );
   }
 }

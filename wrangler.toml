@@ -19,6 +19,7 @@ remote = true
 # 환경 변수 (프로덕션 환경)
 [vars]
 ENVIRONMENT = "production"
+R2_PUBLIC_URL = "https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com"
 
 # 로컬 개발 설정 (로컬 개발 시에만 사용)
 [dev]

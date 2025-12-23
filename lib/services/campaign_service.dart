@@ -760,7 +760,6 @@ class CampaignService {
     required String productImageUrl, // NOT NULL
     required String purchaseMethod, // NOT NULL
     String? productProvisionType, // 상품 제공 방법 (delivery, return, other)
-    String? reviewKeywords, // 리뷰 키워드
   }) async {
     try {
       // 사용자 ID 가져오기 (Custom JWT 세션 지원)
@@ -804,20 +803,7 @@ class CampaignService {
       }
 
       // RPC 함수 호출 (create_campaign_with_points_v2)
-      // reviewKeywords를 배열로 변환 (콤마로 구분된 문자열 -> 배열)
-      List<String>? reviewKeywordsArray;
-      if (reviewKeywords != null && reviewKeywords.trim().isNotEmpty) {
-        reviewKeywordsArray = reviewKeywords
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-        if (reviewKeywordsArray.isEmpty) {
-          reviewKeywordsArray = null;
-        }
-      }
-
-      // params 맵 생성 (reviewKeywords는 항상 포함하여 함수 오버로딩 문제 해결)
+      // params 맵 생성
       final params = <String, dynamic>{
         'p_title': title,
         'p_description': description,
@@ -852,9 +838,6 @@ class CampaignService {
         'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
         'p_payment_method': paymentMethod,
         'p_user_id': userId, // ✅ Custom JWT 세션 지원
-        // ✅ reviewKeywords는 항상 포함 (null이면 빈 배열 전달) - 타입 불일치 해결
-        'p_review_keywords':
-            reviewKeywordsArray ?? <String>[], // null이면 빈 배열 전달
       };
 
       final response = await _supabase.rpc(
@@ -944,7 +927,6 @@ class CampaignService {
     int? duplicatePreventDays,
     required String paymentMethod, // NOT NULL
     required String productImageUrl, // NOT NULL
-    String? reviewKeywords, // 리뷰 키워드
   }) async {
     try {
       // 사용자 ID 가져오기 (Custom JWT 세션 지원)
@@ -954,20 +936,7 @@ class CampaignService {
       }
 
       // RPC 함수 호출 (update_campaign_v2)
-      // reviewKeywords를 배열로 변환 (콤마로 구분된 문자열 -> 배열)
-      List<String>? reviewKeywordsArray;
-      if (reviewKeywords != null && reviewKeywords.trim().isNotEmpty) {
-        reviewKeywordsArray = reviewKeywords
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-        if (reviewKeywordsArray.isEmpty) {
-          reviewKeywordsArray = null;
-        }
-      }
-
-      // params 맵 생성 (조건부로 reviewKeywords 포함)
+      // params 맵 생성
       final params = <String, dynamic>{
         'p_campaign_id': campaignId,
         'p_title': title,
@@ -1002,29 +971,44 @@ class CampaignService {
         'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
         'p_payment_method': paymentMethod,
         'p_user_id': userId, // Custom JWT 세션 지원
-        // ✅ reviewKeywords는 항상 포함 (null이면 빈 배열 전달) - 타입 불일치 해결
-        'p_review_keywords':
-            reviewKeywordsArray ?? <String>[], // null이면 빈 배열 전달
       };
+
+      debugPrint('📡 [CampaignService.updateCampaignV2] RPC 호출 시작');
+      debugPrint('   - 함수명: update_campaign_v2');
+      debugPrint('   - 파라미터 개수: ${params.length}');
 
       final response = await _supabase.rpc(
         'update_campaign_v2',
         params: params,
       );
 
+      debugPrint('📥 [CampaignService.updateCampaignV2] RPC 응답 수신');
+      debugPrint('   - response 타입: ${response.runtimeType}');
+      debugPrint('   - success: ${response['success']}');
+      debugPrint('   - error: ${response['error']}');
+      debugPrint('   - 전체 응답: $response');
+
       if (response['success'] == true) {
+        debugPrint('✅ [CampaignService.updateCampaignV2] RPC 성공, 캠페인 조회 시작...');
         // 업데이트된 캠페인 조회
         final updatedCampaign = await getCampaignById(campaignId);
+        debugPrint('✅ [CampaignService.updateCampaignV2] 캠페인 조회 완료');
         return updatedCampaign;
       }
 
+      debugPrint(
+        '❌ [CampaignService.updateCampaignV2] RPC 실패: ${response['error']}',
+      );
       return ApiResponse<Campaign>(
         success: false,
         error: response['error'] ?? '캠페인 업데이트에 실패했습니다.',
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
       final errorMessage = e.toString();
-      debugPrint('❌ 캠페인 업데이트 실패: $e');
+      debugPrint('❌ [CampaignService.updateCampaignV2] 예외 발생!');
+      debugPrint('   - 에러 타입: ${e.runtimeType}');
+      debugPrint('   - 에러 메시지: $errorMessage');
+      debugPrint('   - 스택 트레이스: $stackTrace');
       return ApiResponse<Campaign>(
         success: false,
         error: '캠페인 업데이트 중 오류가 발생했습니다: $errorMessage',

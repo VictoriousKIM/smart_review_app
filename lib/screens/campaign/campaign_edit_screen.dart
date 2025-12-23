@@ -11,43 +11,8 @@ import '../../services/auth_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../utils/date_time_utils.dart';
-import '../../utils/keyword_utils.dart';
 import '../../models/campaign.dart';
 import 'package:responsive_builder/responsive_builder.dart';
-
-/// 리뷰 키워드 입력 제한 Formatter
-/// 키워드 3개 이내, 총 20자 이내로 제한
-class _ReviewKeywordInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final newText = newValue.text;
-
-    // 빈 값은 허용
-    if (newText.trim().isEmpty) {
-      return newValue;
-    }
-
-    // 정규화된 텍스트로 검증
-    final normalized = KeywordUtils.normalizeKeywords(newText);
-    final keywords = KeywordUtils.parseKeywords(normalized);
-    final textLength = normalized.length;
-
-    // 키워드 개수 제한 (3개 초과 시 입력 거부)
-    if (keywords.length > 3) {
-      return oldValue; // 이전 값 유지
-    }
-
-    // 총 길이 제한 (20자 초과 시 입력 거부)
-    if (textLength > 20) {
-      return oldValue; // 이전 값 유지
-    }
-
-    return newValue; // 허용된 입력
-  }
-}
 
 class CampaignEditScreen extends ConsumerStatefulWidget {
   final String campaignId;
@@ -97,9 +62,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   DateTime? _reviewEndDateTime; // 리뷰 종료일시
   bool _preventProductDuplicate = false;
   bool _preventStoreDuplicate = false;
-  // 리뷰 키워드 관련
-  bool _useReviewKeywords = false;
-  final _reviewKeywordsController = TextEditingController();
 
   // 비용 및 잔액
   int _totalCost = 0;
@@ -206,15 +168,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               .toString();
         }
 
-        // 리뷰 키워드 로드
-        if (campaign.reviewKeywords != null &&
-            campaign.reviewKeywords!.isNotEmpty) {
-          _useReviewKeywords = true;
-          _reviewKeywordsController.text = campaign.reviewKeywords!;
-        } else {
-          _useReviewKeywords = false;
-          _reviewKeywordsController.clear();
-        }
 
         // ✅ [중요] 데이터 세팅 완료 후 플래그 해제
         // _ignoreCostListeners = false; // 편집 화면에서는 비용 계산 제거로 인해 사용하지 않음
@@ -291,7 +244,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
     _campaignRewardController.dispose();
     _reviewTextLengthController.dispose();
     _reviewImageCountController.dispose();
-    _reviewKeywordsController.dispose();
     _maxParticipantsController.dispose();
     _duplicateCheckDaysController.dispose();
     _productProvisionOtherController.dispose();
@@ -412,15 +364,29 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   //     _cachedFormattedRemaining ?? _formatNumber(_currentBalance - _totalCost);
 
   Future<void> _updateCampaign() async {
+    debugPrint('🚀 [캠페인 수정] 시작 - campaignId: ${widget.campaignId}');
+
     // ✅ 즉시 체크 (setState 전에) - 중복 호출 방지
     if (_isCreatingCampaign) {
-      debugPrint('⚠️ 캠페인 수정이 이미 진행 중입니다.');
+      debugPrint(
+        '❌ [캠페인 수정] 에러: 이미 진행 중입니다. (_isCreatingCampaign: $_isCreatingCampaign)',
+      );
       return;
     }
 
-    if (!_formKey.currentState!.validate()) return;
+    debugPrint('✅ [캠페인 수정] 중복 호출 체크 통과');
+
+    if (!_formKey.currentState!.validate()) {
+      debugPrint('❌ [캠페인 수정] 에러: Form 유효성 검사 실패');
+      return;
+    }
+
+    debugPrint('✅ [캠페인 수정] Form 유효성 검사 통과');
 
     if (_totalCost > _currentBalance) {
+      debugPrint(
+        '❌ [캠페인 수정] 에러: 잔액 부족 (필요: ${_totalCost}P, 현재: ${_currentBalance}P)',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -434,6 +400,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       }
       return;
     }
+
+    debugPrint(
+      '✅ [캠페인 수정] 잔액 체크 통과 (필요: ${_totalCost}P, 현재: ${_currentBalance}P)',
+    );
 
     // ✅ 생성 시도 ID 생성 (중복 방지용)
     final creationId = DateTime.now().millisecondsSinceEpoch.toString();
@@ -455,12 +425,18 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       int? reviewTextLength;
       int? reviewImageCount;
 
+      debugPrint('🔍 [캠페인 수정] 리뷰 타입 검증 시작 - reviewType: $_reviewType');
+
       if (_reviewType == 'star_only') {
         reviewTextLength = null;
         reviewImageCount = null;
+        debugPrint('✅ [캠페인 수정] 리뷰 타입: star_only (검증 없음)');
       } else if (_reviewType == 'star_text') {
         reviewTextLength = int.tryParse(_reviewTextLengthController.text);
         if (reviewTextLength == null || reviewTextLength <= 0) {
+          debugPrint(
+            '❌ [캠페인 수정] 에러: 리뷰 텍스트 최소 글자 수 없음 (입력값: ${_reviewTextLengthController.text})',
+          );
           _isCreatingCampaign = false;
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -474,10 +450,14 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           return;
         }
         reviewImageCount = null;
+        debugPrint('✅ [캠페인 수정] 리뷰 타입: star_text (텍스트 글자 수: $reviewTextLength)');
       } else if (_reviewType == 'star_text_image') {
         reviewTextLength = int.tryParse(_reviewTextLengthController.text);
         reviewImageCount = int.tryParse(_reviewImageCountController.text);
         if (reviewTextLength == null || reviewTextLength <= 0) {
+          debugPrint(
+            '❌ [캠페인 수정] 에러: 리뷰 텍스트 최소 글자 수 없음 (입력값: ${_reviewTextLengthController.text})',
+          );
           _isCreatingCampaign = false;
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -491,6 +471,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           return;
         }
         if (reviewImageCount == null || reviewImageCount <= 0) {
+          debugPrint(
+            '❌ [캠페인 수정] 에러: 사진 최소 개수 없음 (입력값: ${_reviewImageCountController.text})',
+          );
           _isCreatingCampaign = false;
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -503,10 +486,16 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           }
           return;
         }
+        debugPrint(
+          '✅ [캠페인 수정] 리뷰 타입: star_text_image (텍스트: $reviewTextLength, 이미지: $reviewImageCount)',
+        );
       }
 
       // 날짜 검증
+      debugPrint('🔍 [캠페인 수정] 날짜 검증 시작');
+
       if (_originalCampaign == null) {
+        debugPrint('❌ [캠페인 수정] 에러: 캠페인 정보 없음 (_originalCampaign == null)');
         _isCreatingCampaign = false;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -522,6 +511,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
       final createdAt = _originalCampaign!.createdAt;
       final maxDate = createdAt.add(const Duration(days: 14)); // 생성일 기준 14일 제한
+      debugPrint('📅 [캠페인 수정] 날짜 범위 - 생성일: $createdAt, 최대일: $maxDate');
 
       if (_applyStartDateTime == null) {
         _isCreatingCampaign = false;
@@ -717,6 +707,18 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
       // 기존 이미지 URL 사용 (이미지 변경 불가)
       final finalImageUrl = _originalCampaign?.productImageUrl;
 
+      debugPrint('📡 [캠페인 수정] RPC 호출 준비 완료');
+      debugPrint('   - campaignId: ${widget.campaignId}');
+      debugPrint('   - title: ${_productNameController.text.trim()}');
+      debugPrint('   - seller: ${_sellerController.text.trim()}');
+      debugPrint(
+        '   - productPrice: ${int.tryParse(_paymentAmountController.text)}',
+      );
+      debugPrint('   - applyStartDate: $_applyStartDateTime');
+      debugPrint('   - applyEndDate: $_applyEndDateTime');
+      debugPrint('   - reviewStartDate: $_reviewStartDateTime');
+      debugPrint('   - reviewEndDate: $_reviewEndDateTime');
+
       final response = await _campaignService.updateCampaignV2(
         campaignId: widget.campaignId,
         title: _productNameController.text.trim(),
@@ -733,16 +735,36 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         keyword: _keywordController.text.trim(),
         option: _optionController.text.trim(),
         quantity: int.tryParse(_quantityController.text) ?? 1,
-        seller: _sellerController.text.trim().isEmpty
-            ? throw Exception('판매자명을 입력해주세요.')
-            : _sellerController.text.trim(),
+        seller: () {
+          final seller = _sellerController.text.trim();
+          if (seller.isEmpty) {
+            debugPrint('❌ [캠페인 수정] 에러: 판매자명이 비어있음');
+            throw Exception('판매자명을 입력해주세요.');
+          }
+          debugPrint('✅ [캠페인 수정] 판매자명: $seller');
+          return seller;
+        }(),
         productNumber: _productNumberController.text.trim(),
-        productName: _productNameController.text.trim().isEmpty
-            ? throw Exception('상품명을 입력해주세요.')
-            : _productNameController.text.trim(),
-        productPrice:
-            int.tryParse(_paymentAmountController.text) ??
-            (throw Exception('상품 가격을 입력해주세요.')),
+        productName: () {
+          final productName = _productNameController.text.trim();
+          if (productName.isEmpty) {
+            debugPrint('❌ [캠페인 수정] 에러: 상품명이 비어있음');
+            throw Exception('상품명을 입력해주세요.');
+          }
+          debugPrint('✅ [캠페인 수정] 상품명: $productName');
+          return productName;
+        }(),
+        productPrice: () {
+          final price = int.tryParse(_paymentAmountController.text);
+          if (price == null) {
+            debugPrint(
+              '❌ [캠페인 수정] 에러: 상품 가격 파싱 실패 (입력값: ${_paymentAmountController.text})',
+            );
+            throw Exception('상품 가격을 입력해주세요.');
+          }
+          debugPrint('✅ [캠페인 수정] 상품 가격: $price');
+          return price;
+        }(),
         reviewType: _reviewType,
         reviewTextLength: reviewTextLength,
         reviewImageCount: reviewImageCount,
@@ -751,22 +773,29 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         duplicatePreventDays:
             int.tryParse(_duplicateCheckDaysController.text) ?? 0,
         paymentMethod: _paymentType,
-        productImageUrl: finalImageUrl ?? (throw Exception('상품 이미지가 필요합니다.')),
+        productImageUrl: () {
+          if (finalImageUrl == null) {
+            debugPrint('❌ [캠페인 수정] 에러: 상품 이미지 URL 없음');
+            throw Exception('상품 이미지가 필요합니다.');
+          }
+          debugPrint('✅ [캠페인 수정] 상품 이미지 URL: $finalImageUrl');
+          return finalImageUrl;
+        }(),
         purchaseMethod: _purchaseMethod,
         // 상품제공여부: '그외' 선택 시 입력한 텍스트 그대로 저장, 아니면 타입값 저장
         productProvisionType: _productProvisionType == '그외'
             ? _productProvisionOtherController.text.trim()
             : _productProvisionType,
-        reviewKeywords:
-            _useReviewKeywords &&
-                _reviewKeywordsController.text.trim().isNotEmpty
-            ? KeywordUtils.normalizeKeywords(
-                _reviewKeywordsController.text.trim(),
-              )
-            : null,
       );
 
+      debugPrint('📥 [캠페인 수정] RPC 응답 수신');
+      debugPrint('   - success: ${response.success}');
+      debugPrint('   - error: ${response.error}');
+      debugPrint('   - message: ${response.message}');
+      debugPrint('   - data: ${response.data != null ? "존재" : "null"}');
+
       if (response.success) {
+        debugPrint('✅ [캠페인 수정] 성공!');
         // ✅ 성공 시 즉시 플래그 해제
         _isCreatingCampaign = false;
         _lastCampaignCreationId = null;
@@ -782,15 +811,16 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           final campaign = response.data;
           if (campaign != null) {
             debugPrint(
-              '✅ 캠페인 수정 성공 - campaignId: ${campaign.id}, title: ${campaign.title}',
+              '✅ [캠페인 수정] 완료 - campaignId: ${campaign.id}, title: ${campaign.title}',
             );
             context.pop(campaign);
           } else {
-            debugPrint('⚠️ Campaign 객체가 null입니다. 일반 새로고침으로 대체합니다.');
+            debugPrint('⚠️ [캠페인 수정] Campaign 객체가 null입니다. 일반 새로고침으로 대체합니다.');
             context.pop(true);
           }
         }
       } else {
+        debugPrint('❌ [캠페인 수정] 실패: ${response.error}');
         // ✅ 에러 시에도 플래그 해제
         _isCreatingCampaign = false;
         _lastCampaignCreationId = null;
@@ -805,7 +835,11 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
           );
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ [캠페인 수정] 예외 발생!');
+      debugPrint('   - 에러 타입: ${e.runtimeType}');
+      debugPrint('   - 에러 메시지: $e');
+      debugPrint('   - 스택 트레이스: $stackTrace');
       // ✅ 예외 시에도 플래그 해제
       _isCreatingCampaign = false;
       _lastCampaignCreationId = null;
@@ -1307,63 +1341,6 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                     final count = int.tryParse(value);
                     if (count == null || count <= 0) {
                       return '1개 이상 입력해주세요';
-                    }
-                  }
-                  return null;
-                },
-              ),
-            ],
-            const SizedBox(height: 16),
-            // 리뷰 키워드 체크박스 및 입력 필드
-            CheckboxListTile(
-              title: const Text('리뷰 키워드 사용'),
-              value: _useReviewKeywords,
-              onChanged: (value) {
-                setState(() {
-                  _useReviewKeywords = value ?? false;
-                  if (!_useReviewKeywords) {
-                    _reviewKeywordsController.clear();
-                  }
-                });
-              },
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            if (_useReviewKeywords) ...[
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _reviewKeywordsController,
-                decoration: InputDecoration(
-                  labelText: '리뷰 키워드',
-                  hintText: '예: 키워드1, 키워드2, 키워드3',
-                  helperText: '키워드 3개 이내 20자 이내',
-                  border: const OutlineInputBorder(),
-                  suffixText: () {
-                    if (!_useReviewKeywords ||
-                        _reviewKeywordsController.text.trim().isEmpty) {
-                      return null;
-                    }
-                    final keywordCount = KeywordUtils.countKeywords(
-                      _reviewKeywordsController.text,
-                    );
-                    final textLength = KeywordUtils.getKeywordTextLength(
-                      _reviewKeywordsController.text,
-                    );
-                    return '$keywordCount/3, $textLength/20';
-                  }(),
-                ),
-                inputFormatters: [_ReviewKeywordInputFormatter()],
-                onChanged: (value) {
-                  setState(() {}); // 실시간 업데이트를 위한 setState
-                },
-                validator: (value) {
-                  if (_useReviewKeywords) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '키워드를 입력해주세요';
-                    }
-                    final (isValid, errorMessage) =
-                        KeywordUtils.validateKeywords(value);
-                    if (!isValid) {
-                      return errorMessage;
                     }
                   }
                   return null;

@@ -8,7 +8,7 @@
     "wrangler": "^4.45.3"
   },
   "scripts": {
-    "workers:dev": "wrangler dev",
+    "workers:dev": "wrangler dev --remote",
     "workers:deploy": "wrangler deploy",
     "workers:deploy:dev": "wrangler deploy --env development",
     "workers:deploy:prod": "wrangler deploy --env production",

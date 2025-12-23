@@ -339,17 +339,17 @@ class _AdvertiserMyCampaignsScreenState
         if (_shouldRefreshOnRestore) {
           // 디바운싱: 마지막 새로고침 후 1초 이내면 스킵
           final now = DateTime.now();
-          if (_lastRefreshTime == null || 
+          if (_lastRefreshTime == null ||
               now.difference(_lastRefreshTime!).inSeconds >= 1) {
-          _shouldRefreshOnRestore = false;
+            _shouldRefreshOnRestore = false;
             _lastRefreshTime = now;
-          debugPrint('🔄 화면 복원 감지 - 캠페인 목록 새로고침');
-          // DB에 캠페인이 반영될 시간을 주기 위해 약간의 지연 후 새로고침
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) {
-              _loadCampaigns();
-            }
-          });
+            debugPrint('🔄 화면 복원 감지 - 캠페인 목록 새로고침');
+            // DB에 캠페인이 반영될 시간을 주기 위해 약간의 지연 후 새로고침
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) {
+                _loadCampaigns();
+              }
+            });
           } else {
             debugPrint('⏭️ 너무 빈번한 새로고침 요청 스킵');
           }
@@ -377,12 +377,27 @@ class _AdvertiserMyCampaignsScreenState
         return;
       }
 
-      // 캠페인 생성 성공 시 대기중 탭으로 이동
+      // 캠페인 생성 성공 시 처리
       if (result != null) {
-        // 대기중 탭으로 이동
-        if (_tabController.index != 0) {
-          _tabController.animateTo(0);
+        // Campaign 객체인 경우 즉시 목록에 추가
+        if (result is Campaign) {
+          debugPrint('✅ 생성된 Campaign 객체를 즉시 목록에 추가');
+          debugPrint('   캠페인 ID: ${result.id}');
+          debugPrint('   캠페인 제목: ${result.title}');
+          debugPrint('   현재 목록 개수: ${_allCampaigns.length}');
+          _addCampaignDirectly(result);
+          debugPrint('   추가 후 목록 개수: ${_allCampaigns.length}');
+
+          // 대기중 탭으로 이동
+          if (_tabController.index != 0) {
+            _tabController.animateTo(0);
+          }
+        } else {
+          // true인 경우 (Campaign 객체가 null이었던 경우)
+          debugPrint('ℹ️ 새로고침 플래그만 설정됨 (result 타입: ${result.runtimeType})');
         }
+      } else {
+        debugPrint('⚠️ result가 null입니다 - 캠페인 생성이 취소되었거나 실패했을 수 있습니다');
       }
 
       // 반환값에 관계없이 항상 새로고침
@@ -392,7 +407,7 @@ class _AdvertiserMyCampaignsScreenState
       _shouldRefreshOnRestore = true;
 
       // 약간의 지연 후 새로고침 (DB 트랜잭션 커밋 대기)
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
         await _loadCampaigns();
@@ -421,6 +436,8 @@ class _AdvertiserMyCampaignsScreenState
           _allCampaigns.insert(0, campaign);
           _updateFilteredCampaigns();
           _isLoading = false;
+          // 다음 상태 전환 시간 예약
+          _scheduleNextCampaignOpen();
         });
         debugPrint('✅ UI 업데이트 완료 - 총 캠페인 수: ${_allCampaigns.length}');
       }
@@ -622,7 +639,27 @@ class _AdvertiserMyCampaignsScreenState
         }
       }
 
-      _allCampaigns = loadedCampaigns;
+      // 기존 캠페인 목록과 새로 로드한 캠페인 목록 병합
+      // _addCampaignDirectly()로 추가한 캠페인이 사라지지 않도록 보존
+      final newCampaignIds = loadedCampaigns.map((c) => c.id).toSet();
+
+      // 기존 목록에 있지만 새 목록에 없는 캠페인은 유지 (방금 추가한 캠페인일 수 있음)
+      final campaignsToKeep = _allCampaigns
+          .where((c) => !newCampaignIds.contains(c.id))
+          .toList();
+
+      // 새로 로드한 캠페인과 기존 캠페인 병합 (중복 제거)
+      _allCampaigns = [...campaignsToKeep, ...loadedCampaigns];
+
+      // ID 기준으로 중복 제거 (같은 캠페인이 두 목록에 모두 있으면 새로 로드한 것으로 교체)
+      final Map<String, Campaign> campaignMap = {};
+      for (final campaign in _allCampaigns) {
+        campaignMap[campaign.id] = campaign;
+      }
+      _allCampaigns = campaignMap.values.toList();
+
+      // 최신순으로 정렬 (생성일 기준 내림차순)
+      _allCampaigns.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       // 상태별 필터링
       _updateFilteredCampaigns();

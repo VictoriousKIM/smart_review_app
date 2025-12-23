@@ -22,42 +22,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../config/supabase_config.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/date_time_utils.dart';
-import '../../utils/keyword_utils.dart';
 import 'package:responsive_builder/responsive_builder.dart';
-
-/// 리뷰 키워드 입력 제한 Formatter
-/// 키워드 3개 이내, 총 20자 이내로 제한
-class _ReviewKeywordInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final newText = newValue.text;
-
-    // 빈 값은 허용
-    if (newText.trim().isEmpty) {
-      return newValue;
-    }
-
-    // 정규화된 텍스트로 검증
-    final normalized = KeywordUtils.normalizeKeywords(newText);
-    final keywords = KeywordUtils.parseKeywords(normalized);
-    final textLength = normalized.length;
-
-    // 키워드 개수 제한 (3개 초과 시 입력 거부)
-    if (keywords.length > 3) {
-      return oldValue; // 이전 값 유지
-    }
-
-    // 총 길이 제한 (20자 초과 시 입력 거부)
-    if (textLength > 20) {
-      return oldValue; // 이전 값 유지
-    }
-
-    return newValue; // 허용된 입력
-  }
-}
 
 class CampaignCreationScreen extends ConsumerStatefulWidget {
   const CampaignCreationScreen({super.key});
@@ -119,9 +84,6 @@ class _CampaignCreationScreenState
   DateTime? _reviewEndDateTime; // 리뷰 종료일시
   bool _preventProductDuplicate = false;
   bool _preventStoreDuplicate = false;
-  // 리뷰 키워드 관련
-  bool _useReviewKeywords = false;
-  final _reviewKeywordsController = TextEditingController();
 
   // 비용 및 잔액
   int _totalCost = 0;
@@ -214,7 +176,6 @@ class _CampaignCreationScreenState
     _campaignRewardController.dispose();
     _reviewTextLengthController.dispose();
     _reviewImageCountController.dispose();
-    _reviewKeywordsController.dispose();
     _maxParticipantsController.dispose();
     _duplicateCheckDaysController.dispose();
     _productProvisionOtherController.dispose();
@@ -1781,13 +1742,6 @@ class _CampaignCreationScreenState
         productProvisionType: _productProvisionType == '그외'
             ? _productProvisionOtherController.text.trim()
             : _productProvisionType,
-        reviewKeywords:
-            _useReviewKeywords &&
-                _reviewKeywordsController.text.trim().isNotEmpty
-            ? KeywordUtils.normalizeKeywords(
-                _reviewKeywordsController.text.trim(),
-              )
-            : null,
       );
 
       if (response.success) {
@@ -2647,63 +2601,6 @@ class _CampaignCreationScreenState
                 return null;
               },
             ),
-            const SizedBox(height: 16),
-            // 리뷰 키워드 체크박스 및 입력 필드
-            CheckboxListTile(
-              title: const Text('리뷰 키워드 사용'),
-              value: _useReviewKeywords,
-              onChanged: (value) {
-                setState(() {
-                  _useReviewKeywords = value ?? false;
-                  if (!_useReviewKeywords) {
-                    _reviewKeywordsController.clear();
-                  }
-                });
-              },
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            if (_useReviewKeywords) ...[
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _reviewKeywordsController,
-                decoration: InputDecoration(
-                  labelText: '리뷰 키워드',
-                  hintText: '예: 키워드1, 키워드2, 키워드3',
-                  helperText: '키워드 3개 이내 20자 이내',
-                  border: const OutlineInputBorder(),
-                  suffixText: () {
-                    if (!_useReviewKeywords ||
-                        _reviewKeywordsController.text.trim().isEmpty) {
-                      return null;
-                    }
-                    final keywordCount = KeywordUtils.countKeywords(
-                      _reviewKeywordsController.text,
-                    );
-                    final textLength = KeywordUtils.getKeywordTextLength(
-                      _reviewKeywordsController.text,
-                    );
-                    return '$keywordCount/3, $textLength/20';
-                  }(),
-                ),
-                inputFormatters: [_ReviewKeywordInputFormatter()],
-                onChanged: (value) {
-                  setState(() {}); // 실시간 업데이트를 위한 setState
-                },
-                validator: (value) {
-                  if (_useReviewKeywords) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '키워드를 입력해주세요';
-                    }
-                    final (isValid, errorMessage) =
-                        KeywordUtils.validateKeywords(value);
-                    if (!isValid) {
-                      return errorMessage;
-                    }
-                  }
-                  return null;
-                },
-              ),
-            ],
           ],
         ),
       ),
@@ -2812,13 +2709,17 @@ class _CampaignCreationScreenState
             CustomTextField(
               controller: _maxParticipantsController,
               labelText: '모집 인원 *',
-              hintText: '10',
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               onChanged: (value) {
                 // 리뷰어당 신청 가능 개수 필드의 validator 재실행
                 if (_formKey.currentState != null) {
                   _formKey.currentState!.validate();
+                }
+                // 비용 계산 업데이트
+                _calculateCost();
+                if (mounted) {
+                  setState(() {});
                 }
               },
               validator: (value) {
@@ -3555,8 +3456,6 @@ class _CampaignCreationScreenState
     int reviewTextLength = currentSettings.reviewTextLength;
     int reviewImageCount = currentSettings.reviewImageCount;
     int campaignReward = currentSettings.campaignReward;
-    bool useReviewKeywords = currentSettings.useReviewKeywords;
-    String reviewKeywords = currentSettings.reviewKeywords;
 
     final reviewTextLengthController = TextEditingController(
       text: reviewTextLength.toString(),
@@ -3566,9 +3465,6 @@ class _CampaignCreationScreenState
     );
     final campaignRewardController = TextEditingController(
       text: campaignReward.toString(),
-    );
-    final reviewKeywordsController = TextEditingController(
-      text: reviewKeywords,
     );
 
     if (!mounted) return;
@@ -3691,32 +3587,6 @@ class _CampaignCreationScreenState
                               FilteringTextInputFormatter.digitsOnly,
                             ],
                           ),
-                          const SizedBox(height: 16),
-                          CheckboxListTile(
-                            title: const Text('리뷰 키워드 사용'),
-                            value: useReviewKeywords,
-                            onChanged: (value) {
-                              setDialogState(() {
-                                useReviewKeywords = value ?? false;
-                                if (!useReviewKeywords) {
-                                  reviewKeywordsController.clear();
-                                }
-                              });
-                            },
-                            controlAffinity: ListTileControlAffinity.leading,
-                          ),
-                          if (useReviewKeywords) ...[
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: reviewKeywordsController,
-                              decoration: const InputDecoration(
-                                labelText: '리뷰 키워드',
-                                hintText: '예: 키워드1, 키워드2, 키워드3',
-                                helperText: '키워드 3개 이내 20자 이내',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -3743,9 +3613,6 @@ class _CampaignCreationScreenState
                             campaignReward:
                                 int.tryParse(campaignRewardController.text) ??
                                 0,
-                            useReviewKeywords: useReviewKeywords,
-                            reviewKeywords: reviewKeywordsController.text
-                                .trim(),
                           );
 
                           final success =
@@ -4029,8 +3896,6 @@ class _CampaignCreationScreenState
               .toString();
           _campaignRewardController.text = defaultSettings.campaignReward
               .toString();
-          _useReviewKeywords = defaultSettings.useReviewKeywords;
-          _reviewKeywordsController.text = defaultSettings.reviewKeywords;
         });
       }
     } catch (e) {

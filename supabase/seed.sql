@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict gHlANnCqysxBlwiDVYBrbgVJGLFNK0n8XnI9Vig7O4uxiAGfPgEvJbLIrVfluqT
+-- \restrict DEoUwIzI0mAmcvgC5I9BHHaSg0pBpxsAi7gwgZzoXHAZnXigptuZHUy7UsIY9Gd
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -30,7 +30,8 @@ INSERT INTO "auth"."audit_log_entries" ("instance_id", "id", "payload", "created
 	('00000000-0000-0000-0000-000000000000', '3a65472e-4407-4845-955c-033c90615788', '{"action":"user_signedup","actor_id":"578ef7a3-65e9-44ba-8515-4d9802b21a7d","actor_name":"동익","actor_username":"nightkille@naver.com","actor_via_sso":false,"log_type":"team","traits":{"provider":"kakao"}}', '2025-12-09 23:51:36.094566+00', ''),
 	('00000000-0000-0000-0000-000000000000', 'cda60a09-d133-4902-88b7-31d06dacffae', '{"action":"login","actor_id":"578ef7a3-65e9-44ba-8515-4d9802b21a7d","actor_name":"동익","actor_username":"nightkille@naver.com","actor_via_sso":false,"log_type":"account","traits":{"provider_type":"kakao"}}', '2025-12-09 23:51:39.004601+00', ''),
 	('00000000-0000-0000-0000-000000000000', 'b83c675e-38d0-42fa-ac81-1b8e4b15b1b5', '{"action":"user_signedup","actor_id":"00000000-0000-0000-0000-000000000000","actor_username":"service_role","actor_via_sso":false,"log_type":"team","traits":{"provider":"email","user_email":"effectivesun2@naver.com","user_id":"26df45f9-92bf-47f1-93bb-81f042b45e6d","user_phone":""}}', '2025-12-20 01:16:41.817752+00', ''),
-	('00000000-0000-0000-0000-000000000000', '6e54c39e-bfdb-417d-9fa7-10f96f155248', '{"action":"user_modified","actor_id":"00000000-0000-0000-0000-000000000000","actor_username":"service_role","actor_via_sso":false,"log_type":"user","traits":{"user_email":"effectivesun@naver.com","user_id":"4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8","user_phone":""}}', '2025-12-20 01:37:00.695297+00', '');
+	('00000000-0000-0000-0000-000000000000', '6e54c39e-bfdb-417d-9fa7-10f96f155248', '{"action":"user_modified","actor_id":"00000000-0000-0000-0000-000000000000","actor_username":"service_role","actor_via_sso":false,"log_type":"user","traits":{"user_email":"effectivesun@naver.com","user_id":"4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8","user_phone":""}}', '2025-12-20 01:37:00.695297+00', ''),
+	('00000000-0000-0000-0000-000000000000', '625b3d70-d7e0-4ccf-8cfe-20d2d50fe0f7', '{"action":"user_modified","actor_id":"00000000-0000-0000-0000-000000000000","actor_username":"service_role","actor_via_sso":false,"log_type":"user","traits":{"user_email":"effectivesun@naver.com","user_id":"4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8","user_phone":""}}', '2025-12-23 00:33:52.101295+00', '');
 
 
 --
@@ -46,7 +47,7 @@ INSERT INTO "auth"."audit_log_entries" ("instance_id", "id", "payload", "created
 INSERT INTO "auth"."users" ("instance_id", "id", "aud", "role", "email", "encrypted_password", "email_confirmed_at", "invited_at", "confirmation_token", "confirmation_sent_at", "recovery_token", "recovery_sent_at", "email_change_token_new", "email_change", "email_change_sent_at", "last_sign_in_at", "raw_app_meta_data", "raw_user_meta_data", "is_super_admin", "created_at", "updated_at", "phone", "phone_confirmed_at", "phone_change", "phone_change_token", "phone_change_sent_at", "email_change_token_current", "email_change_confirm_status", "banned_until", "reauthentication_token", "reauthentication_sent_at", "is_sso_user", "deleted_at", "is_anonymous") VALUES
 	('00000000-0000-0000-0000-000000000000', '578ef7a3-65e9-44ba-8515-4d9802b21a7d', 'authenticated', 'authenticated', 'nightkille@naver.com', NULL, '2025-12-09 23:51:36.094999+00', NULL, '', NULL, '', NULL, '', '', NULL, '2025-12-09 23:51:39.005607+00', '{"provider": "kakao", "providers": ["kakao"]}', '{"iss": "https://kapi.kakao.com", "sub": "4343386874", "name": "동익", "email": "nightkille@naver.com", "full_name": "동익", "user_name": "동익", "provider_id": "4343386874", "email_verified": true, "phone_verified": false, "preferred_username": "동익"}', NULL, '2025-12-09 23:51:36.089413+00', '2025-12-09 23:51:39.010946+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
 	('00000000-0000-0000-0000-000000000000', '26df45f9-92bf-47f1-93bb-81f042b45e6d', 'authenticated', 'authenticated', 'effectivesun2@naver.com', '$2a$10$GgjyEujXqgdPxfp5K/2fYuZDrHJQpQeIWJjGSWRFNdv/SfSFPdjwO', '2025-12-20 01:16:41.819506+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"provider": "naver", "providers": ["naver"]}', '{"naver_id": "sXmKHT8eXoSiWZihO6AKBnR5t8JEHiYXGVlX1kOtrPs", "provider": "naver", "full_name": "김동익", "avatar_url": "", "email_verified": true}', NULL, '2025-12-20 01:16:41.814247+00', '2025-12-20 01:16:41.819952+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false),
-	('00000000-0000-0000-0000-000000000000', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'authenticated', 'authenticated', 'effectivesun@naver.com', '$2a$10$HOYyCPmesQT0Y8G6GQJ7NOV.htYvtKmR.Ux7uuODD6cap/tqKUASe', '2025-12-09 23:50:39.976874+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"provider": "naver", "providers": ["naver"]}', '{"naver_id": "PV1QisBsJwdOYQX4XmuuWWlx4CZipGG0z7_pkgS6V5I", "provider": "naver", "full_name": "김동익", "avatar_url": "", "email_verified": true}', NULL, '2025-12-09 23:50:39.968384+00', '2025-12-20 01:37:00.694157+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+	('00000000-0000-0000-0000-000000000000', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'authenticated', 'authenticated', 'effectivesun@naver.com', '$2a$10$HOYyCPmesQT0Y8G6GQJ7NOV.htYvtKmR.Ux7uuODD6cap/tqKUASe', '2025-12-09 23:50:39.976874+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"provider": "naver", "providers": ["naver"]}', '{"naver_id": "PV1QisBsJwdOYQX4XmuuWWlx4CZipGG0z7_pkgS6V5I", "provider": "naver", "full_name": "김동익", "avatar_url": "", "email_verified": true}', NULL, '2025-12-09 23:50:39.968384+00', '2025-12-23 00:33:52.099989+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 
 
 --
@@ -171,6 +172,9 @@ INSERT INTO "public"."companies" ("id", "business_name", "business_number", "con
 -- Data for Name: campaigns; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO "public"."campaigns" ("id", "title", "description", "company_id", "product_name", "product_price", "platform", "max_participants", "current_participants", "status", "created_at", "updated_at", "product_image_url", "user_id", "campaign_type", "completed_applicants_count", "keyword", "option", "quantity", "seller", "product_number", "purchase_method", "review_type", "review_text_length", "review_image_count", "prevent_product_duplicate", "prevent_store_duplicate", "duplicate_prevent_days", "payment_method", "total_cost", "campaign_reward", "max_per_reviewer", "review_start_date", "apply_start_date", "apply_end_date", "review_end_date", "product_provision_type") VALUES
+	('68493aeb-1a01-4fbe-96e4-903915a1a0b4', '브림유 BRIMU 무타공 흡착식 욕실선반 세면대선반 U자형', '', 'd0776631-8596-4148-931d-634085bb6183', '브림유 BRIMU 무타공 흡착식 욕실선반 세면대선반 U자형', 13800, 'coupang', 10, 0, 'inactive', '2025-12-22 07:33:31.075781+00', '2025-12-22 07:33:43.575533+00', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files/campaign-images/d0776631-8596-4148-931d-634085bb6183/product/20251222163329_fd2cdf5e-4594-41cf-b892-d615f3b11301.jpg', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'store', 0, '욕실 선반', '투명실버', 1, '브림유(BRIMU)', '8325154393-24032199045', 'mobile', 'star_text', 100, NULL, true, true, 14, 'direct', 0, 1000, 1, '2025-12-23 23:00:00+00', '2025-12-22 09:30:00+00', '2025-12-22 10:00:00+00', '2025-12-27 11:00:00+00', '실배송'),
+	('53f106f9-6eac-4cef-8384-1f5ca8810f5a', '토탈블록 블록시티 장난감 블록 레고 호환 경찰특공대 858피스', '', 'd0776631-8596-4148-931d-634085bb6183', '토탈블록 블록시티 장난감 블록 레고 호환 경찰특공대 858피스', 5700, 'coupang', 10, 0, 'inactive', '2025-12-23 01:46:44.704373+00', '2025-12-23 01:46:53.613655+00', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files/campaign-images/d0776631-8596-4148-931d-634085bb6183/product/20251223104643_be94ceee-8a32-425f-a329-7d9bb54139a8.jpg', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'store', 0, '레고 블록', '', 1, '토탈블록', '', 'mobile', 'star_text', 100, NULL, true, true, 14, 'direct', 0, 1000, 1, '2025-12-24 23:00:00+00', '2025-12-23 09:30:00+00', '2025-12-23 10:00:00+00', '2025-12-28 11:00:00+00', '실배송');
 
 
 --
@@ -189,6 +193,9 @@ INSERT INTO "public"."companies" ("id", "business_name", "business_number", "con
 -- Data for Name: campaign_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO "public"."campaign_logs" ("id", "campaign_id", "user_id", "status", "changes", "created_at") VALUES
+	('cdc6042c-2ee8-4a93-a260-05cc2be33f38', '68493aeb-1a01-4fbe-96e4-903915a1a0b4', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'create', NULL, '2025-12-22 07:33:31.075781+00'),
+	('e9992166-baf4-491a-b2a3-673da0cb2bc2', '53f106f9-6eac-4cef-8384-1f5ca8810f5a', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'create', NULL, '2025-12-23 01:46:44.704373+00');
 
 
 --
@@ -295,6 +302,6 @@ SELECT pg_catalog.setval('"supabase_functions"."hooks_id_seq"', 1, false);
 -- PostgreSQL database dump complete
 --
 
--- \unrestrict gHlANnCqysxBlwiDVYBrbgVJGLFNK0n8XnI9Vig7O4uxiAGfPgEvJbLIrVfluqT
+-- \unrestrict DEoUwIzI0mAmcvgC5I9BHHaSg0pBpxsAi7gwgZzoXHAZnXigptuZHUy7UsIY9Gd
 
 RESET ALL;
