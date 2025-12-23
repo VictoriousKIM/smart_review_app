@@ -22,6 +22,8 @@ class CampaignDefaultScheduleService {
   static const String _keyReviewImageCount =
       'campaign_default_review_image_count';
   static const String _keyCampaignReward = 'campaign_default_campaign_reward';
+  static const String _keyReviewKeywords =
+      'campaign_default_review_keywords'; // ✅ 추가
 
   // 모집 인원 설정 키
   static const String _keyMaxParticipants = 'campaign_default_max_participants';
@@ -50,6 +52,7 @@ class CampaignDefaultScheduleService {
   static const int _defaultReviewTextLength = 100;
   static const int _defaultReviewImageCount = 1;
   static const int _defaultCampaignReward = 0;
+  static const List<String> _defaultReviewKeywords = []; // ✅ 추가
 
   // 모집 인원 설정 기본값
   static const int _defaultMaxParticipants = 10;
@@ -216,6 +219,27 @@ class CampaignDefaultScheduleService {
       return true;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// 기본 리뷰 키워드 저장
+  static Future<void> saveDefaultReviewKeywords(List<String> keywords) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_keyReviewKeywords, keywords);
+    } catch (e) {
+      // 에러 발생 시 무시 (선택적 기능)
+    }
+  }
+
+  /// 기본 리뷰 키워드 로드
+  static Future<List<String>> loadDefaultReviewKeywords() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getStringList(_keyReviewKeywords) ?? _defaultReviewKeywords;
+    } catch (e) {
+      // 에러 발생 시 기본값 반환
+      return _defaultReviewKeywords;
     }
   }
 

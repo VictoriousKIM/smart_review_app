@@ -22,13 +22,25 @@ export async function handleGetFile(request: Request, env: Env): Promise<Respons
     }
 
     // URL 디코딩 (인코딩된 경로 처리)
-    try {
-      key = decodeURIComponent(key);
-    } catch (e) {
-      console.warn('⚠️ URL 디코딩 실패 (원본 사용):', key, e);
+    // 여러 번 인코딩된 경우를 대비하여 반복 디코딩
+    let decodedKey = key;
+    let previousKey = '';
+    while (decodedKey !== previousKey && decodedKey.includes('%')) {
+      previousKey = decodedKey;
+      try {
+        decodedKey = decodeURIComponent(decodedKey);
+      } catch (e) {
+        console.warn('⚠️ URL 디코딩 실패 (이전 값 사용):', decodedKey, e);
+        break;
+      }
     }
+    key = decodedKey;
 
-    console.log('📂 파일 조회 시도:', { originalPath: url.pathname, extractedKey: key });
+    console.log('📂 파일 조회 시도:', { 
+      originalPath: url.pathname, 
+      extractedKey: key,
+      decodedKey: key 
+    });
 
     // R2 바인딩 확인
     if (!env.FILES) {

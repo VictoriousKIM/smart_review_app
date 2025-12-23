@@ -10,6 +10,7 @@ import '../../services/campaign_default_schedule_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/review_keywords_input.dart';
 import '../../utils/date_time_utils.dart';
 import '../../models/campaign.dart';
 import 'package:responsive_builder/responsive_builder.dart';
@@ -62,6 +63,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   DateTime? _reviewEndDateTime; // 리뷰 종료일시
   bool _preventProductDuplicate = false;
   bool _preventStoreDuplicate = false;
+  
+  // 리뷰 키워드
+  bool _useReviewKeywords = false; // 체크박스 상태
+  List<String> _reviewKeywords = []; // 키워드 리스트
 
   // 비용 및 잔액
   int _totalCost = 0;
@@ -168,6 +173,10 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
               .toString();
         }
 
+        // 리뷰 키워드 로드
+        final keywords = campaign.reviewKeywords ?? [];
+        _reviewKeywords = keywords;
+        _useReviewKeywords = keywords.isNotEmpty; // ✅ 추가: 키워드가 있으면 체크박스 체크
 
         // ✅ [중요] 데이터 세팅 완료 후 플래그 해제
         // _ignoreCostListeners = false; // 편집 화면에서는 비용 계산 제거로 인해 사용하지 않음
@@ -786,6 +795,9 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         productProvisionType: _productProvisionType == '그외'
             ? _productProvisionOtherController.text.trim()
             : _productProvisionType,
+        reviewKeywords: _useReviewKeywords && _reviewKeywords.isNotEmpty
+            ? _reviewKeywords
+            : null, // ✅ 추가
       );
 
       debugPrint('📥 [캠페인 수정] RPC 응답 수신');
@@ -1347,6 +1359,24 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 },
               ),
             ],
+            const SizedBox(height: 16),
+            ReviewKeywordsInput(
+              enabled: _useReviewKeywords,
+              keywords: _reviewKeywords,
+              onEnabledChanged: (enabled) {
+                setState(() {
+                  _useReviewKeywords = enabled;
+                  if (!enabled) {
+                    _reviewKeywords = []; // 비활성화 시 키워드 초기화
+                  }
+                });
+              },
+              onChanged: (keywords) {
+                setState(() {
+                  _reviewKeywords = keywords;
+                });
+              },
+            ),
             const SizedBox(height: 16),
             CustomTextField(
               controller: _campaignRewardController,

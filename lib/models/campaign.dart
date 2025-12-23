@@ -36,6 +36,7 @@ class Campaign {
   final String reviewType; // 'star_only', 'star_text', 'star_text_image'
   final int reviewTextLength;
   final int reviewImageCount;
+  final List<String>? reviewKeywords; // ✅ 추가: 리뷰 키워드 (최대 3개)
 
   // 중복 방지 설정
   final bool preventProductDuplicate;
@@ -79,6 +80,7 @@ class Campaign {
     this.reviewType = 'star_only',
     this.reviewTextLength = 100,
     this.reviewImageCount = 0,
+    this.reviewKeywords, // ✅ 추가
     // 중복 방지 설정
     this.preventProductDuplicate = false,
     this.preventStoreDuplicate = false,
@@ -152,6 +154,9 @@ class Campaign {
       reviewType: json['review_type'] ?? 'star_only',
       reviewTextLength: json['review_text_length'] ?? 100,
       reviewImageCount: json['review_image_count'] ?? 0,
+      reviewKeywords: json['review_keywords'] != null
+          ? List<String>.from(json['review_keywords'])
+          : null, // ✅ 추가
       // 중복 방지 설정
       preventProductDuplicate: json['prevent_product_duplicate'] ?? false,
       preventStoreDuplicate: json['prevent_store_duplicate'] ?? false,
@@ -210,6 +215,7 @@ class Campaign {
       'review_type': reviewType,
       'review_text_length': reviewTextLength,
       'review_image_count': reviewImageCount,
+      'review_keywords': reviewKeywords, // ✅ 추가
       // 중복 방지 설정
       'prevent_product_duplicate': preventProductDuplicate,
       'prevent_store_duplicate': preventStoreDuplicate,
@@ -251,6 +257,7 @@ class Campaign {
     String? reviewType,
     int? reviewTextLength,
     int? reviewImageCount,
+    List<String>? reviewKeywords, // ✅ 추가
     // 중복 방지 설정
     bool? preventProductDuplicate,
     bool? preventStoreDuplicate,
@@ -290,6 +297,7 @@ class Campaign {
       reviewType: reviewType ?? this.reviewType,
       reviewTextLength: reviewTextLength ?? this.reviewTextLength,
       reviewImageCount: reviewImageCount ?? this.reviewImageCount,
+      reviewKeywords: reviewKeywords ?? this.reviewKeywords, // ✅ 추가
       // 중복 방지 설정
       preventProductDuplicate:
           preventProductDuplicate ?? this.preventProductDuplicate,

@@ -760,6 +760,7 @@ class CampaignService {
     required String productImageUrl, // NOT NULL
     required String purchaseMethod, // NOT NULL
     String? productProvisionType, // 상품 제공 방법 (delivery, return, other)
+    List<String>? reviewKeywords, // ✅ 추가: 리뷰 키워드 (최대 3개)
   }) async {
     try {
       // 사용자 ID 가져오기 (Custom JWT 세션 지원)
@@ -837,6 +838,7 @@ class CampaignService {
         'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
         'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
         'p_payment_method': paymentMethod,
+        'p_review_keywords': reviewKeywords, // ✅ 추가
         'p_user_id': userId, // ✅ Custom JWT 세션 지원
       };
 
@@ -927,6 +929,7 @@ class CampaignService {
     int? duplicatePreventDays,
     required String paymentMethod, // NOT NULL
     required String productImageUrl, // NOT NULL
+    List<String>? reviewKeywords, // ✅ 추가: 리뷰 키워드 (최대 3개)
   }) async {
     try {
       // 사용자 ID 가져오기 (Custom JWT 세션 지원)
@@ -970,6 +973,7 @@ class CampaignService {
         'p_prevent_store_duplicate': preventStoreDuplicate ?? false,
         'p_duplicate_prevent_days': duplicatePreventDays ?? 0,
         'p_payment_method': paymentMethod,
+        'p_review_keywords': reviewKeywords, // ✅ 추가
         'p_user_id': userId, // Custom JWT 세션 지원
       };
 
