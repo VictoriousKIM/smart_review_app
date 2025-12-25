@@ -306,19 +306,19 @@ class _AdvertiserMyPageScreenState
                     MyPageCommonWidgets.buildTopCard(
                       userName: user.displayName ?? '사용자',
                       userType: '광고주',
-                      onSwitchPressed: () {
-                        // 리뷰어 마이페이지로 이동
-                        context.pushReplacement('/mypage/reviewer');
-                      },
-                      switchButtonText: '리뷰어 전환',
-                      showRating: false,
-                      showAdminButton: user.userType == app_user.UserType.admin,
-                      onAdminPressed: user.userType == app_user.UserType.admin
-                          ? () {
-                              // 관리자 대시보드로 이동
-                              context.pushReplacement('/mypage/admin');
-                            }
-                          : null,
+                    onSwitchPressed: () {
+                      // 리뷰어 마이페이지로 이동
+                      context.go('/mypage/reviewer');
+                    },
+                    switchButtonText: '리뷰어 전환',
+                    showRating: false,
+                    showAdminButton: user.userType == app_user.UserType.admin,
+                    onAdminPressed: user.userType == app_user.UserType.admin
+                        ? () {
+                            // 관리자 대시보드로 이동
+                            context.go('/mypage/admin');
+                          }
+                        : null,
                       onProfileTap: () {
                         // 프로필 화면의 광고주 탭으로 이동
                         context.go('/mypage/profile?tab=business');

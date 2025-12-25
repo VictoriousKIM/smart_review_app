@@ -72,7 +72,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     // 선택한 타입에 따라 다음 화면으로 이동
     if (userType == app_user.UserType.user) {
       // 리뷰어 플로우
-      context.push(
+      context.go(
         '/signup/reviewer',
         extra: {'companyId': widget.companyId, 'provider': widget.provider},
       );
@@ -81,7 +81,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       final providerParam = widget.provider != null
           ? '?provider=${widget.provider}'
           : '';
-      context.push('/signup/advertiser$providerParam');
+      context.go('/signup/advertiser$providerParam');
     }
   }
 
@@ -221,7 +221,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                       ? null
                                       : () {
                                           // 광고주 플로우
-                                          context.push(
+                                          context.go(
                                             '/signup/advertiser',
                                             extra: {
                                               'provider': widget.provider,

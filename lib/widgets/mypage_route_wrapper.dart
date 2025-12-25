@@ -23,7 +23,7 @@ class MyPageRouteWrapper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(currentUserProvider);
-    
+
     return userAsync.when(
       data: (user) {
         if (user == null) {
@@ -41,7 +41,7 @@ class MyPageRouteWrapper extends ConsumerWidget {
         final route = GoRouterState.of(context);
         final basePath = '/mypage/$routeType';
         final isChildRoute = route.matchedLocation != basePath;
-        
+
         if (isChildRoute) {
           // 자식 라우트는 그대로 렌더링
           return child;
@@ -72,11 +72,7 @@ class MyPageRouteWrapper extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red,
-              ),
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
               Text('데이터 로드 실패: $err'),
               const SizedBox(height: 16),
@@ -91,4 +87,3 @@ class MyPageRouteWrapper extends ConsumerWidget {
     );
   }
 }
-

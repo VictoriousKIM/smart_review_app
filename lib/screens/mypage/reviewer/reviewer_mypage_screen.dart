@@ -218,7 +218,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
                   onSwitchPressed: canConvert
                       ? () {
                           // 사업자 모드로 이동
-                          context.pushReplacement('/mypage/advertiser');
+                          context.go('/mypage/advertiser');
                         }
                       : () {
                           // 사업자 인증 필요 알림창 표시
@@ -230,7 +230,7 @@ class _ReviewerMyPageScreenState extends ConsumerState<ReviewerMyPageScreen> {
                   onAdminPressed: user.userType == app_user.UserType.admin
                       ? () {
                           // 관리자 대시보드로 이동
-                          context.pushReplacement('/mypage/admin');
+                          context.go('/mypage/admin');
                         }
                       : null,
                   onProfileTap: () {

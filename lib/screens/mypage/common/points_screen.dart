@@ -32,6 +32,15 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
     _loadPointsData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 화면 복귀 시 자동 새로고침
+    if (mounted) {
+      _loadPointsData();
+    }
+  }
+
   Future<void> _loadPointsData() async {
     setState(() {
       _isLoading = true;
@@ -615,20 +624,11 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
   void _navigateToRefund() {
     // withdraw 하위 URL 사용
     if (widget.userType == 'reviewer') {
-      context.push('/mypage/reviewer/points/withdraw').then((result) {
-        // 환급 신청 성공 시 포인트 정보 다시 로드
-        if (result == true) {
-          _loadPointsData();
-        }
-      });
+      context.go('/mypage/reviewer/points/withdraw');
     } else {
-      context.push('/mypage/advertiser/points/withdraw').then((result) {
-        // 환급 신청 성공 시 포인트 정보 다시 로드
-        if (result == true) {
-          _loadPointsData();
-        }
-      });
+      context.go('/mypage/advertiser/points/withdraw');
     }
+    // didChangeDependencies에서 자동으로 새로고침됨
   }
 
   void _navigateToCharge() {
@@ -637,11 +637,7 @@ class _PointsScreenState extends ConsumerState<PointsScreen> {
       return;
     }
     // deposit 하위 URL 사용
-    context.push('/mypage/advertiser/points/deposit').then((result) {
-      // 충전 신청 성공 시 포인트 정보 다시 로드
-      if (result == true) {
-        _loadPointsData();
-      }
-    });
+    context.go('/mypage/advertiser/points/deposit');
+    // didChangeDependencies에서 자동으로 새로고침됨
   }
 }
