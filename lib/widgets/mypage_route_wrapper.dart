@@ -9,12 +9,15 @@ import '../screens/mypage/advertiser/advertiser_mypage_screen.dart';
 
 /// 마이페이지 라우트 래퍼 위젯
 /// Builder에서 ref.watch() 사용 시 재평가를 방지하기 위해 별도 위젯으로 분리
+/// 자식 라우트가 있으면 자식 라우트를 렌더링하고, 없으면 마이페이지 화면을 렌더링
 class MyPageRouteWrapper extends ConsumerWidget {
   final String routeType; // 'reviewer' or 'advertiser'
+  final Widget child; // 자식 라우트
 
   const MyPageRouteWrapper({
     super.key,
     required this.routeType,
+    required this.child,
   });
 
   @override
@@ -33,6 +36,18 @@ class MyPageRouteWrapper extends ConsumerWidget {
           return const LoadingScreen();
         }
 
+        // ShellRoute를 사용하므로 child가 자식 라우트를 나타냄
+        // GoRouterState를 사용하여 현재 경로가 자식 라우트인지 확인
+        final route = GoRouterState.of(context);
+        final basePath = '/mypage/$routeType';
+        final isChildRoute = route.matchedLocation != basePath;
+        
+        if (isChildRoute) {
+          // 자식 라우트는 그대로 렌더링
+          return child;
+        }
+
+        // 자식 라우트가 없으면 마이페이지 화면 렌더링
         if (routeType == 'reviewer') {
           return ReviewerMyPageScreen(user: user);
         } else if (routeType == 'advertiser') {

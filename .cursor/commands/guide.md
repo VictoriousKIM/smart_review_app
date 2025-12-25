@@ -122,7 +122,7 @@ npx supabase start
 cd workers
 
 # 로컬 Workers 서버 시작
-npx wrangler dev
+npx wrangler dev --remote
 ```
 
 ### 환경 변수 설정

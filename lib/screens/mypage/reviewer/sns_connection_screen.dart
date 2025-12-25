@@ -202,7 +202,7 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen>
     final storePlatforms = SNSPlatformConnectionService.storePlatforms
         .where(
           (platform) =>
-              !['11st', 'gmarket', 'auction', 'wemakeprice'].contains(platform),
+              !['11번가', '지마켓', '옥션', '위메프'].contains(platform),
         )
         .toList();
 
@@ -230,7 +230,7 @@ class _SNSConnectionScreenState extends ConsumerState<SNSConnectionScreen>
   Widget _buildSNSTab() {
     final snsConnections = _getSNSConnections();
     final snsPlatforms = SNSPlatformConnectionService.snsPlatforms
-        .where((platform) => !['tiktok', 'naver'].contains(platform))
+        .where((platform) => !['틱톡', '네이버'].contains(platform))
         .toList();
 
     return SingleChildScrollView(

@@ -8,6 +8,9 @@ class CloudflareWorkersService {
   /// Workers API 기본 URL
   static String get _baseUrl => SupabaseConfig.workersApiUrl;
 
+  /// URL 변환 결과 캐시 (반복 호출 방지)
+  static final Map<String, String> _urlCache = {};
+
   /// Health check
   static Future<Map<String, dynamic>> healthCheck() async {
     try {
@@ -336,55 +339,61 @@ class CloudflareWorkersService {
 
   /// R2 URL을 Workers 프록시 URL로 동기 변환 (위젯에서 사용)
   /// R2 직접 URL이면 Workers 프록시 URL로 변환, 이미 Workers URL이면 그대로 반환
+  /// 캐싱을 통해 반복 호출 방지
   static String convertToProxyUrl(String fileUrl) {
     try {
-      debugPrint('🔄 convertToProxyUrl 호출: $fileUrl');
-      
       // 빈 URL 체크
       if (fileUrl.isEmpty) {
-        debugPrint('⚠️ 빈 URL');
         return fileUrl;
+      }
+
+      // 캐시 확인
+      if (_urlCache.containsKey(fileUrl)) {
+        return _urlCache[fileUrl]!;
       }
 
       // 이미 Workers 프록시 URL인 경우 그대로 반환
       if (fileUrl.contains('/api/files/') || 
           fileUrl.contains('localhost:8787') || 
           fileUrl.contains('smart-review-api.nightkille.workers.dev')) {
-        debugPrint('✅ 이미 Workers 프록시 URL: $fileUrl');
+        _urlCache[fileUrl] = fileUrl;
         return fileUrl;
       }
 
       // R2 직접 URL인지 확인
       if (!fileUrl.contains('.r2.cloudflarestorage.com')) {
-        debugPrint('⚠️ R2 URL이 아님, 원본 URL 반환: $fileUrl');
+        _urlCache[fileUrl] = fileUrl;
         return fileUrl;
       }
-
-      debugPrint('🔍 R2 URL 감지, 경로 추출 시작...');
 
       // R2 직접 URL인 경우 경로 추출 후 Workers 프록시 URL로 변환
       final filePath = extractFilePathFromUrl(fileUrl);
       if (filePath.isEmpty) {
-        debugPrint('⚠️ 파일 경로 추출 실패, 원본 URL 반환: $fileUrl');
+        _urlCache[fileUrl] = fileUrl;
         return fileUrl;
       }
 
-      debugPrint('🔍 추출된 파일 경로: $filePath');
-
       // Workers 프록시 URL 생성
-      final encodedPath = Uri.encodeComponent(filePath);
+      // 경로를 세그먼트별로 나누어 각각 인코딩 (슬래시 보존)
+      final pathSegments = filePath.split('/');
+      final encodedSegments = pathSegments.map((segment) => Uri.encodeComponent(segment)).toList();
+      final encodedPath = encodedSegments.join('/');
       final proxyUrl = '$_baseUrl/api/files/$encodedPath';
 
-      debugPrint('🔄 R2 URL → Workers 프록시 URL 변환:');
-      debugPrint('   원본: $fileUrl');
-      debugPrint('   변환: $proxyUrl');
+      // 캐시에 저장
+      _urlCache[fileUrl] = proxyUrl;
 
       return proxyUrl;
-    } catch (e, stackTrace) {
-      debugPrint('❌ URL 변환 실패, 원본 URL 반환: $e');
-      debugPrint('   Stack trace: $stackTrace');
+    } catch (e) {
+      // 에러 발생 시 원본 URL 반환 및 캐싱
+      _urlCache[fileUrl] = fileUrl;
       return fileUrl;
     }
+  }
+
+  /// URL 캐시 초기화 (필요 시 사용)
+  static void clearUrlCache() {
+    _urlCache.clear();
   }
 
   /// Workers API 기본 URL (외부 접근용)

@@ -15,29 +15,29 @@ class SNSPlatformConnectionService {
   // 캐시 만료 시간 (24시간)
   static const Duration _cacheExpiration = Duration(hours: 24);
 
-  /// 스토어 플랫폼 목록
+  /// 스토어 플랫폼 목록 (한글)
   static const List<String> storePlatforms = [
-    'coupang',
-    'smartstore',
-    'kakao',
-    '11st',
-    'gmarket',
-    'auction',
-    'wemakeprice',
+    '쿠팡',
+    'N스토어',
+    '카카오',
+    '11번가',
+    '지마켓',
+    '옥션',
+    '위메프',
   ];
 
-  /// SNS 플랫폼 목록
+  /// SNS 플랫폼 목록 (한글)
   static const List<String> snsPlatforms = [
-    'blog',
-    'instagram',
-    'youtube',
-    'tiktok',
-    'naver',
+    '네이버 블로그',
+    '인스타그램',
+    '유튜브',
+    '틱톡',
+    '네이버',
   ];
 
   /// 플랫폼이 스토어 플랫폼인지 확인
   static bool isStorePlatform(String platform) {
-    return storePlatforms.contains(platform.toLowerCase());
+    return storePlatforms.contains(platform);
   }
 
   /// SNS 플랫폼 연결 생성
@@ -58,16 +58,14 @@ class SNSPlatformConnectionService {
 
       // 애플리케이션 레벨 검증 (사용자 친화적 에러 메시지)
       if (isStorePlatform(platform) && (address == null || address.isEmpty)) {
-        throw Exception(
-          '${_getPlatformDisplayName(platform)} 플랫폼은 주소 입력이 필수입니다',
-        );
+        throw Exception('$platform 플랫폼은 주소 입력이 필수입니다');
       }
 
       // 프론트엔드 사전 검증: 계정 ID 중복 확인
       final existingConnections = await getConnections();
       final duplicateAccount = existingConnections.any(
         (conn) =>
-            conn['platform'] == platform.toLowerCase() &&
+            conn['platform'] == platform &&
             conn['platform_account_id'] == platformAccountId,
       );
 
@@ -78,9 +76,7 @@ class SNSPlatformConnectionService {
       // 프론트엔드 사전 검증: 배송주소 중복 확인 (스토어 플랫폼만)
       if (isStorePlatform(platform) && address != null && address.isNotEmpty) {
         final duplicateAddress = existingConnections.any(
-          (conn) =>
-              conn['platform'] == platform.toLowerCase() &&
-              conn['address'] == address,
+          (conn) => conn['platform'] == platform && conn['address'] == address,
         );
 
         if (duplicateAddress) {
@@ -93,7 +89,7 @@ class SNSPlatformConnectionService {
         'create_sns_connection',
         params: {
           'p_user_id': userId,
-          'p_platform': platform.toLowerCase(),
+          'p_platform': platform,
           'p_platform_account_id': platformAccountId,
           'p_platform_account_name': platformAccountName,
           'p_phone': phone,
@@ -226,12 +222,12 @@ class SNSPlatformConnectionService {
 
       // 서버에서 데이터 조회 (RPC 함수 사용, Custom JWT 세션 지원)
       debugPrint('🔄 서버에서 SNS 연결 정보 조회');
-      final response = await _supabase.rpc(
-        'get_user_sns_connections_safe',
-        params: {
-          'p_user_id': userId,
-        },
-      ) as List;
+      final response =
+          await _supabase.rpc(
+                'get_user_sns_connections_safe',
+                params: {'p_user_id': userId},
+              )
+              as List;
 
       final connections = List<Map<String, dynamic>>.from(response);
 
@@ -272,13 +268,12 @@ class SNSPlatformConnectionService {
       }
 
       // RPC 함수 호출 (Custom JWT 세션 지원)
-      final response = await _supabase.rpc(
-        'get_user_sns_connections_safe',
-        params: {
-          'p_user_id': userId,
-          'p_platform': platform.toLowerCase(),
-        },
-      ) as List;
+      final response =
+          await _supabase.rpc(
+                'get_user_sns_connections_safe',
+                params: {'p_user_id': userId, 'p_platform': platform},
+              )
+              as List;
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
@@ -287,49 +282,47 @@ class SNSPlatformConnectionService {
     }
   }
 
-  /// 플랫폼 표시 이름 반환
-  static String _getPlatformDisplayName(String platform) {
-    final platformMap = {
-      'coupang': '쿠팡',
-      'smartstore': '스마트스토어',
-      'kakao': '카카오',
-      'blog': '네이버 블로그',
-      'instagram': '인스타그램',
-      'youtube': '유튜브',
-    };
-
-    return platformMap[platform.toLowerCase()] ?? platform;
-  }
-
-  /// 플랫폼 표시 이름 반환 (public)
+  /// 플랫폼 표시 이름 반환 (한글로 직접 저장하므로 그대로 반환)
   static String getPlatformDisplayName(String platform) {
-    return _getPlatformDisplayName(platform);
+    return platform;
   }
 
   /// 플랫폼 아이콘 반환
   static IconData getPlatformIcon(String platform) {
     final iconMap = {
-      'coupang': Icons.shopping_cart,
-      'smartstore': Icons.store,
-      'kakao': Icons.chat,
-      'blog': Icons.article,
-      'instagram': Icons.camera_alt,
-      'youtube': Icons.play_circle_filled,
+      '쿠팡': Icons.shopping_cart,
+      'N스토어': Icons.store,
+      '카카오': Icons.chat,
+      '네이버 블로그': Icons.article,
+      '인스타그램': Icons.camera_alt,
+      '유튜브': Icons.play_circle_filled,
+      '틱톡': Icons.music_note,
+      '네이버': Icons.search,
+      '11번가': Icons.shopping_bag,
+      '지마켓': Icons.store_mall_directory,
+      '옥션': Icons.gavel,
+      '위메프': Icons.local_offer,
     };
-    return iconMap[platform.toLowerCase()] ?? Icons.link;
+    return iconMap[platform] ?? Icons.link;
   }
 
   /// 플랫폼 색상 반환
   static Color getPlatformColor(String platform) {
     final colorMap = {
-      'coupang': const Color(0xFFFF6B00),
-      'smartstore': const Color(0xFF137fec),
-      'kakao': const Color(0xFFFEE500),
-      'blog': const Color(0xFF03C75A),
-      'instagram': const Color(0xFFE4405F),
-      'youtube': const Color(0xFFFF0000),
+      '쿠팡': const Color(0xFFFF6B00),
+      'N스토어': const Color(0xFF137fec),
+      '카카오': const Color(0xFFFEE500),
+      '네이버 블로그': const Color(0xFF03C75A),
+      '인스타그램': const Color(0xFFE4405F),
+      '유튜브': const Color(0xFFFF0000),
+      '틱톡': const Color(0xFF000000),
+      '네이버': const Color(0xFF03C75A),
+      '11번가': const Color(0xFFE60012),
+      '지마켓': const Color(0xFF1A237E),
+      '옥션': const Color(0xFF1976D2),
+      '위메프': const Color(0xFFFF6B00),
     };
-    return colorMap[platform.toLowerCase()] ?? Colors.grey;
+    return colorMap[platform] ?? Colors.grey;
   }
 
   /// 캐시에서 연결 정보 조회

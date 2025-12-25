@@ -27,12 +27,48 @@ class CampaignService {
     String? sortBy = 'latest',
   }) async {
     try {
-      // 필요한 필드만 선택하여 성능 최적화 (중복 체크를 위한 필드 추가)
+      // ✅ 모든 필드 선택 (캠페인 편집 화면과 동일하게)
+      // 명시적으로 필요한 필드 선택 (RLS 정책으로 인한 필드 누락 방지)
       dynamic query = _supabase
           .from('campaigns')
-          .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, product_provision_type, payment_method',
-          )
+          .select('''
+            id,
+            title,
+            description,
+            company_id,
+            product_name,
+            product_image_url,
+            platform,
+            campaign_type,
+            product_price,
+            campaign_reward,
+            apply_start_date,
+            apply_end_date,
+            review_start_date,
+            review_end_date,
+            current_participants,
+            max_participants,
+            max_per_reviewer,
+            status,
+            created_at,
+            user_id,
+            keyword,
+            option,
+            quantity,
+            seller,
+            product_number,
+            purchase_method,
+            product_provision_type,
+            review_type,
+            review_text_length,
+            review_image_count,
+            review_keywords,
+            prevent_product_duplicate,
+            prevent_store_duplicate,
+            duplicate_prevent_days,
+            payment_method,
+            total_cost
+          ''')
           .eq('status', 'active');
 
       if (campaignType != null) {
@@ -59,6 +95,17 @@ class CampaignService {
       query = query.range(offset, offset + limit - 1);
 
       final response = await query.timeout(const Duration(seconds: 10));
+
+      // 디버깅: Supabase 응답 확인
+      if (response is List && response.isNotEmpty) {
+        debugPrint('📥 Supabase 응답 확인 (첫 번째 캠페인):');
+        debugPrint('   전체 JSON: ${response[0]}');
+        debugPrint('   platform: ${response[0]['platform']}');
+        debugPrint(
+          '   product_provision_type: ${response[0]['product_provision_type']}',
+        );
+        debugPrint('   payment_method: ${response[0]['payment_method']}');
+      }
 
       final campaigns = (response as List)
           .map((json) => Campaign.fromJson(json))
@@ -109,9 +156,47 @@ class CampaignService {
   // 캠페인 상세 정보 가져오기 (RLS + 직접 쿼리 - 최적화)
   Future<ApiResponse<Campaign>> getCampaignById(String campaignId) async {
     try {
+      // 명시적으로 필요한 필드 선택
       final response = await _supabase
           .from('campaigns')
-          .select()
+          .select('''
+            id,
+            title,
+            description,
+            company_id,
+            product_name,
+            product_image_url,
+            platform,
+            campaign_type,
+            product_price,
+            campaign_reward,
+            apply_start_date,
+            apply_end_date,
+            review_start_date,
+            review_end_date,
+            current_participants,
+            max_participants,
+            max_per_reviewer,
+            status,
+            created_at,
+            user_id,
+            keyword,
+            option,
+            quantity,
+            seller,
+            product_number,
+            purchase_method,
+            product_provision_type,
+            review_type,
+            review_text_length,
+            review_image_count,
+            review_keywords,
+            prevent_product_duplicate,
+            prevent_store_duplicate,
+            duplicate_prevent_days,
+            payment_method,
+            total_cost
+          ''')
           .eq('id', campaignId)
           .single();
 
@@ -130,13 +215,12 @@ class CampaignService {
     try {
       final now = DateTime.now();
 
+      // ✅ 모든 필드 선택 (캠페인 편집 화면과 동일하게)
+      // ✅ campaign_type 필터 제거: DB의 유효한 값은 'store', 'journalist', 'visit' (CHECK 제약조건)
       final response = await _supabase
           .from('campaigns')
-          .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, product_provision_type, payment_method',
-          )
+          .select()
           .eq('status', 'active')
-          .eq('campaign_type', 'reviewer')
           // 날짜 필터링: 모집중인 캠페인만 표시 (신청 기간)
           .lte('apply_start_date', now.toIso8601String())
           .gte('apply_end_date', now.toIso8601String())
@@ -164,13 +248,50 @@ class CampaignService {
     try {
       final now = DateTime.now();
 
+      // ✅ 모든 필드 선택 (캠페인 편집 화면과 동일하게)
+      // ✅ campaign_type 필터 제거: DB의 유효한 값은 'store', 'journalist', 'visit' (CHECK 제약조건)
+      // 명시적으로 필요한 필드 선택
       final response = await _supabase
           .from('campaigns')
-          .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, product_provision_type, payment_method',
-          )
+          .select('''
+            id,
+            title,
+            description,
+            company_id,
+            product_name,
+            product_image_url,
+            platform,
+            campaign_type,
+            product_price,
+            campaign_reward,
+            apply_start_date,
+            apply_end_date,
+            review_start_date,
+            review_end_date,
+            current_participants,
+            max_participants,
+            max_per_reviewer,
+            status,
+            created_at,
+            user_id,
+            keyword,
+            option,
+            quantity,
+            seller,
+            product_number,
+            purchase_method,
+            product_provision_type,
+            review_type,
+            review_text_length,
+            review_image_count,
+            review_keywords,
+            prevent_product_duplicate,
+            prevent_store_duplicate,
+            duplicate_prevent_days,
+            payment_method,
+            total_cost
+          ''')
           .eq('status', 'active')
-          .eq('campaign_type', 'reviewer')
           // 날짜 필터링: 모집중인 캠페인만 표시 (신청 기간)
           .lte('apply_start_date', now.toIso8601String())
           .gte('apply_end_date', now.toIso8601String())
@@ -197,11 +318,48 @@ class CampaignService {
     try {
       final now = DateTime.now();
 
+      // ✅ 모든 필드 선택 (캠페인 편집 화면과 동일하게)
+      // 명시적으로 필요한 필드 선택
       var searchQuery = _supabase
           .from('campaigns')
-          .select(
-            'id, title, description, product_image_url, campaign_type, platform, product_price, campaign_reward, current_participants, max_participants, created_at, apply_start_date, apply_end_date, review_start_date, review_end_date, seller, prevent_product_duplicate, prevent_store_duplicate, duplicate_prevent_days, product_provision_type, payment_method',
-          )
+          .select('''
+            id,
+            title,
+            description,
+            company_id,
+            product_name,
+            product_image_url,
+            platform,
+            campaign_type,
+            product_price,
+            campaign_reward,
+            apply_start_date,
+            apply_end_date,
+            review_start_date,
+            review_end_date,
+            current_participants,
+            max_participants,
+            max_per_reviewer,
+            status,
+            created_at,
+            user_id,
+            keyword,
+            option,
+            quantity,
+            seller,
+            product_number,
+            purchase_method,
+            product_provision_type,
+            review_type,
+            review_text_length,
+            review_image_count,
+            review_keywords,
+            prevent_product_duplicate,
+            prevent_store_duplicate,
+            duplicate_prevent_days,
+            payment_method,
+            total_cost
+          ''')
           .eq('status', 'active')
           // 날짜 필터링: 모집중인 캠페인만 표시 (신청 기간)
           .lte('apply_start_date', now.toIso8601String())
@@ -828,8 +986,7 @@ class CampaignService {
         'p_product_name': productName, // ✅ 추가
         'p_product_price': productPrice, // ✅ 추가 (paymentAmount 대체)
         'p_purchase_method': purchaseMethod, // ✅ 하드코딩 제거
-        'p_product_provision_type':
-            productProvisionType ?? '실배송', // ✅ 추가 (한글 기본값)
+        'p_product_provision_type': productProvisionType,
         'p_product_description': null, // ✅ 제거 (NULL로 설정)
         'p_review_type': reviewType ?? 'star_only',
         'p_review_text_length': reviewTextLength, // ✅ NULL 가능
@@ -920,7 +1077,7 @@ class CampaignService {
     required String productName, // NOT NULL
     required int productPrice, // NOT NULL
     required String purchaseMethod, // NOT NULL
-    String? productProvisionType, // 상품 제공 방법 (delivery, return, other)
+    required String productProvisionType, // 상품 제공 방법 (실배송, 회수, 또는 사용자 입력 텍스트)
     String? reviewType,
     int? reviewTextLength,
     int? reviewImageCount,
@@ -964,8 +1121,7 @@ class CampaignService {
         'p_product_name': productName,
         'p_product_price': productPrice,
         'p_purchase_method': purchaseMethod,
-        'p_product_provision_type':
-            productProvisionType ?? '실배송', // ✅ 추가 (한글 기본값)
+        'p_product_provision_type': productProvisionType,
         'p_review_type': reviewType ?? 'star_only',
         'p_review_text_length': reviewTextLength,
         'p_review_image_count': reviewImageCount,

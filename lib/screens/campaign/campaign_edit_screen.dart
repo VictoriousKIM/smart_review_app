@@ -51,7 +51,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
 
   // 선택 필드
   String _campaignType = 'store';
-  String _platform = 'coupang';
+  String _platform = '쿠팡';
   final String _paymentType = 'direct';
   String _purchaseMethod = 'mobile'; // ✅ 추가: 구매방법 선택
   String _productProvisionType = '실배송'; // ✅ 필수, 초기값: 실배송
@@ -63,7 +63,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
   DateTime? _reviewEndDateTime; // 리뷰 종료일시
   bool _preventProductDuplicate = false;
   bool _preventStoreDuplicate = false;
-  
+
   // 리뷰 키워드
   bool _useReviewKeywords = false; // 체크박스 상태
   List<String> _reviewKeywords = []; // 키워드 리스트
@@ -141,7 +141,7 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
         _purchaseMethod = campaign.purchaseMethod;
 
         // 상품제공여부 처리
-        final provisionType = campaign.productProvisionType ?? '실배송';
+        final provisionType = campaign.productProvisionType;
         if (provisionType == '실배송') {
           _productProvisionType = '실배송';
           _productProvisionOtherController.text = '실배송';
@@ -1028,19 +1028,11 @@ class _CampaignEditScreenState extends ConsumerState<CampaignEditScreen> {
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(
-                  value: 'coupang',
-                  enabled: true,
-                  child: Text('쿠팡'),
-                ),
-                DropdownMenuItem(
-                  value: 'naver',
-                  enabled: false,
-                  child: Text('네이버 쇼핑 (추가예정)'),
-                ),
+                DropdownMenuItem(value: '쿠팡', child: Text('쿠팡')),
+                DropdownMenuItem(value: 'N스토어', child: Text('N스토어')),
               ],
               onChanged: (value) {
-                if (value != null && value == 'coupang') {
+                if (value != null) {
                   setState(() {
                     _platform = value;
                   });

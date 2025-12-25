@@ -24,6 +24,10 @@ class _AdvertiserCampaignDetailScreenState
   bool _isUpdatingStatus = false;
   bool _isDeleting = false;
   bool _hasChanges = false; // 상태 변경 여부 추적
+  
+  // 이미지 URL 캐싱 (리빌드 방지)
+  String? _cachedImageUrl;
+  String? _lastCampaignId;
 
   @override
   Widget build(BuildContext context) {
@@ -87,6 +91,14 @@ class _AdvertiserCampaignDetailScreenState
   }
 
   Widget _buildCampaignDetail(BuildContext context, Campaign campaign) {
+    // 캠페인 ID가 변경되면 이미지 URL 재계산
+    if (_lastCampaignId != campaign.id) {
+      _lastCampaignId = campaign.id;
+      _cachedImageUrl = CloudflareWorkersService.convertToProxyUrl(
+        campaign.productImageUrl,
+      );
+    }
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,9 +109,7 @@ class _AdvertiserCampaignDetailScreenState
             height: 250,
             color: Colors.grey[100],
             child: CachedNetworkImage(
-              imageUrl: CloudflareWorkersService.convertToProxyUrl(
-                campaign.productImageUrl,
-              ),
+              imageUrl: _cachedImageUrl ?? campaign.productImageUrl,
               width: double.infinity,
               height: 250,
               fit: BoxFit.contain,
@@ -154,7 +164,7 @@ class _AdvertiserCampaignDetailScreenState
 
                 // 플랫폼
                 Text(
-                  _getPlatformName(campaign.platform),
+                  campaign.platform.isNotEmpty ? campaign.platform : '알 수 없음',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w600,
@@ -450,21 +460,6 @@ class _AdvertiserCampaignDetailScreenState
     }
   }
 
-  String _getPlatformName(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'coupang':
-        return '쿠팡';
-      case 'naver':
-        return '네이버 쇼핑';
-      case '11st':
-        return '11번가';
-      case 'visit':
-        return '방문형';
-      default:
-        return platform;
-    }
-  }
-
   String _formatDate(DateTime date) {
     return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
@@ -618,43 +613,8 @@ class _AdvertiserCampaignDetailScreenState
     debugPrint('🚀 캠페인 편집 화면으로 이동 - campaignId: ${campaign.id}');
 
     try {
-      // 캠페인 편집 화면으로 이동하고 결과 대기
-      final result = await context.push(
-        '/mypage/advertiser/my-campaigns/edit/${campaign.id}',
-      );
-
-      debugPrint(
-        '📥 캠페인 편집 화면에서 반환됨 - result: $result (타입: ${result.runtimeType})',
-      );
-
-      if (!mounted) {
-        debugPrint('⚠️ 위젯이 unmount됨');
-        return;
-      }
-
-      // 반환값이 있으면 캠페인 상세 정보 새로고침
-      if (result != null) {
-        debugPrint('🔄 캠페인 상세 정보 새로고침 시작...');
-
-        // Provider 무효화하여 캠페인 상세 정보 새로고침
-        ref.invalidate(campaignDetailProvider(widget.campaignId));
-
-        // 변경사항 있음 표시
-        setState(() {
-          _hasChanges = true;
-        });
-
-        // 약간의 지연 후 Provider 새로고침 (DB 트랜잭션 커밋 대기)
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        if (mounted) {
-          // Provider를 다시 무효화하여 최신 데이터 로드
-          ref.invalidate(campaignDetailProvider(widget.campaignId));
-          debugPrint('✅ 캠페인 상세 정보 새로고침 완료');
-        }
-      } else {
-        debugPrint('ℹ️ 캠페인 편집 화면에서 반환값이 없습니다.');
-      }
+      // 웹에서 URL을 업데이트하려면 context.go() 사용
+      context.go('/mypage/advertiser/my-campaigns/${campaign.id}/edit');
     } catch (error) {
       debugPrint('❌ 캠페인 편집 화면 에러: $error');
       // 에러 발생 시에도 Provider 새로고침 시도

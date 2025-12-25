@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../utils/date_time_utils.dart';
 
 /// campaigns 테이블 모델 (Supabase 스키마 기반)
@@ -12,13 +13,13 @@ class Campaign {
   final CampaignCategory campaignType;
   final int productPrice; // NOT NULL
   final int campaignReward; // DB에 있는 필드 (campaign_reward)
-  final DateTime applyStartDate;  // 신청 시작일시 (기존: startDate)
-  final DateTime applyEndDate;    // 신청 종료일시 (기존: endDate)
+  final DateTime applyStartDate; // 신청 시작일시 (기존: startDate)
+  final DateTime applyEndDate; // 신청 종료일시 (기존: endDate)
   final DateTime reviewStartDate; // 리뷰 시작일시 (신규)
-  final DateTime reviewEndDate;   // 리뷰 종료일시 (기존: expirationDate)
+  final DateTime reviewEndDate; // 리뷰 종료일시 (기존: expirationDate)
   final int currentParticipants;
   final int? maxParticipants;
-  final int maxPerReviewer;  // 리뷰어당 신청 가능 개수
+  final int maxPerReviewer; // 리뷰어당 신청 가능 개수
   final CampaignStatus status;
   final DateTime createdAt;
   final String? userId; // DB에 있는 필드 추가
@@ -30,7 +31,7 @@ class Campaign {
   final String seller; // NOT NULL
   final String? productNumber;
   final String purchaseMethod;
-  final String? productProvisionType; // 상품 제공 방법 (delivery, return, other)
+  final String productProvisionType; // 상품 제공 방법 (실배송, 회수, 또는 사용자 입력 텍스트)
 
   // 리뷰 설정
   final String reviewType; // 'star_only', 'star_text', 'star_text_image'
@@ -62,10 +63,10 @@ class Campaign {
     required this.applyEndDate,
     required this.reviewStartDate,
     required this.reviewEndDate,
-      this.currentParticipants = 0,
-      this.maxParticipants,
-      this.maxPerReviewer = 1,  // 기본값: 1
-      this.status = CampaignStatus.active,
+    this.currentParticipants = 0,
+    this.maxParticipants,
+    this.maxPerReviewer = 1, // 기본값: 1
+    this.status = CampaignStatus.active,
     required this.createdAt,
     this.userId,
     // 상품 상세 정보
@@ -75,7 +76,7 @@ class Campaign {
     required this.seller,
     this.productNumber,
     this.purchaseMethod = 'mobile',
-    this.productProvisionType = 'delivery', // 기본값: 실배송
+    required this.productProvisionType, // 필수 필드 (NOT NULL)
     // 리뷰 설정
     this.reviewType = 'star_only',
     this.reviewTextLength = 100,
@@ -105,6 +106,23 @@ class Campaign {
       }
     }
 
+    // 디버깅: JSON에서 받은 원본 값 확인
+    final platformValue = json['platform'];
+    final provisionTypeValue = json['product_provision_type'];
+    final paymentMethodValue = json['payment_method'];
+
+    debugPrint('🔍 Campaign.fromJson 원본 값 (id: ${json['id']}):');
+    debugPrint(
+      '   platform (raw): $platformValue (type: ${platformValue.runtimeType})',
+    );
+    debugPrint(
+      '   product_provision_type (raw): $provisionTypeValue (type: ${provisionTypeValue?.runtimeType})',
+    );
+    debugPrint(
+      '   payment_method (raw): $paymentMethodValue (type: ${paymentMethodValue?.runtimeType})',
+    );
+    debugPrint('   JSON 키 목록: ${json.keys.toList()}');
+
     return Campaign(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
@@ -112,7 +130,9 @@ class Campaign {
       companyId: json['company_id'] ?? '',
       productName: json['product_name'] ?? '',
       productImageUrl: json['product_image_url'] ?? '',
-      platform: json['platform'] ?? '',
+      platform: (platformValue != null && platformValue.toString().isNotEmpty)
+          ? platformValue.toString()
+          : '',
       campaignType: mapCampaignType(json['campaign_type']),
       productPrice: json['product_price'] ?? 0,
       campaignReward: json['campaign_reward'] ?? 0,
@@ -126,8 +146,10 @@ class Campaign {
       reviewStartDate: json['review_start_date'] != null
           ? DateTimeUtils.parseKST(json['review_start_date'])
           : (json['apply_end_date'] != null
-              ? DateTimeUtils.parseKST(json['apply_end_date']).add(const Duration(days: 1))
-              : DateTimeUtils.nowKST().add(const Duration(days: 9))),
+                ? DateTimeUtils.parseKST(
+                    json['apply_end_date'],
+                  ).add(const Duration(days: 1))
+                : DateTimeUtils.nowKST().add(const Duration(days: 9))),
       reviewEndDate: json['review_end_date'] != null
           ? DateTimeUtils.parseKST(json['review_end_date'])
           : DateTimeUtils.nowKST().add(const Duration(days: 38)),
@@ -149,7 +171,11 @@ class Campaign {
       seller: json['seller'] ?? '',
       productNumber: json['product_number'],
       purchaseMethod: json['purchase_method'] ?? 'mobile',
-      productProvisionType: json['product_provision_type'] ?? 'delivery',
+      productProvisionType:
+          (provisionTypeValue != null &&
+              provisionTypeValue.toString().isNotEmpty)
+          ? provisionTypeValue.toString()
+          : '실배송',
       // 리뷰 설정
       reviewType: json['review_type'] ?? 'star_only',
       reviewTextLength: json['review_text_length'] ?? 100,
@@ -162,7 +188,11 @@ class Campaign {
       preventStoreDuplicate: json['prevent_store_duplicate'] ?? false,
       duplicatePreventDays: json['duplicate_prevent_days'] ?? 0,
       // 비용 설정
-      paymentMethod: json['payment_method'] ?? 'platform',
+      paymentMethod:
+          (paymentMethodValue != null &&
+              paymentMethodValue.toString().isNotEmpty)
+          ? paymentMethodValue.toString()
+          : 'platform',
       totalCost: json['total_cost'] ?? 0,
     );
   }
@@ -243,6 +273,7 @@ class Campaign {
     DateTime? reviewEndDate,
     int? currentParticipants,
     int? maxParticipants,
+    int? maxPerReviewer, // ✅ 추가
     CampaignStatus? status,
     DateTime? createdAt,
     String? userId,
@@ -253,6 +284,7 @@ class Campaign {
     String? seller,
     String? productNumber,
     String? purchaseMethod,
+    String? productProvisionType,
     // 리뷰 설정
     String? reviewType,
     int? reviewTextLength,
@@ -283,6 +315,7 @@ class Campaign {
       reviewEndDate: reviewEndDate ?? this.reviewEndDate,
       currentParticipants: currentParticipants ?? this.currentParticipants,
       maxParticipants: maxParticipants ?? this.maxParticipants,
+      maxPerReviewer: maxPerReviewer ?? this.maxPerReviewer, // ✅ 추가
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       userId: userId ?? this.userId,
@@ -293,6 +326,8 @@ class Campaign {
       seller: seller ?? this.seller,
       productNumber: productNumber ?? this.productNumber,
       purchaseMethod: purchaseMethod ?? this.purchaseMethod,
+      productProvisionType:
+          productProvisionType ?? this.productProvisionType, // ✅ 추가
       // 리뷰 설정
       reviewType: reviewType ?? this.reviewType,
       reviewTextLength: reviewTextLength ?? this.reviewTextLength,

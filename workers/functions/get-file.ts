@@ -4,6 +4,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Expose-Headers': 'Content-Type, Content-Length',
 };
 
 export async function handleGetFile(request: Request, env: Env): Promise<Response> {
@@ -25,12 +26,18 @@ export async function handleGetFile(request: Request, env: Env): Promise<Respons
     // 여러 번 인코딩된 경우를 대비하여 반복 디코딩
     let decodedKey = key;
     let previousKey = '';
-    while (decodedKey !== previousKey && decodedKey.includes('%')) {
+    let decodeAttempts = 0;
+    const maxDecodeAttempts = 5; // 최대 5번까지 디코딩 시도
+    
+    while (decodedKey !== previousKey && decodedKey.includes('%') && decodeAttempts < maxDecodeAttempts) {
       previousKey = decodedKey;
+      decodeAttempts++;
       try {
         decodedKey = decodeURIComponent(decodedKey);
       } catch (e) {
-        console.warn('⚠️ URL 디코딩 실패 (이전 값 사용):', decodedKey, e);
+        console.warn(`⚠️ URL 디코딩 실패 (시도 ${decodeAttempts}/${maxDecodeAttempts}):`, decodedKey, e);
+        // 디코딩 실패 시 이전 값 사용
+        decodedKey = previousKey;
         break;
       }
     }
@@ -77,9 +84,17 @@ export async function handleGetFile(request: Request, env: Env): Promise<Respons
     }
 
     if (!object) {
-      console.error('❌ 파일을 찾을 수 없음:', key);
+      console.error('❌ 파일을 찾을 수 없음:', {
+        key,
+        originalPath: url.pathname,
+        decodedKey: key,
+      });
       return new Response(
-        JSON.stringify({ error: 'File not found', key }),
+        JSON.stringify({ 
+          error: 'File not found', 
+          key,
+          originalPath: url.pathname,
+        }),
         {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -89,8 +104,14 @@ export async function handleGetFile(request: Request, env: Env): Promise<Respons
 
     console.log('✅ 파일 조회 성공:', key);
 
+    // CORS 헤더와 함께 응답 생성
     const headers = new Headers(corsHeaders);
-    headers.set('Content-Type', object.httpMetadata?.contentType || 'application/octet-stream');
+    const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
+    headers.set('Content-Type', contentType);
+    
+    // 캐시 헤더 추가 (이미지 성능 최적화)
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    
     if (object.httpMetadata?.contentEncoding) {
       headers.set('Content-Encoding', object.httpMetadata.contentEncoding);
     }

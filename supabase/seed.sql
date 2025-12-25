@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict DEoUwIzI0mAmcvgC5I9BHHaSg0pBpxsAi7gwgZzoXHAZnXigptuZHUy7UsIY9Gd
+-- \restrict quYvlXKaOzlrkkjRNuNaZbPKghrVeHnYO7OFCFUTeNQ3KNCleItiPKGPo24iDSA
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -172,9 +172,9 @@ INSERT INTO "public"."companies" ("id", "business_name", "business_number", "con
 -- Data for Name: campaigns; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO "public"."campaigns" ("id", "title", "description", "company_id", "product_name", "product_price", "platform", "max_participants", "current_participants", "status", "created_at", "updated_at", "product_image_url", "user_id", "campaign_type", "completed_applicants_count", "keyword", "option", "quantity", "seller", "product_number", "purchase_method", "review_type", "review_text_length", "review_image_count", "prevent_product_duplicate", "prevent_store_duplicate", "duplicate_prevent_days", "payment_method", "total_cost", "campaign_reward", "max_per_reviewer", "review_start_date", "apply_start_date", "apply_end_date", "review_end_date", "product_provision_type") VALUES
-	('68493aeb-1a01-4fbe-96e4-903915a1a0b4', '브림유 BRIMU 무타공 흡착식 욕실선반 세면대선반 U자형', '', 'd0776631-8596-4148-931d-634085bb6183', '브림유 BRIMU 무타공 흡착식 욕실선반 세면대선반 U자형', 13800, 'coupang', 10, 0, 'inactive', '2025-12-22 07:33:31.075781+00', '2025-12-22 07:33:43.575533+00', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files/campaign-images/d0776631-8596-4148-931d-634085bb6183/product/20251222163329_fd2cdf5e-4594-41cf-b892-d615f3b11301.jpg', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'store', 0, '욕실 선반', '투명실버', 1, '브림유(BRIMU)', '8325154393-24032199045', 'mobile', 'star_text', 100, NULL, true, true, 14, 'direct', 0, 1000, 1, '2025-12-23 23:00:00+00', '2025-12-22 09:30:00+00', '2025-12-22 10:00:00+00', '2025-12-27 11:00:00+00', '실배송'),
-	('53f106f9-6eac-4cef-8384-1f5ca8810f5a', '토탈블록 블록시티 장난감 블록 레고 호환 경찰특공대 858피스', '', 'd0776631-8596-4148-931d-634085bb6183', '토탈블록 블록시티 장난감 블록 레고 호환 경찰특공대 858피스', 5700, 'coupang', 10, 0, 'inactive', '2025-12-23 01:46:44.704373+00', '2025-12-23 01:46:53.613655+00', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files/campaign-images/d0776631-8596-4148-931d-634085bb6183/product/20251223104643_be94ceee-8a32-425f-a329-7d9bb54139a8.jpg', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'store', 0, '레고 블록', '', 1, '토탈블록', '', 'mobile', 'star_text', 100, NULL, true, true, 14, 'direct', 0, 1000, 1, '2025-12-24 23:00:00+00', '2025-12-23 09:30:00+00', '2025-12-23 10:00:00+00', '2025-12-28 11:00:00+00', '실배송');
+INSERT INTO "public"."campaigns" ("id", "title", "description", "company_id", "product_name", "product_price", "platform", "max_participants", "current_participants", "status", "created_at", "updated_at", "product_image_url", "user_id", "campaign_type", "completed_applicants_count", "keyword", "option", "quantity", "seller", "product_number", "purchase_method", "review_type", "review_text_length", "review_image_count", "prevent_product_duplicate", "prevent_store_duplicate", "duplicate_prevent_days", "payment_method", "total_cost", "campaign_reward", "max_per_reviewer", "review_start_date", "apply_start_date", "apply_end_date", "review_end_date", "product_provision_type", "review_keywords") VALUES
+	('68493aeb-1a01-4fbe-96e4-903915a1a0b4', '브림유 BRIMU 무타공 흡착식 욕실선반 세면대선반 U자형', '', 'd0776631-8596-4148-931d-634085bb6183', '브림유 BRIMU 무타공 흡착식 욕실선반 세면대선반 U자형', 13800, '쿠팡', 10, 0, 'inactive', '2025-12-22 07:33:31.075781+00', '2025-12-25 11:45:42.539313+00', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files/campaign-images/d0776631-8596-4148-931d-634085bb6183/product/20251222163329_fd2cdf5e-4594-41cf-b892-d615f3b11301.jpg', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'store', 0, '욕실 선반', '투명실버', 1, '브림유(BRIMU)', '8325154393-24032199045', 'mobile', 'star_text', 100, NULL, true, true, 14, 'direct', 0, 1000, 1, '2025-12-23 23:00:00+00', '2025-12-22 09:30:00+00', '2025-12-22 10:00:00+00', '2025-12-27 11:00:00+00', '실배송', NULL),
+	('53f106f9-6eac-4cef-8384-1f5ca8810f5a', '토탈블록 블록시티 장난감 블록 레고 호환 경찰특공대 858피스', '', 'd0776631-8596-4148-931d-634085bb6183', '토탈블록 블록시티 장난감 블록 레고 호환 경찰특공대 858피스', 5700, '쿠팡', 10, 0, 'active', '2025-12-23 01:46:44.704373+00', '2025-12-25 11:46:22.46788+00', 'https://7b72031b240604b8e9f88904de2f127c.r2.cloudflarestorage.com/smart-review-files/campaign-images/d0776631-8596-4148-931d-634085bb6183/product/20251223104643_be94ceee-8a32-425f-a329-7d9bb54139a8.jpg', '4f0b890f-c88f-44c6-9f4a-e3e8b274d9c8', 'store', 0, '레고 블록', '', 1, '토탈블록', '', 'mobile', 'star_text', 100, NULL, true, true, 14, 'direct', 0, 1000, 1, '2025-12-26 23:00:00+00', '2025-12-25 09:30:00+00', '2025-12-26 10:00:00+00', '2025-12-28 11:00:00+00', '실배송', NULL);
 
 
 --
@@ -302,6 +302,6 @@ SELECT pg_catalog.setval('"supabase_functions"."hooks_id_seq"', 1, false);
 -- PostgreSQL database dump complete
 --
 
--- \unrestrict DEoUwIzI0mAmcvgC5I9BHHaSg0pBpxsAi7gwgZzoXHAZnXigptuZHUy7UsIY9Gd
+-- \unrestrict quYvlXKaOzlrkkjRNuNaZbPKghrVeHnYO7OFCFUTeNQ3KNCleItiPKGPo24iDSA
 
 RESET ALL;

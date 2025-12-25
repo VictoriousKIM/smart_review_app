@@ -417,17 +417,17 @@ class _SNSConnectionSectionState extends State<SNSConnectionSection> {
   // 각 플랫폼별 확장 상태 관리
   final Map<String, bool> _expandedPlatforms = {};
 
-  // 플랫폼 정보
+  // 플랫폼 정보 (한글 ID 사용)
   final List<Map<String, dynamic>> _platforms = [
     {
-      'id': 'coupang',
+      'id': '쿠팡',
       'name': '쿠팡',
       'icon': Icons.shopping_cart,
       'color': const Color(0xFFFF6B00),
     },
     {
-      'id': 'smartstore',
-      'name': '스마트스토어',
+      'id': 'N스토어',
+      'name': 'N스토어',
       'icon': Icons.store,
       'color': const Color(0xFF137fec),
     },

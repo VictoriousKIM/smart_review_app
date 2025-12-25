@@ -20,13 +20,6 @@ class _CampaignCardState extends State<CampaignCard> {
   Widget build(BuildContext context) {
     final now = DateTimeUtils.nowKST();
     final isUpcoming = widget.campaign.applyStartDate.isAfter(now);
-    final isRecruiting =
-        !isUpcoming &&
-        widget.campaign.status == CampaignStatus.active &&
-        !widget.campaign.applyEndDate.isBefore(now) &&
-        (widget.campaign.maxParticipants == null ||
-            widget.campaign.currentParticipants <
-                widget.campaign.maxParticipants!);
 
     return Card(
       elevation: 2,
@@ -127,8 +120,8 @@ class _CampaignCardState extends State<CampaignCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.max,
                     children: [
-                      // 1. 상단 라벨 레이어 (신청가능, 플랫폼, 배송여부, 지급여부)
-                      _buildTopLabels(isRecruiting, isUpcoming),
+                      // 1. 상단 라벨 레이어 (플랫폼, 배송여부, 지급여부)
+                      _buildTopLabels(),
                       const SizedBox(height: 6),
                       // 2. 제목 (볼드체)
                       Expanded(
@@ -162,30 +155,21 @@ class _CampaignCardState extends State<CampaignCard> {
     );
   }
 
-  Widget _buildTopLabels(bool isRecruiting, bool isUpcoming) {
+  Widget _buildTopLabels() {
     return Wrap(
       spacing: 4,
       runSpacing: 4,
       children: [
-        // 신청 가능 여부
-        if (isUpcoming)
-          _buildSmallLabel('오픈 예정', Colors.orange)
-        else if (isRecruiting)
-          _buildSmallLabel('신청 가능', Colors.green)
-        else
-          _buildSmallLabel('마감', Colors.red),
-
         // 플랫폼
         _buildSmallLabel(
-          _getPlatformName(widget.campaign.platform),
+          widget.campaign.platform.isNotEmpty
+              ? widget.campaign.platform
+              : '알 수 없음',
           Colors.grey[700]!,
         ),
 
         // 배송 여부
-        _buildSmallLabel(
-          _getProvisionTypeName(widget.campaign.productProvisionType),
-          Colors.blueGrey,
-        ),
+        _buildSmallLabel(widget.campaign.productProvisionType, Colors.blueGrey),
 
         // 지급 여부
         _buildSmallLabel(
@@ -222,14 +206,6 @@ class _CampaignCardState extends State<CampaignCard> {
     );
   }
 
-  String _getProvisionTypeName(String? type) {
-    // DB에 한글로 저장되므로 그대로 반환
-    if (type == null || type.isEmpty) {
-      return '실배송';
-    }
-    return type;
-  }
-
   Widget _buildParticipantsInfo() {
     final isFull =
         widget.campaign.maxParticipants != null &&
@@ -242,7 +218,7 @@ class _CampaignCardState extends State<CampaignCard> {
         Text('신청인원', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
         const Spacer(),
         Text(
-          '${widget.campaign.currentParticipants.toString().padLeft(2, '0')}${widget.campaign.maxParticipants != null ? '/${widget.campaign.maxParticipants.toString().padLeft(2, '0')}' : ''}명',
+          '${widget.campaign.currentParticipants.toString()}${widget.campaign.maxParticipants != null ? '/${widget.campaign.maxParticipants.toString()}' : ''}',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
@@ -256,16 +232,9 @@ class _CampaignCardState extends State<CampaignCard> {
   Widget _buildPriceInfo() {
     return Column(
       children: [
-        _buildPriceRow(
-          '제품 가격',
-          '${widget.campaign.productPrice.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]},")}원',
-        ),
+        _buildPriceRow('제품 가격', widget.campaign.productPrice.toString()),
         const SizedBox(height: 2),
-        _buildPriceRow(
-          '리뷰 보상',
-          '${widget.campaign.campaignReward.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]},")}P',
-          isReward: true,
-        ),
+        _buildPriceRow('리뷰 보상', widget.campaign.campaignReward.toString()),
       ],
     );
   }
@@ -285,29 +254,6 @@ class _CampaignCardState extends State<CampaignCard> {
         ),
       ],
     );
-  }
-
-  String _getPlatformName(String? platform) {
-    if (platform == null || platform.isEmpty || platform.trim().isEmpty) {
-      return '알 수 없음';
-    }
-
-    switch (platform.toLowerCase().trim()) {
-      case 'coupang':
-        return '쿠팡';
-      case 'naver':
-        return '네이버 쇼핑';
-      case '11st':
-      case '11번가':
-        return '11번가';
-      case 'visit':
-      case '방문형':
-        return '방문형';
-      default:
-        // 알 수 없는 플랫폼이면 원본 값 반환 (디버깅용)
-        debugPrint('⚠️ 알 수 없는 플랫폼: $platform');
-        return platform;
-    }
   }
 }
 

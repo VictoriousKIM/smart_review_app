@@ -18,20 +18,42 @@ class UnifiedSessionManager {
     SupabaseSessionProvider(), // Supabase 세션 (카카오, 구글)
   ];
 
+  /// 세션 캐시 (반복 호출 방지)
+  SessionInfo? _cachedSession;
+  DateTime? _cacheTimestamp;
+  static const _cacheDuration = Duration(seconds: 5); // 5초간 캐시 유지
+
   /// 현재 활성 세션을 가져옵니다
   /// 여러 세션 제공자 중 가장 우선순위가 높은 세션을 반환합니다
-  Future<SessionInfo?> getActiveSession() async {
+  /// 캐싱을 통해 반복 호출 방지
+  Future<SessionInfo?> getActiveSession({bool forceRefresh = false}) async {
+    // 캐시가 유효하면 캐시된 세션 반환
+    if (!forceRefresh &&
+        _cachedSession != null &&
+        _cacheTimestamp != null &&
+        DateTime.now().difference(_cacheTimestamp!) < _cacheDuration &&
+        !_cachedSession!.isExpired) {
+      return _cachedSession;
+    }
+
+    // 캐시가 없거나 만료되었으면 새로 조회
     for (var provider in _providers) {
       try {
         final session = await provider.getSession();
         if (session != null && !session.isExpired) {
-          debugPrint('✅ 활성 세션 발견: ${provider.providerName}');
+          // 캐시에 저장
+          _cachedSession = session;
+          _cacheTimestamp = DateTime.now();
           return session;
         }
       } catch (e) {
         debugPrint('⚠️ ${provider.providerName} 세션 조회 중 에러: $e');
       }
     }
+
+    // 세션이 없으면 캐시 초기화
+    _cachedSession = null;
+    _cacheTimestamp = null;
     return null;
   }
 
@@ -41,8 +63,17 @@ class UnifiedSessionManager {
     return session != null;
   }
 
+  /// 세션 캐시 초기화 (세션 변경 시 호출)
+  void clearCache() {
+    _cachedSession = null;
+    _cacheTimestamp = null;
+  }
+
   /// 모든 세션을 삭제합니다
   Future<void> clearAllSessions() async {
+    // 캐시 초기화
+    clearCache();
+    
     for (var provider in _providers) {
       try {
         await provider.clearSession();
@@ -55,6 +86,9 @@ class UnifiedSessionManager {
 
   /// 특정 제공자의 세션만 삭제합니다
   Future<void> clearSessionByProvider(String providerName) async {
+    // 캐시 초기화
+    clearCache();
+    
     for (var provider in _providers) {
       if (provider.providerName == providerName) {
         try {

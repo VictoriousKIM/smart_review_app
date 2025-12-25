@@ -43,6 +43,10 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
   Timer? _updateTimer;
   DateTime? _lastParticipantsUpdate;
 
+  // 이미지 URL 캐싱 (리빌드 방지)
+  String? _cachedImageUrl;
+  String? _lastCampaignId;
+
   @override
   void initState() {
     super.initState();
@@ -103,6 +107,12 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
     if (!mounted) return;
 
     if (event.isUpdate && event.campaign != null) {
+      // 캠페인 ID가 변경되면 이미지 URL 캐시 초기화
+      if (_lastCampaignId != event.campaign!.id) {
+        _cachedImageUrl = null;
+        _lastCampaignId = null;
+      }
+
       // Provider invalidate하여 캠페인 정보 새로고침
       ref.invalidate(campaignDetailProvider(widget.campaignId));
       debugPrint('🔄 캠페인 정보 새로고침: ${event.campaign!.id}');
@@ -176,6 +186,14 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
     WidgetRef ref,
     Campaign campaign,
   ) {
+    // 캠페인 ID가 변경되면 이미지 URL 재계산
+    if (_lastCampaignId != campaign.id) {
+      _lastCampaignId = campaign.id;
+      _cachedImageUrl = CloudflareWorkersService.convertToProxyUrl(
+        campaign.productImageUrl,
+      );
+    }
+
     return ResponsiveBuilder(
       builder: (context, sizingInformation) {
         return SingleChildScrollView(
@@ -192,226 +210,235 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-          // 이미지
-          Container(
-            width: double.infinity,
-            height: 250,
-            color: Colors.grey[100],
-            child: CachedNetworkImage(
-              imageUrl: CloudflareWorkersService.convertToProxyUrl(
-                campaign.productImageUrl,
-              ),
-              width: double.infinity,
-              height: 250,
-              fit: BoxFit.contain,
-              placeholder: (context, url) => Container(
-                height: 250,
-                color: Colors.grey[200],
-                child: const Center(child: CircularProgressIndicator()),
-              ),
-              errorWidget: (context, url, error) => Container(
-                height: 250,
-                color: Colors.grey[200],
-                child: const Icon(Icons.error, size: 64),
-              ),
-            ),
-          ),
+                  // 이미지
+                  Container(
+                    width: double.infinity,
+                    height: 250,
+                    color: Colors.grey[100],
+                    child: CachedNetworkImage(
+                      imageUrl: _cachedImageUrl ?? campaign.productImageUrl,
+                      width: double.infinity,
+                      height: 250,
+                      fit: BoxFit.contain,
+                      placeholder: (context, url) => Container(
+                        height: 250,
+                        color: Colors.grey[200],
+                        child: const Center(child: CircularProgressIndicator()),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        height: 250,
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.error, size: 64),
+                      ),
+                    ),
+                  ),
 
                   Padding(
                     padding: getValueForScreenType<EdgeInsets>(
                       context: context,
                       mobile: const EdgeInsets.all(24),
-                      tablet: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-                      desktop: const EdgeInsets.symmetric(horizontal: 60, vertical: 32),
-                    ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 플랫폼
-                Text(
-                  _getPlatformName(campaign.platform),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // 제목
-                Text(
-                  campaign.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // 설명
-                Text(
-                  campaign.description,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-
-                const SizedBox(height: 24),
-
-                // 리워드 정보
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.card_giftcard,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 24,
+                      tablet: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 24,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '리워드',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${campaign.campaignReward}P',
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                          ],
+                      desktop: const EdgeInsets.symmetric(
+                        horizontal: 60,
+                        vertical: 32,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 플랫폼
+                        Text(
+                          campaign.platform.isNotEmpty
+                              ? campaign.platform
+                              : '알 수 없음',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
 
-                const SizedBox(height: 24),
+                        const SizedBox(height: 8),
 
-                // 캠페인 정보
-                _buildInfoSection(context, '캠페인 정보', [
-                  _buildInfoItem(
-                    context,
-                    '캠페인 타입',
-                    _getCategoryName(campaign.campaignType),
-                  ),
-                  _buildInfoItem(
-                    context,
-                    '마감일',
-                    _formatDeadline(campaign.applyEndDate),
-                  ),
-                  _buildInfoItem(
-                    context,
-                    '참여자 수',
-                    '${campaign.currentParticipants}명',
-                  ),
-                  if (campaign.maxParticipants != null)
-                    _buildInfoItem(
-                      context,
-                      '최대 참여자',
-                      '${campaign.maxParticipants}명',
+                        // 제목
+                        Text(
+                          campaign.title,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // 설명
+                        Text(
+                          campaign.description,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // 리워드 정보
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.card_giftcard,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '리워드',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${campaign.campaignReward}P',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // 캠페인 정보
+                        _buildInfoSection(context, '캠페인 정보', [
+                          _buildInfoItem(
+                            context,
+                            '캠페인 타입',
+                            _getCategoryName(campaign.campaignType),
+                          ),
+                          _buildInfoItem(
+                            context,
+                            '마감일',
+                            _formatDeadline(campaign.applyEndDate),
+                          ),
+                          _buildInfoItem(
+                            context,
+                            '참여자 수',
+                            '${campaign.currentParticipants}명',
+                          ),
+                          if (campaign.maxParticipants != null)
+                            _buildInfoItem(
+                              context,
+                              '최대 참여자',
+                              '${campaign.maxParticipants}명',
+                            ),
+                        ]),
+
+                        // 참여 조건 (새로운 모델에서는 requirements가 없으므로 제거)
+                        // if (campaign.requirements.isNotEmpty) ...[
+                        //   const SizedBox(height: 24),
+                        //   _buildInfoSection(
+                        //     context,
+                        //     '참여 조건',
+                        //     campaign.requirements
+                        //         .map((req) => _buildInfoItem(context, '', '• $req'))
+                        //         .toList(),
+                        //   ),
+                        // ],
+
+                        // 태그 (새로운 모델에서는 tags가 없으므로 제거)
+                        // if (campaign.tags.isNotEmpty) ...[
+                        //   const SizedBox(height: 24),
+                        //   _buildInfoSection(context, '태그', [
+                        //     Wrap(
+                        //       spacing: 8,
+                        //       runSpacing: 8,
+                        //       children: campaign.tags
+                        //           .map(
+                        //             (tag) => Chip(
+                        //               label: Text(tag),
+                        //               backgroundColor: Theme.of(
+                        //                 context,
+                        //               ).colorScheme.primary.withValues(alpha: 0.1),
+                        //               labelStyle: TextStyle(
+                        //                 color: Theme.of(context).colorScheme.primary,
+                        //                 fontSize: 12,
+                        //               ),
+                        //             ),
+                        //           )
+                        //           .toList(),
+                        //     ),
+                        //   ]),
+                        // ],
+                        const SizedBox(height: 32),
+
+                        // 참여 버튼
+                        CustomButton(
+                          text: '캠페인 참여하기',
+                          onPressed: _isDuplicate || _isCheckingDuplicate
+                              ? null
+                              : () => _joinCampaign(context, ref, campaign),
+                          width: double.infinity,
+                          backgroundColor: _isDuplicate ? Colors.grey : null,
+                        ),
+
+                        // 중복 안내 메시지
+                        if (_isDuplicate && _duplicateMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              _duplicateMessage!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+
+                        const SizedBox(height: 16),
+
+                        // 공유 버튼
+                        CustomButton(
+                          text: '공유하기',
+                          onPressed: () => _shareCampaign(context, campaign),
+                          backgroundColor: Colors.white,
+                          textColor: Theme.of(context).colorScheme.primary,
+                          borderColor: Theme.of(context).colorScheme.primary,
+                          width: double.infinity,
+                        ),
+                      ],
                     ),
-                ]),
-
-                // 참여 조건 (새로운 모델에서는 requirements가 없으므로 제거)
-                // if (campaign.requirements.isNotEmpty) ...[
-                //   const SizedBox(height: 24),
-                //   _buildInfoSection(
-                //     context,
-                //     '참여 조건',
-                //     campaign.requirements
-                //         .map((req) => _buildInfoItem(context, '', '• $req'))
-                //         .toList(),
-                //   ),
-                // ],
-
-                // 태그 (새로운 모델에서는 tags가 없으므로 제거)
-                // if (campaign.tags.isNotEmpty) ...[
-                //   const SizedBox(height: 24),
-                //   _buildInfoSection(context, '태그', [
-                //     Wrap(
-                //       spacing: 8,
-                //       runSpacing: 8,
-                //       children: campaign.tags
-                //           .map(
-                //             (tag) => Chip(
-                //               label: Text(tag),
-                //               backgroundColor: Theme.of(
-                //                 context,
-                //               ).colorScheme.primary.withValues(alpha: 0.1),
-                //               labelStyle: TextStyle(
-                //                 color: Theme.of(context).colorScheme.primary,
-                //                 fontSize: 12,
-                //               ),
-                //             ),
-                //           )
-                //           .toList(),
-                //     ),
-                //   ]),
-                // ],
-                const SizedBox(height: 32),
-
-                // 참여 버튼
-                CustomButton(
-                  text: '캠페인 참여하기',
-                  onPressed: _isDuplicate || _isCheckingDuplicate
-                      ? null
-                      : () => _joinCampaign(context, ref, campaign),
-                  width: double.infinity,
-                  backgroundColor: _isDuplicate ? Colors.grey : null,
-                ),
-
-                // 중복 안내 메시지
-                if (_isDuplicate && _duplicateMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _duplicateMessage!,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
                   ),
-
-                const SizedBox(height: 16),
-
-                // 공유 버튼
-                CustomButton(
-                  text: '공유하기',
-                  onPressed: () => _shareCampaign(context, campaign),
-                  backgroundColor: Colors.white,
-                  textColor: Theme.of(context).colorScheme.primary,
-                  borderColor: Theme.of(context).colorScheme.primary,
-                  width: double.infinity,
-                ),
-              ],
-            ),
-          ),
                 ],
               ),
             ),
@@ -477,21 +504,6 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
         return '기자단';
       case CampaignCategory.visit:
         return '방문형';
-    }
-  }
-
-  String _getPlatformName(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'coupang':
-        return '쿠팡';
-      case 'naver':
-        return '네이버 쇼핑';
-      case '11st':
-        return '11번가';
-      case 'visit':
-        return '방문형';
-      default:
-        return platform;
     }
   }
 
@@ -580,39 +592,39 @@ class _CampaignDetailScreenState extends ConsumerState<CampaignDetailScreen> {
       );
 
       if (!mounted) return;
-        Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
 
-        if (result.success) {
+      if (result.success) {
         if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('캠페인 신청이 완료되었습니다.'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-          // 캠페인 상세 정보 새로고침
-          ref.invalidate(campaignDetailProvider(widget.campaignId));
-        } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('캠페인 신청이 완료되었습니다.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        // 캠페인 상세 정보 새로고침
+        ref.invalidate(campaignDetailProvider(widget.campaignId));
+      } else {
         if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result.error ?? '신청에 실패했습니다.'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-      }
-    } catch (e) {
-      if (!mounted) return;
-        Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+            content: Text(result.error ?? '신청에 실패했습니다.'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 2),
           ),
         );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ErrorMessageUtils.getUserFriendlyMessage(e)),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 

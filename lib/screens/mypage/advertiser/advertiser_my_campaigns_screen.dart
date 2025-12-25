@@ -1097,17 +1097,12 @@ class _AdvertiserMyCampaignsScreenState
         ],
       ),
       child: InkWell(
-        onTap: () => context
-            .pushNamed(
-              'advertiser-campaign-detail',
-              pathParameters: {'id': campaign.id},
-            )
-            .then((result) {
-              // 디테일 화면에서 상태 변경이 있었으면 새로고침
-              if (result == true) {
-                _loadCampaigns();
-              }
-            }),
+        onTap: () {
+          final targetPath = '/mypage/advertiser/my-campaigns/${campaign.id}';
+          debugPrint('🚀 캠페인 상세 화면으로 이동: $targetPath');
+          // 웹에서 URL을 업데이트하려면 context.go() 사용
+          context.go(targetPath);
+        },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),

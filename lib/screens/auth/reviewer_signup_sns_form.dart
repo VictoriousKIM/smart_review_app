@@ -101,25 +101,19 @@ class _ReviewerSignupSNSFormState extends State<ReviewerSignupSNSForm> {
   }
 
   String _getPlatformDisplayName(String platform) {
-    const platformNames = {
-      'blog': '네이버 블로그',
-      'instagram': '인스타그램',
-      'coupang': '쿠팡',
-      'smartstore': '스마트스토어',
-      'kakao': '카카오',
-    };
-    return platformNames[platform.toLowerCase()] ?? platform;
+    // 한글로 직접 저장하므로 그대로 반환
+    return platform;
   }
 
-  // 스토어 플랫폼 목록 (회원가입용)
+  // 스토어 플랫폼 목록 (회원가입용, 한글)
   static const List<String> _storePlatforms = [
-    'coupang',
-    'smartstore',
-    'kakao',
+    '쿠팡',
+    'N스토어',
+    '카카오',
   ];
 
-  // SNS 플랫폼 목록 (회원가입용)
-  static const List<String> _snsPlatforms = ['blog', 'instagram'];
+  // SNS 플랫폼 목록 (회원가입용, 한글)
+  static const List<String> _snsPlatforms = ['네이버 블로그', '인스타그램'];
 
   @override
   Widget build(BuildContext context) {

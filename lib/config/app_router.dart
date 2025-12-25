@@ -510,16 +510,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
 
           // [3] 리뷰어 마이페이지
-          GoRoute(
-            path: '/mypage/reviewer',
-            name: 'mypage-reviewer',
-            // redirect 제거: 어드민과 동일한 패턴으로 새로고침 시 경로 유지
-            // 별도 위젯으로 분리하여 ref.watch() 재평가 방지
-            builder: (context, state) =>
-                const MyPageRouteWrapper(routeType: 'reviewer'),
+          ShellRoute(
+            builder: (context, state, child) {
+              return MyPageRouteWrapper(routeType: 'reviewer', child: child);
+            },
             routes: [
               GoRoute(
-                path: 'my-campaigns',
+                path: '/mypage/reviewer',
+                name: 'mypage-reviewer',
+                builder: (context, state) =>
+                    const SizedBox.shrink(), // 빈 위젯 (MyPageRouteWrapper가 처리)
+              ),
+              GoRoute(
+                path: '/mypage/reviewer/my-campaigns',
                 name: 'reviewer-my-campaigns',
                 builder: (context, state) {
                   final initialTab = state.uri.queryParameters['tab'];
@@ -527,12 +530,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
               GoRoute(
-                path: 'reviews',
+                path: '/mypage/reviewer/reviews',
                 name: 'reviewer-reviews',
                 builder: (context, state) => const ReviewerReviewsScreen(),
               ),
               GoRoute(
-                path: 'points',
+                path: '/mypage/reviewer/points',
                 name: 'reviewer-points',
                 builder: (context, state) =>
                     const PointsScreen(userType: 'reviewer'),
@@ -566,12 +569,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 ],
               ),
               GoRoute(
-                path: 'sns',
+                path: '/mypage/reviewer/sns',
                 name: 'reviewer-sns',
                 builder: (context, state) => const SNSConnectionScreen(),
               ),
               GoRoute(
-                path: 'company-request',
+                path: '/mypage/reviewer/company-request',
                 name: 'reviewer-company-request',
                 builder: (context, state) =>
                     const ReviewerCompanyRequestScreen(),
@@ -580,16 +583,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
 
           // [4] 광고주 마이페이지
-          GoRoute(
-            path: '/mypage/advertiser',
-            name: 'mypage-advertiser',
-            // redirect 제거: 어드민과 동일한 패턴으로 새로고침 시 경로 유지
-            // 별도 위젯으로 분리하여 ref.watch() 재평가 방지
-            builder: (context, state) =>
-                const MyPageRouteWrapper(routeType: 'advertiser'),
+          ShellRoute(
+            builder: (context, state, child) {
+              return MyPageRouteWrapper(routeType: 'advertiser', child: child);
+            },
             routes: [
               GoRoute(
-                path: 'my-campaigns',
+                path: '/mypage/advertiser',
+                name: 'mypage-advertiser',
+                builder: (context, state) =>
+                    const SizedBox.shrink(), // 빈 위젯 (MyPageRouteWrapper가 처리)
+              ),
+              GoRoute(
+                path: '/mypage/advertiser/my-campaigns',
                 name: 'advertiser-my-campaigns',
                 builder: (context, state) {
                   final initialTab = state.uri.queryParameters['tab'];
@@ -602,14 +608,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) => const CampaignCreationScreen(),
                   ),
                   GoRoute(
-                    path: 'edit/:id',
-                    name: 'advertiser-campaign-edit',
-                    builder: (context, state) {
-                      final campaignId = state.pathParameters['id']!;
-                      return CampaignEditScreen(campaignId: campaignId);
-                    },
-                  ),
-                  GoRoute(
                     path: ':id',
                     name: 'advertiser-campaign-detail',
                     builder: (context, state) {
@@ -618,37 +616,47 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         campaignId: campaignId,
                       );
                     },
+                    routes: [
+                      GoRoute(
+                        path: 'edit',
+                        name: 'advertiser-campaign-edit',
+                        builder: (context, state) {
+                          final campaignId = state.pathParameters['id']!;
+                          return CampaignEditScreen(campaignId: campaignId);
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
               GoRoute(
-                path: 'analytics',
+                path: '/mypage/advertiser/analytics',
                 name: 'advertiser-analytics',
                 builder: (context, state) => const AdvertiserAnalyticsScreen(),
               ),
               GoRoute(
-                path: 'participants',
+                path: '/mypage/advertiser/participants',
                 name: 'advertiser-participants',
                 builder: (context, state) =>
                     const AdvertiserParticipantsScreen(),
               ),
               GoRoute(
-                path: 'managers',
+                path: '/mypage/advertiser/managers',
                 name: 'advertiser-managers',
                 builder: (context, state) => const AdvertiserManagerScreen(),
               ),
               GoRoute(
-                path: 'reviewers',
+                path: '/mypage/advertiser/reviewers',
                 name: 'advertiser-reviewers',
                 builder: (context, state) => const AdvertiserReviewerScreen(),
               ),
               GoRoute(
-                path: 'penalties',
+                path: '/mypage/advertiser/penalties',
                 name: 'advertiser-penalties',
                 builder: (context, state) => const AdvertiserPenaltiesScreen(),
               ),
               GoRoute(
-                path: 'points',
+                path: '/mypage/advertiser/points',
                 name: 'advertiser-points',
                 builder: (context, state) =>
                     const PointsScreen(userType: 'advertiser'),
